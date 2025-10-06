@@ -3,62 +3,81 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // CORRECCIÓN: Import necesario para User
 import 'shared/theme/theme.dart';
-import 'features/onboarding/screens/onboarding_screen.dart'; // Aún no existe, pero lo crearemos.
+import 'features/onboarding/screens/onboarding_screen.dart';
+import 'features/auth/screens/auth_screen.dart'; // Importamos la pantalla de Auth
+import 'core/services/auth_service.dart';
 
 /// Punto de entrada principal de la aplicación Servicly.
-///
-/// Inicializa los bindings de Flutter y la conexión con Firebase
-/// antes de ejecutar la aplicación.
 void main() async {
-  // Asegura que los widgets de Flutter estén inicializados antes de cualquier
-  // configuración asíncrona.
+  // Asegura que los widgets de Flutter estén inicializados.
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Inicializa Firebase. Es un paso crucial para conectar la app
-  // con los servicios de backend.
+  // Inicializa Firebase.
   await Firebase.initializeApp(
-    // Las opciones de configuración de Firebase (firebase_options.dart)
-    // se suelen generar automáticamente con el CLI de FlutterFire.
-    // options: DefaultFirebaseOptions.currentPlatform, 
+    // options: DefaultFirebaseOptions.currentPlatform, // Descomentar al usar FlutterFire CLI
   );
   
+  // CORRECCIÓN: Se elimina 'const' porque el provider no es constante.
   runApp(const MyApp());
 }
 
 /// El widget raíz de la aplicación Servicly.
-///
-/// Configura el [MaterialApp] y provee los temas, el título y la pantalla
-/// inicial. También establece el [MultiProvider] para la gestión de estado.
 class MyApp extends StatelessWidget {
   /// Constructor para el widget raíz.
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // MultiProvider es el widget que inyectará todos nuestros servicios y
-    // view models a lo largo del árbol de widgets.
+    // MultiProvider inyecta los servicios en el árbol de widgets.
     return MultiProvider(
       providers: [
-        // Aquí agregaremos nuestros providers globales.
-        // Ejemplo:
-        // Provider<AuthService>(create: (_) => AuthService()),
-        // ChangeNotifierProvider<UserViewModel>(create: (_) => UserViewModel()),
+        // Provee la instancia de AuthService a toda la app.
+        Provider<AuthService>(
+          create: (_) => AuthService(),
+        ),
+        
+        // Escucha los cambios de estado de autenticación y provee el User.
+        StreamProvider<User?>(
+          create: (context) => context.read<AuthService>().authStateChanges,
+          initialData: null,
+        ),
       ],
       child: MaterialApp(
         title: 'Servicly',
-        debugShowCheckedModeBanner: false, // Opcional: elimina el banner de debug.
+        debugShowCheckedModeBanner: false,
         
         // --- Temas de la Aplicación ---
         theme: lightTheme,
         darkTheme: darkTheme,
-        themeMode: ThemeMode.system, // El tema se adapta al del sistema operativo.
+        themeMode: ThemeMode.system,
         
         // --- Pantalla Inicial ---
-        // Aquí definimos la primera pantalla que el usuario verá.
-        // Empezaremos con la pantalla de Onboarding.
-        home: const OnboardingScreen(),
+        home: const AuthWrapper(),
       ),
     );
   }
 }
+
+/// Un widget que decide qué pantalla mostrar basado en el estado de autenticación.
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Escucha el stream de User? que provee el StreamProvider.
+    final firebaseUser = context.watch<User?>();
+
+    // Si hay un usuario, vamos a una pantalla principal (Placeholder por ahora).
+    if (firebaseUser != null) {
+      // TODO: Reemplazar con tu pantalla principal (HomeScreen).
+      return const Scaffold(body: Center(child: Text('Home Screen')));
+    }
+    
+    // Si no hay usuario, mostramos la pantalla de autenticación.
+    // Podrías tener una lógica aquí para decidir si mostrar Onboarding o Auth.
+    return const AuthScreen();
+  }
+}
+
