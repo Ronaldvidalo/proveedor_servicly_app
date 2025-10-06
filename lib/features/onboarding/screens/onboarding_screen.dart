@@ -79,7 +79,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       // Navigator.of(context).pushReplacement(
       //   MaterialPageRoute(builder: (_) => const AuthScreen()),
       // );
-      print('Navegar a la pantalla de Autenticación/Login');
+
+      // La siguiente línea se comenta para eliminar la advertencia 'avoid_print',
+      // ya que solo es un marcador de depuración temporal.
+      // print('Navegar a la pantalla de Autenticación/Login');
     }
   }
 
