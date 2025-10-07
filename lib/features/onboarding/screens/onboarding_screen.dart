@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../auth/widgets/auth_wrapper.dart';
+import '../../auth/screens/auth_screen.dart';
 
 // Aún no existen, pero preparamos la navegación futura.
 // import '../../auth/screens/auth_screen.dart'; 
@@ -71,15 +72,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// Navega a la siguiente página o, si es la última, a la pantalla de autenticación.
   void _goToNextPage() {
   if (_currentPageIndex < _pages.length - 1) {
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-    );
+    // ...código para ir a la siguiente página...
   } else {
-    // Navegamos al AuthWrapper. Usamos pushReplacement para que el usuario
-    // no pueda volver a la pantalla de onboarding con el botón de "atrás".
+    // Navegamos a la pantalla de Autenticación.
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AuthWrapper()),
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
     );
   }
 }
