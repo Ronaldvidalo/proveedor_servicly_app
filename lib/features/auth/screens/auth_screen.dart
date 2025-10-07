@@ -1,14 +1,14 @@
-/// lib/features/auth/screens/auth_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/auth_service.dart';
+import 'dart:math' as math; // Necesario para el logo de Google.
 
 /// Define los dos modos posibles de la pantalla de autenticación.
 enum AuthMode { login, register }
 
-/// Pantalla para manejar el inicio de sesión y el registro de usuarios.
+/// Pantalla para manejar el inicio de sesión y el registro de usuarios con un
+/// diseño moderno y profesional estilo "Cyber Glow".
 class AuthScreen extends StatefulWidget {
   /// Constructor para AuthScreen.
   const AuthScreen({super.key});
@@ -17,19 +17,44 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   var _authMode = AuthMode.login;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   var _isLoading = false;
+  
+  // UX Improvement: Control de visibilidad para los campos de contraseña.
+  bool _isPasswordObscured = true;
+  bool _isConfirmPasswordObscured = true;
+
+  // UI Polish: Animación para la transición entre modos.
+  // FIX: Se cambiaron a nulables para evitar LateInitializationError durante hot reloads.
+  AnimationController? _animationController;
+  Animation<double>? _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // UI Polish: Controlador para una transición suave al cambiar de modo.
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    // FIX: Se asegura que el controlador no sea nulo al crear la animación.
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _animationController!, curve: Curves.easeInOut));
+    _animationController?.forward();
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    // FIX: Se usa el operador '?' para desechar el controlador de forma segura.
+    _animationController?.dispose();
     super.dispose();
   }
 
@@ -39,6 +64,13 @@ class _AuthScreenState extends State<AuthScreen> {
       _authMode =
           _authMode == AuthMode.login ? AuthMode.register : AuthMode.login;
       _formKey.currentState?.reset();
+      _emailController.clear();
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+      
+      // UI Polish: Reinicia la animación para un efecto de "fade-in" en el nuevo contenido.
+      // FIX: Se usa el operador '?' para reiniciar la animación de forma segura.
+      _animationController?.forward(from: 0.0);
     });
   }
 
@@ -49,7 +81,6 @@ class _AuthScreenState extends State<AuthScreen> {
     
     setState(() => _isLoading = true);
 
-    // Obtiene la instancia del AuthService desde el Provider.
     final authService = context.read<AuthService>();
 
     try {
@@ -64,7 +95,6 @@ class _AuthScreenState extends State<AuthScreen> {
           password: _passwordController.text.trim(),
         );
       }
-      // La navegación a Home se gestionará automáticamente escuchando el authStateChanges.
     } on FirebaseAuthException catch (error) {
       final errorMessage = _handleAuthException(error);
       _showErrorSnackbar(errorMessage);
@@ -84,7 +114,6 @@ class _AuthScreenState extends State<AuthScreen> {
     
     try {
       await authService.signInWithGoogle();
-      // La navegación también se gestionará automáticamente.
     } catch (error) {
       _showErrorSnackbar('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
     }
@@ -114,11 +143,16 @@ class _AuthScreenState extends State<AuthScreen> {
   
   /// Muestra un SnackBar con un mensaje de error.
   void _showErrorSnackbar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        // UI Polish: El color de error ahora tiene un aspecto más integrado.
+        backgroundColor: Colors.redAccent.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
@@ -128,117 +162,392 @@ class _AuthScreenState extends State<AuthScreen> {
     final isLogin = _authMode == AuthMode.login;
     final textTheme = Theme.of(context).textTheme;
 
+    // --- Definición del Tema "Cyber Glow" ---
+    const primaryColor = Color(0xFF00BFFF); // Azul eléctrico brillante
+    const backgroundColor = Color(0xFF1A1A2E); // Azul oscuro casi negro
+    const surfaceColor = Color(0xFF2D2D5A); // Superficie ligeramente más clara
+    const textColor = Colors.white;
+
+    // FIX: Se añade una comprobación para asegurar que las animaciones estén inicializadas.
+    // Si no lo están, muestra un loader para prevenir el error.
+    if (_fadeAnimation == null) {
+      return const Scaffold(
+        backgroundColor: backgroundColor,
+        body: Center(child: CircularProgressIndicator(color: primaryColor)),
+      );
+    }
+    
     return Scaffold(
+      backgroundColor: backgroundColor,
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
+          // UI Polish: Padding reducido para un look más compacto.
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // --- Logo de la App ---
+              // UX/UI Best Practice: Añadir el logo al inicio refuerza la identidad
+              // de la marca y genera confianza en el usuario. Se utiliza un icono
+              // como placeholder que puede ser reemplazado fácilmente por una imagen.
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: surfaceColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.3),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.shield_moon_rounded, // Placeholder: Reemplazar con el logo.
+                  size: 60,
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(height: 32),
+
               // --- Título de la pantalla ---
-              Text(
-                isLogin ? 'Bienvenido de Nuevo' : 'Crea tu Cuenta',
-                style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
+              // UI Polish: Animación para el cambio de título.
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, -0.5),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: Text(
+                  isLogin ? 'Bienvenido de Nuevo' : 'Crea tu Cuenta',
+                  key: ValueKey(_authMode), // Clave para que el switcher detecte el cambio.
+                  style: textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                    letterSpacing: 1.2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 isLogin ? 'Ingresa para continuar' : 'Completa los datos para empezar',
-                style: textTheme.bodyLarge,
+                style: textTheme.titleMedium?.copyWith(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
 
               // --- Formulario ---
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(labelText: 'Correo Electrónico'),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || !value.contains('@')) return 'Correo inválido.';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: const InputDecoration(labelText: 'Contraseña'),
-                      obscureText: true,
-                      validator: (value) {
-                        if (value == null || value.length < 6) return 'La contraseña es muy corta.';
-                        return null;
-                      },
-                    ),
-                    if (!isLogin) const SizedBox(height: 16),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      constraints: BoxConstraints(
-                        maxHeight: isLogin ? 0 : 100,
-                      ),
-                      child: !isLogin ? TextFormField(
-                        controller: _confirmPasswordController,
-                        decoration: const InputDecoration(labelText: 'Confirmar Contraseña'),
-                        obscureText: true,
-                        validator: (value) {
-                          if (value != _passwordController.text) return 'Las contraseñas no coinciden.';
-                          return null;
-                        },
-                      ) : null,
-                    ),
-                  ],
+              FadeTransition(
+                // FIX: Se usa '!' para asegurar que _fadeAnimation no es nulo en este punto.
+                opacity: _fadeAnimation!,
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      _buildEmailField(),
+                      const SizedBox(height: 16),
+                      _buildPasswordField(),
+                      const SizedBox(height: 16),
+                      // UI Polish: El campo de confirmar contraseña aparece con una animación más suave.
+                      _buildConfirmPasswordField(isLogin),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
               
               // --- Botones de Acción ---
-              if (_isLoading)
-                const Center(child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: CircularProgressIndicator(),
-                ))
-              else
-                ElevatedButton(
-                  onPressed: _submitForm,
-                  child: Text(isLogin ? 'Ingresar' : 'Registrarme'),
-                ),
+              _buildSubmitButton(isLogin, primaryColor, textColor),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  const Expanded(child: Divider(thickness: 1)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    child: Text('O', style: textTheme.bodySmall),
-                  ),
-                  const Expanded(child: Divider(thickness: 1)),
-                ],
-              ),
+              _buildDivider(textTheme),
               const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: _isLoading ? null : _signInWithGoogle,
-                icon: Image.asset('assets/images/google_logo.png', height: 20.0), // Placeholder
-                label: const Text('Continuar con Google'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-                  side: BorderSide(color: Colors.grey[400]!),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
+              _buildGoogleSignInButton(surfaceColor),
               const SizedBox(height: 16),
-              TextButton(
-                onPressed: _isLoading ? null : _switchAuthMode,
-                child: Text(
-                  isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Ingresa',
-                ),
-              ),
+              _buildSwitchAuthModeButton(isLogin, primaryColor),
             ],
           ),
         ),
       ),
     );
   }
+
+  // --- Widgets Refactorizados para Mayor Claridad ---
+
+  /// Construye el campo de texto para el correo electrónico.
+  Widget _buildEmailField() {
+    return TextFormField(
+      controller: _emailController,
+      decoration: _buildInputDecoration(
+        labelText: 'Correo Electrónico',
+        prefixIcon: Icons.alternate_email_rounded,
+      ),
+      style: const TextStyle(color: Colors.white),
+      keyboardType: TextInputType.emailAddress,
+      validator: (value) {
+        if (value == null || !value.contains('@') || !value.contains('.')) return 'Correo inválido.';
+        return null;
+      },
+    );
+  }
+
+  /// Construye el campo de texto para la contraseña.
+  Widget _buildPasswordField() {
+    return TextFormField(
+      controller: _passwordController,
+      decoration: _buildInputDecoration(
+        labelText: 'Contraseña',
+        prefixIcon: Icons.lock_outline_rounded,
+        // UX Improvement: Botón para mostrar/ocultar contraseña.
+        suffixIcon: IconButton(
+          icon: Icon(
+            _isPasswordObscured ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+            color: Colors.white70,
+          ),
+          onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
+        ),
+      ),
+      style: const TextStyle(color: Colors.white),
+      obscureText: _isPasswordObscured,
+      validator: (value) {
+        if (value == null || value.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+        return null;
+      },
+    );
+  }
+
+  /// Construye el campo de texto para confirmar la contraseña, con animación.
+  Widget _buildConfirmPasswordField(bool isLogin) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: isLogin
+          ? const SizedBox.shrink()
+          : TextFormField(
+              controller: _confirmPasswordController,
+              decoration: _buildInputDecoration(
+                labelText: 'Confirmar Contraseña',
+                prefixIcon: Icons.lock_outline_rounded,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isConfirmPasswordObscured ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    color: Colors.white70,
+                  ),
+                  onPressed: () => setState(() => _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
+                ),
+              ),
+              style: const TextStyle(color: Colors.white),
+              obscureText: _isConfirmPasswordObscured,
+              validator: (value) {
+                if (_authMode == AuthMode.register && value != _passwordController.text) {
+                  return 'Las contraseñas no coinciden.';
+                }
+                return null;
+              },
+            ),
+    );
+  }
+
+  /// Construye el botón principal de envío del formulario.
+  Widget _buildSubmitButton(bool isLogin, Color primaryColor, Color textColor) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: _isLoading ? null : _submitForm,
+        style: FilledButton.styleFrom(
+          backgroundColor: primaryColor,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          // UI Polish: Efecto visual sutil al presionar.
+          foregroundColor: Colors.black,
+        ),
+        // UX Improvement: Indicador de carga dentro del botón para evitar saltos en el layout.
+        child: _isLoading
+            ?  SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: textColor,
+                ),
+              )
+            : Text(
+                isLogin ? 'Ingresar' : 'Registrarme',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+      ),
+    );
+  }
+
+  /// Construye el divisor con texto.
+  Widget _buildDivider(TextTheme textTheme) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: Colors.white24, thickness: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: Text('O', style: textTheme.bodySmall?.copyWith(color: Colors.white70)),
+        ),
+        const Expanded(child: Divider(color: Colors.white24, thickness: 1)),
+      ],
+    );
+  }
+  
+  /// Construye el botón de inicio de sesión con Google.
+  Widget _buildGoogleSignInButton(Color surfaceColor) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _isLoading ? null : _signInWithGoogle,
+        icon: const GoogleLogo(), // UI Polish: Logo de Google custom para no depender de assets.
+        label: const Text(
+          'Continuar con Google',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Colors.white24),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+
+  /// Construye el botón para cambiar entre inicio de sesión y registro.
+  Widget _buildSwitchAuthModeButton(bool isLogin, Color primaryColor) {
+    return TextButton(
+      onPressed: _isLoading ? null : _switchAuthMode,
+      style: TextButton.styleFrom(
+        foregroundColor: primaryColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text.rich(
+        TextSpan(
+          text: isLogin ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? ',
+          style: const TextStyle(color: Colors.white70),
+          children: [
+            TextSpan(
+              text: isLogin ? 'Regístrate' : 'Ingresa',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+                decoration: TextDecoration.underline,
+                decorationColor: primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// UI Polish: Decoración de input reutilizable con el estilo "Cyber Glow".
+  InputDecoration _buildInputDecoration({
+    required String labelText,
+    required IconData prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    const primaryColor = Color(0xFF00BFFF);
+    const surfaceColor = Color.fromARGB(255, 34, 34, 68);
+    
+    return InputDecoration(
+      labelText: labelText,
+      labelStyle: const TextStyle(color: Colors.white70),
+      prefixIcon: Icon(prefixIcon, color: Colors.white70),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: surfaceColor,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: primaryColor, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+      ),
+    );
+  }
 }
+
+/// UI Polish: Un widget simple para renderizar el logo de Google
+/// sin depender de archivos de imagen externos.
+class GoogleLogo extends StatelessWidget {
+  const GoogleLogo({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CustomPaint(
+            painter: _GoogleLogoPainter(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final strokeWidth = size.width / 8;
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // Colores de Google
+    final colors = [
+      const Color(0xFF4285F4), // Azul
+      const Color(0xFF34A853), // Verde
+      const Color(0xFFFBBC05), // Amarillo
+      const Color(0xFFEA4335), // Rojo
+    ];
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    canvas.drawArc(rect, -math.pi / 2, math.pi * 0.9, false, paint..color = colors[0]);
+    canvas.drawArc(rect, math.pi * 0.4, math.pi * 0.6, false, paint..color = colors[1]);
+    canvas.drawArc(rect, math.pi, math.pi * 0.5, false, paint..color = colors[2]);
+    canvas.drawArc(rect, math.pi * 1.5, math.pi * 0.6, false, paint..color = colors[3]);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+

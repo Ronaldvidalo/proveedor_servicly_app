@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1002089002297",
+    "project_id": "servicly-app-mobile",
+    "storage_bucket": "servicly-app-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1002089002297:android:3f3c329e10b2d541a2a4e8",
+        "android_client_info": {
+          "package_name": "com.example.proveedor_servicly_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCu9Jv7n8J_fN617dbFmDJQYtIl4OigKlg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

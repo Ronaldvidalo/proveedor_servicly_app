@@ -1,6 +1,7 @@
 // lib/features/onboarding/screens/onboarding_screen.dart
 
 import 'package:flutter/material.dart';
+import '../../auth/widgets/auth_wrapper.dart';
 
 // Aún no existen, pero preparamos la navegación futura.
 // import '../../auth/screens/auth_screen.dart'; 
@@ -69,22 +70,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   /// Navega a la siguiente página o, si es la última, a la pantalla de autenticación.
   void _goToNextPage() {
-    if (_currentPageIndex < _pages.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      // TODO: Implementar la navegación a la pantalla de autenticación.
-      // Navigator.of(context).pushReplacement(
-      //   MaterialPageRoute(builder: (_) => const AuthScreen()),
-      // );
-
-      // La siguiente línea se comenta para eliminar la advertencia 'avoid_print',
-      // ya que solo es un marcador de depuración temporal.
-      // print('Navegar a la pantalla de Autenticación/Login');
-    }
+  if (_currentPageIndex < _pages.length - 1) {
+    _pageController.nextPage(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  } else {
+    // Navegamos al AuthWrapper. Usamos pushReplacement para que el usuario
+    // no pueda volver a la pantalla de onboarding con el botón de "atrás".
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const AuthWrapper()),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
