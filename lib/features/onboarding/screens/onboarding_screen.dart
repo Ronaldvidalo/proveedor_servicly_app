@@ -1,7 +1,6 @@
 // lib/features/onboarding/screens/onboarding_screen.dart
 
 import 'package:flutter/material.dart';
-import '../../auth/widgets/auth_wrapper.dart';
 import '../../auth/screens/auth_screen.dart';
 
 // Aún no existen, pero preparamos la navegación futura.
