@@ -22,21 +22,20 @@ class HomeScreen extends StatelessWidget {
 
   /// Lógica para la acción protegida "Crear Presupuesto".
   void _onAttemptCreateQuote(BuildContext context) {
-    // Usamos 'read' porque estamos dentro de un callback, no necesitamos reconstruir.
     final userModel = context.read<UserModel?>();
 
-    // Verificamos si el perfil está completo.
     if (userModel?.isProfileComplete == true) {
-      // Si está completo, procedemos con la acción.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('¡Perfil completo! Navegando a la creación de presupuesto...'),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating, // Estilo mejorado
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+          margin: EdgeInsets.all(16),
         ),
       );
       // TODO: Navegar a la pantalla real de creación de presupuestos.
     } else {
-      // Si no está completo, mostramos el diálogo de advertencia.
       showDialog(
         context: context,
         builder: (BuildContext dialogContext) {
@@ -48,14 +47,14 @@ class HomeScreen extends StatelessWidget {
               TextButton(
                 child: const Text('Más Tarde'),
                 onPressed: () {
-                  Navigator.of(dialogContext).pop(); // Cierra el diálogo
+                  Navigator.of(dialogContext).pop();
                 },
               ),
               ElevatedButton(
                 child: const Text('Completar Perfil'),
                 onPressed: () {
-                  Navigator.of(dialogContext).pop(); // Cierra el diálogo
-                  _navigateToCreateProfile(context); // Navega a la pantalla de perfil
+                  Navigator.of(dialogContext).pop();
+                  _navigateToCreateProfile(context);
                 },
               ),
             ],
@@ -67,11 +66,9 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Usamos 'watch' aquí para que la UI se reconstruya cuando cambien los datos del perfil.
     final userModel = context.watch<UserModel?>();
     final authService = context.read<AuthService>();
 
-    // Mostramos un indicador de carga si aún no tenemos los datos del usuario.
     if (userModel == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -80,7 +77,11 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Servicly - Inicio'),
+        title: const Text('Inicio'),
+        // UI Polish: AppBar más limpia que se integra con el fondo
+        elevation: 0,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -91,47 +92,69 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // --- MENSAJE DE BIENVENIDA ---
-          Text(
-            // Usamos el displayName del perfil si existe, si no, un saludo genérico.
-            '¡Hola, ${userModel.displayName ?? 'bienvenido'}!',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 24),
+      // --- INICIO MODIFICACIÓN RESPONSIVA 1: Contenido Centrado y Limitado ---
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960), // Ancho máximo del contenido principal
+          child: ListView(
+            padding: const EdgeInsets.all(24.0), // Padding aumentado para mejor espaciado
+            children: [
+              // --- MENSAJE DE BIENVENIDA ---
+              Text(
+                '¡Hola, ${userModel.displayName ?? 'bienvenido'}!',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
 
-          // --- BANNER DE PERFIL INCOMPLETO (Notificación Pasiva) ---
-          // Este widget solo aparece si el perfil no está completo.
-          if (!userModel.isProfileComplete)
-            _ProfileCompletionBanner(
-              onCompleteProfile: () => _navigateToCreateProfile(context),
-            ),
+              // --- BANNER DE PERFIL INCOMPLETO ---
+              if (!userModel.isProfileComplete)
+                _ProfileCompletionBanner(
+                  onCompleteProfile: () => _navigateToCreateProfile(context),
+                ),
 
-          // --- ACCIONES PRINCIPALES ---
-          const SizedBox(height: 16),
-          Text(
-            'Acciones Rápidas',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const Divider(height: 24),
+              // --- ACCIONES PRINCIPALES ---
+              const SizedBox(height: 24),
+              Text(
+                'Acciones Rápidas',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Divider(height: 24),
 
-          // --- BOTÓN DE ACCIÓN PROTEGIDA ---
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add_card),
-            label: const Text('Crear Presupuesto'),
-            onPressed: () => _onAttemptCreateQuote(context),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+              // --- INICIO MODIFICACIÓN RESPONSIVA 2: Grilla de Acciones Flexibles ---
+              Wrap(
+                spacing: 16.0,    // Espacio horizontal entre botones
+                runSpacing: 16.0, // Espacio vertical entre filas de botones
+                children: [
+                  // Botón de Acción Protegida
+                  _ActionCard(
+                    title: 'Crear Presupuesto',
+                    icon: Icons.add_card,
+                    onTap: () => _onAttemptCreateQuote(context),
+                  ),
+                  // Otros botones de ejemplo
+                  _ActionCard(
+                    title: 'Ver Clientes',
+                    icon: Icons.people_outline,
+                    onTap: () { /* TODO */ },
+                  ),
+                   _ActionCard(
+                    title: 'Agendar Cita',
+                    icon: Icons.calendar_today_outlined,
+                    onTap: () { /* TODO */ },
+                  ),
+                   _ActionCard(
+                    title: 'Registrar Gasto',
+                    icon: Icons.receipt_long_outlined,
+                    onTap: () { /* TODO */ },
+                  ),
+                ],
+              ),
+              // --- FIN MODIFICACIÓN RESPONSIVA 2 ---
+            ],
           ),
-          
-          // Aquí irían otros botones de acción...
-          // ElevatedButton(onPressed: () {}, child: Text('Ver Clientes')),
-          // ElevatedButton(onPressed: () {}, child: Text('Agendar Cita')),
-        ],
+        ),
       ),
+      // --- FIN MODIFICACIÓN RESPONSIVA 1 ---
     );
   }
 }
@@ -139,35 +162,76 @@ class HomeScreen extends StatelessWidget {
 /// Widget privado para el banner que solicita completar el perfil.
 class _ProfileCompletionBanner extends StatelessWidget {
   final VoidCallback onCompleteProfile;
-
   const _ProfileCompletionBanner({required this.onCompleteProfile});
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Theme.of(context).colorScheme.surfaceVariant,
+      // UI Polish: Usamos el color primario con baja opacidad para un look más sutil
+      color: Theme.of(context).primaryColor.withOpacity(0.1),
       elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Theme.of(context).primaryColor.withOpacity(0.3))
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              'Finaliza la configuración de tu cuenta',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-                'Completa tu perfil para poder generar contratos, presupuestos y más.'),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: onCompleteProfile,
-                child: const Text('COMPLETAR AHORA'),
+            Icon(Icons.info_outline_rounded, color: Theme.of(context).primaryColor, size: 32),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Finaliza la configuración de tu cuenta',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('Completa tu perfil para poder generar contratos y presupuestos.'),
+                ],
               ),
             ),
+            const SizedBox(width: 16),
+            TextButton(
+              onPressed: onCompleteProfile,
+              child: const Text('COMPLETAR'),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- NUEVO WIDGET REUTILIZABLE PARA TARJETAS DE ACCIÓN ---
+class _ActionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ActionCard({required this.title, required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 160, // Ancho fijo para cada tarjeta
+          height: 120, // Alto fijo para cada tarjeta
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 12),
+              Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleSmall),
+            ],
+          ),
         ),
       ),
     );

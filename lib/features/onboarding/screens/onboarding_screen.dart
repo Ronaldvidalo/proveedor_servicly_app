@@ -3,17 +3,14 @@
 import 'package:flutter/material.dart';
 import '../../auth/screens/auth_screen.dart';
 
-// Aún no existen, pero preparamos la navegación futura.
-// import '../../auth/screens/auth_screen.dart'; 
-
 /// Modelo simple para contener los datos de cada página del onboarding.
 class OnboardingPageModel {
   /// La ruta del archivo de imagen o ilustración.
   final IconData icon; // Usaremos IconData como placeholder para imágenes.
-  
+
   /// El título principal de la página.
   final String title;
-  
+
   /// La descripción detallada que explica el beneficio.
   final String description;
 
@@ -37,31 +34,32 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   /// Controlador para manejar el estado del PageView (página actual, etc.).
   final PageController _pageController = PageController();
-  
+
   /// El índice de la página que se está mostrando actualmente.
   int _currentPageIndex = 0;
 
   /// Contenido para cada una de las páginas del onboarding.
   final List<OnboardingPageModel> _pages = [
     OnboardingPageModel(
-      // CORRECCIÓN: Ícono corregido a uno existente.
       icon: Icons.folder_special_outlined,
       title: 'Organiza tu Negocio',
-      description: 'Centraliza clientes, presupuestos y agenda en un solo lugar. Di adiós al cuaderno y al caos.',
+      description:
+          'Centraliza clientes, presupuestos y agenda en un solo lugar. Di adiós al cuaderno y al caos.',
     ),
     OnboardingPageModel(
       icon: Icons.bar_chart_outlined,
       title: 'Controla tus Finanzas',
-      description: 'Registra ingresos y gastos fácilmente. Observa el crecimiento de tu trabajo sin complicaciones.',
+      description:
+          'Registra ingresos y gastos fácilmente. Observa el crecimiento de tu trabajo sin complicaciones.',
     ),
     OnboardingPageModel(
-      // CORRECCIÓN: Ícono corregido a uno existente.
-      icon: Icons.gpp_good_outlined, 
+      icon: Icons.gpp_good_outlined,
       title: 'Profesionaliza tu Servicio',
-      description: 'Genera contratos y recordatorios de pago automáticos para cobrar a tiempo y sin estrés.',
+      description:
+          'Genera contratos y recordatorios de pago automáticos para cobrar a tiempo y sin estrés.',
     ),
   ];
-  
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -70,15 +68,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   /// Navega a la siguiente página o, si es la última, a la pantalla de autenticación.
   void _goToNextPage() {
-  if (_currentPageIndex < _pages.length - 1) {
-    // ...código para ir a la siguiente página...
-  } else {
-    // Navegamos a la pantalla de Autenticación.
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AuthScreen()),
-    );
+    if (_currentPageIndex < _pages.length - 1) {
+      // CORRECCIÓN: Se añade la lógica para avanzar a la siguiente página.
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      // Navegamos a la pantalla de Autenticación, reemplazando la actual.
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
+      );
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -171,16 +173,13 @@ class _OnboardingPageWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // En un proyecto real, reemplazarías este Icon por una imagen o ilustración.
-        // Ejemplo: Image.asset('assets/images/onboarding_1.svg', height: 250);
         Icon(
           icon,
           size: 150,
-          // CORRECCIÓN: Se reemplaza 'withOpacity' (obsoleto) por 'withAlpha'.
           color: Theme.of(context).primaryColor.withAlpha(204),
         ),
         const SizedBox(height: 48),
