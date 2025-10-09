@@ -1,46 +1,45 @@
 {
   "project_info": {
-    "project_number": "1002089002297",
-    "firebase_url": "https://servicly-app-mobile-default-rtdb.firebaseio.com",
-    "project_id": "servicly-app-mobile",
-    "storage_bucket": "servicly-app-mobile.firebasestorage.app"
+    "project_number": "369550718965",
+    "project_id": "servicly-92872",
+    "storage_bucket": "servicly-92872.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1002089002297:android:3f3c329e10b2d541a2a4e8",
+        "mobilesdk_app_id": "1:369550718965:android:4aa1b431ad6a773bccd2bc",
         "android_client_info": {
           "package_name": "com.example.proveedor_servicly_app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "1002089002297-c9q0tfr18t0knftfkm7qgqm9v7nkk1tp.apps.googleusercontent.com",
+          "client_id": "369550718965-pr5kbm8797sp8uvokcco6uo9h6n5v34f.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.proveedor_servicly_app",
-            "certificate_hash": "394c448b62a1f804f42024bd472ca5eade77aca2"
+            "certificate_hash": "e5b4084c3bdfe036b6ef1424f750e4c47eab843b"
           }
         },
         {
-          "client_id": "1002089002297-lc7ib0m614ohp7penu8lb2ndbd4v43j5.apps.googleusercontent.com",
+          "client_id": "369550718965-9342gniftbvv89u59f9tvqchgs8sp81n.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCu9Jv7n8J_fN617dbFmDJQYtIl4OigKlg"
+          "current_key": "AIzaSyBx6zEqHmbwadWACblR85TejV-y0PMCIzE"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "1002089002297-lc7ib0m614ohp7penu8lb2ndbd4v43j5.apps.googleusercontent.com",
+              "client_id": "369550718965-9342gniftbvv89u59f9tvqchgs8sp81n.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "1002089002297-oho56q178683s6bvrnkb3rmuhrt5ina9.apps.googleusercontent.com",
+              "client_id": "369550718965-8hh0b42945sicl421fvesmv5a6ehh8mf.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.example.proveedorServiclyApp"

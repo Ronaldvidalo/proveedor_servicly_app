@@ -1,4 +1,5 @@
 /// lib/features/home/screens/home_screen.dart
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -64,16 +65,12 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
-  @override
+   @override
   Widget build(BuildContext context) {
-    final userModel = context.watch<UserModel?>();
+    // Ya no necesitamos la comprobación 'if (userModel == null)'
+    // El AuthWrapper se encarga de eso por nosotros.
+    final userModel = context.watch<UserModel?>()!; // Usamos '!' porque garantizamos que no será nulo.
     final authService = context.read<AuthService>();
-
-    if (userModel == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -217,7 +214,7 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

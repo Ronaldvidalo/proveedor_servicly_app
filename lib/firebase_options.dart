@@ -41,48 +41,51 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBJg0bs0TFtXyKfSITFXKui06zW8PtTs94',
-    appId: '1:1002089002297:web:3ee701e580cb2349a2a4e8',
-    messagingSenderId: '1002089002297',
-    projectId: 'servicly-app-mobile',
-    authDomain: 'servicly-app-mobile.firebaseapp.com',
-    storageBucket: 'servicly-app-mobile.firebasestorage.app',
-    measurementId: 'G-302LFSLNK5',
+    apiKey: 'AIzaSyAcjD6ICGEugChS4IO-guj-N3SE7mhWrIo',
+    appId: '1:369550718965:web:31521d30bb9be4bdccd2bc',
+    messagingSenderId: '369550718965',
+    projectId: 'servicly-92872',
+    authDomain: 'servicly-92872.firebaseapp.com',
+    storageBucket: 'servicly-92872.firebasestorage.app',
+    measurementId: 'G-NNSWDZXJNH',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCu9Jv7n8J_fN617dbFmDJQYtIl4OigKlg',
-    appId: '1:1002089002297:android:3f3c329e10b2d541a2a4e8',
-    messagingSenderId: '1002089002297',
-    projectId: 'servicly-app-mobile',
-    storageBucket: 'servicly-app-mobile.firebasestorage.app',
+    apiKey: 'AIzaSyBx6zEqHmbwadWACblR85TejV-y0PMCIzE',
+    appId: '1:369550718965:android:4aa1b431ad6a773bccd2bc',
+    messagingSenderId: '369550718965',
+    projectId: 'servicly-92872',
+    storageBucket: 'servicly-92872.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA2BRos6Na05qspoQdQzziczg487-lCeHw',
-    appId: '1:1002089002297:ios:3b7871d53afcf194a2a4e8',
-    messagingSenderId: '1002089002297',
-    projectId: 'servicly-app-mobile',
-    storageBucket: 'servicly-app-mobile.firebasestorage.app',
+    apiKey: 'AIzaSyA-ITR9vKni1C185K5KOv2KAs89KF-Ftzs',
+    appId: '1:369550718965:ios:d346c12738822a94ccd2bc',
+    messagingSenderId: '369550718965',
+    projectId: 'servicly-92872',
+    storageBucket: 'servicly-92872.firebasestorage.app',
+    iosClientId: '369550718965-8hh0b42945sicl421fvesmv5a6ehh8mf.apps.googleusercontent.com',
     iosBundleId: 'com.example.proveedorServiclyApp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyA2BRos6Na05qspoQdQzziczg487-lCeHw',
-    appId: '1:1002089002297:ios:3b7871d53afcf194a2a4e8',
-    messagingSenderId: '1002089002297',
-    projectId: 'servicly-app-mobile',
-    storageBucket: 'servicly-app-mobile.firebasestorage.app',
+    apiKey: 'AIzaSyA-ITR9vKni1C185K5KOv2KAs89KF-Ftzs',
+    appId: '1:369550718965:ios:d346c12738822a94ccd2bc',
+    messagingSenderId: '369550718965',
+    projectId: 'servicly-92872',
+    storageBucket: 'servicly-92872.firebasestorage.app',
+    iosClientId: '369550718965-8hh0b42945sicl421fvesmv5a6ehh8mf.apps.googleusercontent.com',
     iosBundleId: 'com.example.proveedorServiclyApp',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBJg0bs0TFtXyKfSITFXKui06zW8PtTs94',
-    appId: '1:1002089002297:web:cd5a3a37eaa66d0ea2a4e8',
-    messagingSenderId: '1002089002297',
-    projectId: 'servicly-app-mobile',
-    authDomain: 'servicly-app-mobile.firebaseapp.com',
-    storageBucket: 'servicly-app-mobile.firebasestorage.app',
-    measurementId: 'G-WE5KK6GVBJ',
+    apiKey: 'AIzaSyAcjD6ICGEugChS4IO-guj-N3SE7mhWrIo',
+    appId: '1:369550718965:web:a6836ec672e3fb74ccd2bc',
+    messagingSenderId: '369550718965',
+    projectId: 'servicly-92872',
+    authDomain: 'servicly-92872.firebaseapp.com',
+    storageBucket: 'servicly-92872.firebasestorage.app',
+    measurementId: 'G-K5E55HXJGL',
   );
+
 }
