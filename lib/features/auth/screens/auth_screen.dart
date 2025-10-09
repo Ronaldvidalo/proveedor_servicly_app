@@ -82,6 +82,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           password: _passwordController.text.trim(),
         );
       }
+      // Si el inicio de sesión o registro fue exitoso, limpiamos la pila de navegación.
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+
     } on FirebaseAuthException catch (error) {
       final errorMessage = _handleAuthException(error);
       _showErrorSnackbar(errorMessage);
@@ -100,6 +105,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     
     try {
       await authService.signInWithGoogle();
+
+       // Si el inicio de sesión con Google fue exitoso, también limpiamos la pila.
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+      
     } catch (error) {
       _showErrorSnackbar('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
     }

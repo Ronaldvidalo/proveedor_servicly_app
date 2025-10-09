@@ -3,9 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/models/user_model.dart';
 import '../../home/screens/home_screen.dart';
-import '../../onboarding/screens/onboarding_screen.dart';
+import 'unauthenticated_gate.dart'; // <-- IMPORTAR NUEVO WIDGET
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -13,26 +14,17 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final firebaseUser = context.watch<User?>();
-    print("--- AuthWrapper Build ---");
 
     if (firebaseUser != null) {
-      print("--- AuthWrapper: firebaseUser is NOT NULL (UID: ${firebaseUser.uid}). Checking for userModel... ---");
       final userModel = context.watch<UserModel?>();
-
       if (userModel != null) {
-        print("--- AuthWrapper: userModel is NOT NULL. Navigating to HomeScreen. ---");
         return const HomeScreen();
       } else {
-        print("--- AuthWrapper: userModel is NULL. Showing loading screen... ---");
-        return const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
     } else {
-      print("--- AuthWrapper: firebaseUser is NULL. Navigating to OnboardingScreen. ---");
-      return const OnboardingScreen();
+      // Si el usuario no está logueado, mostramos nuestro gestor de estado "no autenticado".
+      return const UnauthenticatedGate(); // <-- USAR NUEVO WIDGET
     }
   }
 }

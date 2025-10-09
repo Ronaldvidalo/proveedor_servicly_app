@@ -1,19 +1,21 @@
 // lib/features/onboarding/screens/onboarding_screen.dart
 
 import 'package:flutter/material.dart';
-import '../../auth/screens/auth_screen.dart';
+
+// El import de auth_screen.dart ya no es necesario aquí.
 
 /// Modelo simple para contener los datos de cada página del onboarding.
 class OnboardingPageModel {
   /// La ruta del archivo de imagen o ilustración.
   final IconData icon; // Usaremos IconData como placeholder para imágenes.
-
+  
   /// El título principal de la página.
   final String title;
 
   /// La descripción detallada que explica el beneficio.
   final String description;
 
+  // CORRECCIÓN: Se eliminó 'onFinished' de este modelo. No pertenece aquí.
   OnboardingPageModel({
     required this.icon,
     required this.title,
@@ -24,8 +26,12 @@ class OnboardingPageModel {
 /// Una pantalla que guía al nuevo usuario a través de las características
 /// principales de la aplicación.
 class OnboardingScreen extends StatefulWidget {
-  /// Constructor para OnboardingScreen.
-  const OnboardingScreen({super.key});
+  // CORRECCIÓN: 'onFinished' es una propiedad del widget de la pantalla.
+  final VoidCallback onFinished;
+
+  /// Constructor para OnboardingScreen que requiere la función de callback.
+  // CORRECCIÓN: Se eliminó el constructor duplicado, dejando solo este.
+  const OnboardingScreen({super.key, required this.onFinished});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -66,19 +72,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  /// Navega a la siguiente página o, si es la última, a la pantalla de autenticación.
+  /// Navega a la siguiente página o, si es la última, ejecuta el callback onFinished.
   void _goToNextPage() {
     if (_currentPageIndex < _pages.length - 1) {
-      // CORRECCIÓN: Se añade la lógica para avanzar a la siguiente página.
       _pageController.nextPage(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
       );
     } else {
-      // Navegamos a la pantalla de Autenticación, reemplazando la actual.
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AuthScreen()),
-      );
+      // CORRECCIÓN: Ahora 'widget.onFinished()' es válido porque OnboardingScreen tiene esta propiedad.
+      widget.onFinished();
     }
   }
 
