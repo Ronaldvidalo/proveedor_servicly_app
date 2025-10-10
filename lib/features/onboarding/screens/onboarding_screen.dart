@@ -1,13 +1,9 @@
-// lib/features/onboarding/screens/onboarding_screen.dart
-
 import 'package:flutter/material.dart';
-
-// El import de auth_screen.dart ya no es necesario aquí.
 
 /// Modelo simple para contener los datos de cada página del onboarding.
 class OnboardingPageModel {
   /// La ruta del archivo de imagen o ilustración.
-  final IconData icon; // Usaremos IconData como placeholder para imágenes.
+  final IconData icon; // Usaremos IconData que representa el concepto.
   
   /// El título principal de la página.
   final String title;
@@ -15,7 +11,6 @@ class OnboardingPageModel {
   /// La descripción detallada que explica el beneficio.
   final String description;
 
-  // CORRECCIÓN: Se eliminó 'onFinished' de este modelo. No pertenece aquí.
   OnboardingPageModel({
     required this.icon,
     required this.title,
@@ -24,13 +19,10 @@ class OnboardingPageModel {
 }
 
 /// Una pantalla que guía al nuevo usuario a través de las características
-/// principales de la aplicación.
+/// principales de la aplicación, con un estilo visual "Cyber Glow".
 class OnboardingScreen extends StatefulWidget {
-  // CORRECCIÓN: 'onFinished' es una propiedad del widget de la pantalla.
   final VoidCallback onFinished;
 
-  /// Constructor para OnboardingScreen que requiere la función de callback.
-  // CORRECCIÓN: Se eliminó el constructor duplicado, dejando solo este.
   const OnboardingScreen({super.key, required this.onFinished});
 
   @override
@@ -38,28 +30,25 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  /// Controlador para manejar el estado del PageView (página actual, etc.).
   final PageController _pageController = PageController();
-
-  /// El índice de la página que se está mostrando actualmente.
   int _currentPageIndex = 0;
 
-  /// Contenido para cada una de las páginas del onboarding.
+  // UI Polish: El contenido de las páginas se mantiene, el cambio es visual.
   final List<OnboardingPageModel> _pages = [
     OnboardingPageModel(
-      icon: Icons.folder_special_outlined,
+      icon: Icons.folder_special_rounded,
       title: 'Organiza tu Negocio',
       description:
           'Centraliza clientes, presupuestos y agenda en un solo lugar. Di adiós al cuaderno y al caos.',
     ),
     OnboardingPageModel(
-      icon: Icons.bar_chart_outlined,
+      icon: Icons.bar_chart_rounded,
       title: 'Controla tus Finanzas',
       description:
           'Registra ingresos y gastos fácilmente. Observa el crecimiento de tu trabajo sin complicaciones.',
     ),
     OnboardingPageModel(
-      icon: Icons.gpp_good_outlined,
+      icon: Icons.shield_moon_rounded, // Icono más temático.
       title: 'Profesionaliza tu Servicio',
       description:
           'Genera contratos y recordatorios de pago automáticos para cobrar a tiempo y sin estrés.',
@@ -80,7 +69,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      // CORRECCIÓN: Ahora 'widget.onFinished()' es válido porque OnboardingScreen tiene esta propiedad.
       widget.onFinished();
     }
   }
@@ -89,73 +77,103 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final bool isLastPage = _currentPageIndex == _pages.length - 1;
 
+    // --- Definición del Tema "Cyber Glow" ---
+    const primaryColor = Color(0xFF00BFFF); // Azul eléctrico brillante
+    const backgroundColor = Color(0xFF1A1A2E); // Azul oscuro casi negro
+    const surfaceColor = Color(0xFF2D2D5A); // Superficie ligeramente más clara
+    const textColor = Colors.white;
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              // --- Contenido deslizable (PageView) ---
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _pages.length,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentPageIndex = index;
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final page = _pages[index];
-                    return _OnboardingPageWidget(
-                      icon: page.icon,
-                      title: page.title,
-                      description: page.description,
-                    );
-                  },
+        child: Column(
+          children: [
+            // --- Botón de Saltar ---
+            // UX Improvement: Permitir al usuario saltar el onboarding es una
+            // práctica recomendada para no forzar la interacción.
+            Align(
+              alignment: Alignment.topRight,
+              child: TextButton(
+                onPressed: widget.onFinished,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
                 ),
+                child: const Text('Saltar'),
               ),
+            ),
 
-              const SizedBox(height: 24),
-
-              // --- Indicadores de Página ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _pages.length,
-                  (index) => _buildDot(index: index),
-                ),
+            // --- Contenido deslizable (PageView) ---
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _pages.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPageIndex = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final page = _pages[index];
+                  // UI Polish: Se inyectan los colores del tema al widget de la página.
+                  return _OnboardingPageWidget(
+                    icon: page.icon,
+                    title: page.title,
+                    description: page.description,
+                    primaryColor: primaryColor,
+                    surfaceColor: surfaceColor,
+                    textColor: textColor,
+                  );
+                },
               ),
+            ),
 
-              const SizedBox(height: 48),
+            // --- Controles Inferiores (Indicadores y Botón) ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 32.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // --- Indicadores de Página ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _pages.length,
+                      (index) => _buildDot(index: index, primaryColor: primaryColor, surfaceColor: surfaceColor),
+                    ),
+                  ),
 
-              // --- Botón de Acción ---
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _goToNextPage,
-                  child: Text(isLastPage ? 'Comenzar' : 'Siguiente'),
-                ),
+                  // --- Botón de Acción ---
+                  // UI Polish: Botón flotante para una apariencia más dinámica.
+                  FloatingActionButton(
+                    onPressed: _goToNextPage,
+                    backgroundColor: primaryColor,
+                    elevation: 5,
+                    child: Icon(
+                      isLastPage ? Icons.check_rounded : Icons.arrow_forward_ios_rounded,
+                      color: textColor,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Widget auxiliar para construir un punto indicador.
-  Widget _buildDot({required int index}) {
+  /// Widget auxiliar para construir un punto indicador con el estilo "Cyber Glow".
+  Widget _buildDot({required int index, required Color primaryColor, required Color surfaceColor}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
       margin: const EdgeInsets.only(right: 8),
-      height: 8,
-      width: _currentPageIndex == index ? 24 : 8,
+      height: 10,
+      width: _currentPageIndex == index ? 30 : 10,
       decoration: BoxDecoration(
-        color: _currentPageIndex == index
-            ? Theme.of(context).primaryColor
-            : Colors.grey[300],
-        borderRadius: BorderRadius.circular(4),
+        color: _currentPageIndex == index ? primaryColor : surfaceColor,
+        borderRadius: BorderRadius.circular(5),
       ),
     );
   }
@@ -166,38 +184,69 @@ class _OnboardingPageWidget extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
+  final Color primaryColor;
+  final Color surfaceColor;
+  final Color textColor;
 
   const _OnboardingPageWidget({
     required this.icon,
     required this.title,
     required this.description,
+    required this.primaryColor,
+    required this.surfaceColor,
+    required this.textColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          size: 150,
-          color: Theme.of(context).primaryColor.withAlpha(204),
-        ),
-        const SizedBox(height: 48),
-        Text(
-          title,
-          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          description,
-          style: textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // UI Polish: El icono ahora tiene un contenedor con efecto "glow" para
+          // integrarse con el diseño de la pantalla de autenticación.
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: surfaceColor,
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              size: 100,
+              color: primaryColor,
+            ),
+          ),
+          const SizedBox(height: 64),
+          Text(
+            title,
+            style: textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            description,
+            style: textTheme.titleMedium?.copyWith(
+              color: Colors.white70,
+              height: 1.5, // Mejora la legibilidad del párrafo.
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }

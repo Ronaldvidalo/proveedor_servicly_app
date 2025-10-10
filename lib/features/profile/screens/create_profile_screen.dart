@@ -1,5 +1,4 @@
-/// lib/features/profile/screens/create_profile_screen.dart
-library;
+// lib/features/profile/screens/create_profile_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,16 +22,15 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
   var _isLoading = false;
 
-  // --- MEJORA DE UX: AUTOCOMPLETADO DE DATOS ---
-  // Se autocompletan los campos con la información existente del usuario.
   @override
   void initState() {
     super.initState();
     // Usamos 'read' para obtener los datos una sola vez al construir la pantalla.
     final userModel = context.read<UserModel?>();
     if (userModel != null) {
+      // CORRECCIÓN: Leemos los datos desde el mapa 'personalization'.
       _displayNameController.text = userModel.displayName ?? '';
-      _professionController.text = userModel.profession ?? '';
+      _professionController.text = userModel.personalization['profession'] as String? ?? '';
     }
   }
 
@@ -50,6 +48,8 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
       final firestoreService = context.read<FirestoreService>();
       final user = context.read<User?>();
+      // CORRECCIÓN: Obtenemos el modelo actual para no sobreescribir otros datos de personalización.
+      final currentUserModel = context.read<UserModel?>();
 
       if (user == null) {
         _showSnackbar('Error: Sesión de usuario no válida.', isError: true);
@@ -57,14 +57,22 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         return;
       }
 
-      final profileData = {
-        'displayName': _displayNameController.text.trim(),
-        'profession': _professionController.text.trim(),
+      // CORRECCIÓN: Construimos el mapa de datos a actualizar de forma segura.
+      // 1. Hacemos una copia del mapa de personalización existente.
+      final updatedPersonalization = Map<String, dynamic>.from(currentUserModel?.personalization ?? {});
+      
+      // 2. Actualizamos los campos específicos que el usuario modificó en esta pantalla.
+      updatedPersonalization['businessName'] = _displayNameController.text.trim();
+      updatedPersonalization['profession'] = _professionController.text.trim();
+
+      // 3. Este es el mapa final que enviaremos a Firestore.
+      final dataToUpdate = {
+        'personalization': updatedPersonalization,
         'isProfileComplete': true,
       };
 
       try {
-        await firestoreService.updateUser(user.uid, profileData);
+        await firestoreService.updateUser(user.uid, dataToUpdate);
         _showSnackbar('Perfil guardado con éxito.');
 
         if (mounted) {
@@ -80,7 +88,6 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     }
   }
 
-  // --- MEJORA DE UI: SNACKBAR ESTILIZADO ---
   void _showSnackbar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -102,14 +109,13 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Completar Perfil'),
-        // UI Polish: Un AppBar más limpio sin elevación por defecto
         elevation: 0,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       ),
-      body: Center( // <-- DISEÑO RESPONSIVO: Centra el contenido
+      body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: ConstrainedBox( // <-- DISEÑO RESPONSIVO: Limita el ancho
+          child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
             child: Form(
               key: _formKey,
@@ -125,17 +131,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   Text(
                     'Esta información aparecerá en tus presupuestos y contratos.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).textTheme.bodySmall?.color,
-                    ),
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                        ),
                   ),
                   const SizedBox(height: 40),
 
-                  // --- Campo de Nombre y Apellido ---
+                  // CORRECCIÓN: El campo ahora se llama 'Nombre de tu Negocio o Servicio'
                   TextFormField(
                     controller: _displayNameController,
                     decoration: _buildInputDecoration(
                       context,
-                      labelText: 'Nombre y Apellido',
+                      labelText: 'Nombre de tu Negocio o Servicio',
                       prefixIcon: Icons.person_outline,
                     ),
                     textCapitalization: TextCapitalization.words,
@@ -148,7 +154,6 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // --- Campo de Profesión ---
                   TextFormField(
                     controller: _professionController,
                     decoration: _buildInputDecoration(
@@ -166,7 +171,6 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   ),
                   const SizedBox(height: 48),
 
-                  // --- Botón de Guardar ---
                   SizedBox(
                     height: 50,
                     child: ElevatedButton(
@@ -196,15 +200,14 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     );
   }
 
-  // --- MEJORA DE UI: DECORACIÓN DE INPUT REUTILIZABLE ---
   InputDecoration _buildInputDecoration(BuildContext context, {required String labelText, required IconData prefixIcon}) {
     final theme = Theme.of(context);
     return InputDecoration(
       labelText: labelText,
-      prefixIcon: Icon(prefixIcon, color: theme.colorScheme.onSurface.withOpacity(0.6)),
-      // Usamos los colores del tema de la app en lugar de valores hardcodeados
+      // CORRECCIÓN: 'withOpacity' deprecado, se usa 'withAlpha'.
+      prefixIcon: Icon(prefixIcon, color: theme.colorScheme.onSurface.withAlpha(153)), // alpha 153 es ~60% opacidad
       filled: true,
-      fillColor: theme.colorScheme.onSurface.withOpacity(0.05),
+      fillColor: theme.colorScheme.onSurface.withAlpha(13), // alpha 13 es ~5% opacidad
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
