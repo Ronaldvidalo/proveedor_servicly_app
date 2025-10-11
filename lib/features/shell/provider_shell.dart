@@ -2,7 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../home/screens/home_screen.dart'; // Nuestra pantalla de dashboard existente
+import '../home/screens/dashboard_screen.dart'; // Nuestra pantalla de dashboard existente
 
 /// El "Shell" o contenedor principal para la interfaz del Proveedor.
 ///
@@ -22,7 +22,7 @@ class _ProviderShellState extends State<ProviderShell> {
   // Lista de las pantallas principales que corresponden a cada pestaña.
   static final List<Widget> _screens = <Widget>[
     // TODO: Renombrar HomeScreen a DashboardScreen para mayor claridad
-    const HomeScreen(), // 0: Inicio (Dashboard)
+    const DashboardScreen(), // 0: Inicio (Dashboard)
     const _PlaceholderScreen(title: 'Agenda'),     // 1: Agenda
     const _PlaceholderScreen(title: 'Clientes'),   // 2: Clientes
     const _PlaceholderScreen(title: 'Finanzas'),   // 3: Finanzas

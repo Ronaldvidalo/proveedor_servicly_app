@@ -82,11 +82,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           password: _passwordController.text.trim(),
         );
       }
-      // Si el inicio de sesión o registro fue exitoso, limpiamos la pila de navegación.
-      if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-
+      // CORRECCIÓN: Se eliminó el Navigator. El AuthWrapper se encargará de la navegación.
+      
     } on FirebaseAuthException catch (error) {
       final errorMessage = _handleAuthException(error);
       _showErrorSnackbar(errorMessage);
@@ -94,6 +91,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       _showErrorSnackbar('Ocurrió un error inesperado. Inténtalo de nuevo.');
     }
 
+    // El `setState` en el `finally` es importante para detener el spinner si hay un error.
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -105,12 +103,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     
     try {
       await authService.signInWithGoogle();
+      // CORRECCIÓN: Se eliminó el Navigator. El AuthWrapper se encargará de la navegación.
 
-       // Si el inicio de sesión con Google fue exitoso, también limpiamos la pila.
-      if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-      
     } catch (error) {
       _showErrorSnackbar('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
     }
