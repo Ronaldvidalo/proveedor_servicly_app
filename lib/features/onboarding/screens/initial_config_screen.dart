@@ -1,4 +1,5 @@
 /// lib/features/onboarding/screens/initial_config_screen.dart
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

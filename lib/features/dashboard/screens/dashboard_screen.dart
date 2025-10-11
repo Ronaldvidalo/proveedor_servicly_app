@@ -7,6 +7,7 @@ import '../../../core/models/module_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../profile/screens/create_profile_screen.dart';
+import '../../modules/screens/modules_screen.dart';
 
 /// Un mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
@@ -14,6 +15,7 @@ const Map<String, IconData> _iconMap = {
   'calendar_today_outlined': Icons.calendar_today_outlined,
   'insights': Icons.insights,
   'add_card': Icons.add_card,
+  'add_circle_outline': Icons.add_circle_outline,
   'store_mall_directory_outlined': Icons.store_mall_directory_outlined,
   'person_search_outlined': Icons.person_search_outlined,
   'sync_alt_rounded': Icons.sync_alt_rounded,
@@ -45,8 +47,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userModel = context.watch<UserModel?>()!;
+    final userModel = context.watch<UserModel?>();
     final authService = context.read<AuthService>();
+
+    if (userModel == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     
     final personalization = userModel.personalization;
     final businessName = personalization['businessName'] as String? ?? 'Mi Negocio';
@@ -104,16 +110,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Wrap(
                     spacing: 16.0,
                     runSpacing: 16.0,
-                    children: activeModules.map((module) {
-                      return _ActionCard(
-                        title: module.name,
-                        icon: _iconMap[module.icon] ?? Icons.help_outline,
+                    children: [
+                      ...activeModules.map((module) {
+                        return _ActionCard(
+                          title: module.name,
+                          icon: _iconMap[module.icon] ?? Icons.help_outline,
+                          onTap: () {
+                            // TODO: Implementar navegación a la pantalla del módulo
+                            print('Navegando al módulo: ${module.moduleId}');
+                          },
+                        );
+                      }),
+                      
+                      _ActionCard(
+                        title: 'Añadir Módulo',
+                        icon: Icons.add_circle_outline,
                         onTap: () {
-                          // TODO: Implementar navegación a la pantalla del módulo
-                          print('Navegando al módulo: ${module.moduleId}');
+                          Navigator.of(context).push(
+                            // --- INICIO DE LA CORRECCIÓN ---
+                            // Le pasamos el userModel que ya tenemos a la ModulesScreen.
+                            MaterialPageRoute(builder: (_) => ModulesScreen(userModel: userModel)),
+                            // --- FIN DE LA CORRECCIÓN ---
+                          );
                         },
-                      );
-                    }).toList(),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -134,27 +155,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// --- INICIO DE LA CORRECCIÓN: WIDGETS AUXILIARES COMPLETOS ---
+// --- WIDGETS AUXILIARES COMPLETOS ---
 
-/// Widget privado para el banner que solicita completar el perfil.
 class _ProfileCompletionBanner extends StatelessWidget {
   final VoidCallback onCompleteProfile;
   const _ProfileCompletionBanner({required this.onCompleteProfile});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
-      color: Theme.of(context).primaryColor.withOpacity(0.1),
+      color: theme.primaryColor.withAlpha(25),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Theme.of(context).primaryColor.withOpacity(0.3))
+        side: BorderSide(color: theme.primaryColor.withAlpha(77))
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
-            Icon(Icons.info_outline_rounded, color: Theme.of(context).primaryColor, size: 32),
+            Icon(Icons.info_outline_rounded, color: theme.primaryColor, size: 32),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -162,7 +183,7 @@ class _ProfileCompletionBanner extends StatelessWidget {
                 children: [
                   Text(
                     'Finaliza la configuración de tu cuenta',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   const Text('Completa tu perfil para poder generar contratos y presupuestos.'),
@@ -181,7 +202,6 @@ class _ProfileCompletionBanner extends StatelessWidget {
   }
 }
 
-/// Widget reutilizable para las tarjetas de acción de los módulos.
 class _ActionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -191,9 +211,10 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+      color: theme.colorScheme.surfaceContainerHighest.withAlpha(128),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -203,9 +224,9 @@ class _ActionCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
+              Icon(icon, size: 32, color: theme.colorScheme.primary),
               const SizedBox(height: 12),
-              Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleSmall),
+              Text(title, textAlign: TextAlign.center, style: theme.textTheme.titleSmall),
             ],
           ),
         ),
@@ -213,4 +234,3 @@ class _ActionCard extends StatelessWidget {
     );
   }
 }
-// --- FIN DE LA CORRECCIÓN ---

@@ -1,4 +1,5 @@
 /// lib/core/models/module_model.dart
+library;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

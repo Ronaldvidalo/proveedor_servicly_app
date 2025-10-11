@@ -2,12 +2,12 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../home/screens/dashboard_screen.dart'; // Nuestra pantalla de dashboard existente
+import '../dashboard/screens/dashboard_screen.dart';
+// --- CORRECCIÓN: AÑADIR ESTA LÍNEA DE IMPORT ---
+import '../settings/screens/settings_screen.dart'; 
 
 /// El "Shell" o contenedor principal para la interfaz del Proveedor.
-///
-/// Gestiona la navegación principal (BottomNav en móvil, NavigationRail en web)
-/// y muestra la pantalla correspondiente a la sección seleccionada.
+/// Gestiona la navegación de las "páginas matrices" de la app.
 class ProviderShell extends StatefulWidget {
   const ProviderShell({super.key});
 
@@ -16,17 +16,13 @@ class ProviderShell extends StatefulWidget {
 }
 
 class _ProviderShellState extends State<ProviderShell> {
-  // El índice de la pestaña actualmente seleccionada.
   int _selectedIndex = 0;
 
-  // Lista de las pantallas principales que corresponden a cada pestaña.
+  // La lista de pantallas ahora refleja las páginas matrices.
   static final List<Widget> _screens = <Widget>[
-    // TODO: Renombrar HomeScreen a DashboardScreen para mayor claridad
-    const DashboardScreen(), // 0: Inicio (Dashboard)
-    const _PlaceholderScreen(title: 'Agenda'),     // 1: Agenda
-    const _PlaceholderScreen(title: 'Clientes'),   // 2: Clientes
-    const _PlaceholderScreen(title: 'Finanzas'),   // 3: Finanzas
-    const _PlaceholderScreen(title: 'Oportunidades'), // 4: Oportunidades
+    const DashboardScreen(), // 0: Inicio (Dashboard con módulos dinámicos)
+    const _PlaceholderScreen(title: 'Oportunidades'), // 1: Marketplace a futuro
+    const SettingsScreen(),  // 2: La nueva pantalla de Configuración
   ];
 
   void _onItemTapped(int index) {
@@ -37,36 +33,27 @@ class _ProviderShellState extends State<ProviderShell> {
 
   @override
   Widget build(BuildContext context) {
-    // LayoutBuilder es el widget clave para la responsividad.
-    // Nos da el ancho de la pantalla y nos permite construir diferentes UIs.
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Breakpoint para cambiar de móvil a web/escritorio.
         const double mobileBreakpoint = 640;
-
         if (constraints.maxWidth < mobileBreakpoint) {
-          // --- VISTA MÓVIL ---
           return _buildMobileLayout();
         } else {
-          // --- VISTA WEB / ESCRITORIO ---
           return _buildWebLayout();
         }
       },
     );
   }
 
-  /// Construye la interfaz para pantallas angostas (móvil).
   Widget _buildMobileLayout() {
     return Scaffold(
       body: _screens.elementAt(_selectedIndex),
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // Mantiene el fondo y muestra todos los labels
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today_outlined), activeIcon: Icon(Icons.calendar_today), label: 'Agenda'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_alt_outlined), activeIcon: Icon(Icons.people_alt), label: 'Clientes'),
-          BottomNavigationBarItem(icon: Icon(Icons.assessment_outlined), activeIcon: Icon(Icons.assessment), label: 'Finanzas'),
           BottomNavigationBarItem(icon: Icon(Icons.lightbulb_outline), activeIcon: Icon(Icons.lightbulb), label: 'Oportunidades'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: 'Configuración'),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
@@ -74,7 +61,6 @@ class _ProviderShellState extends State<ProviderShell> {
     );
   }
 
-  /// Construye la interfaz para pantallas anchas (web/escritorio).
   Widget _buildWebLayout() {
     return Scaffold(
       body: Row(
@@ -82,17 +68,14 @@ class _ProviderShellState extends State<ProviderShell> {
           NavigationRail(
             selectedIndex: _selectedIndex,
             onDestinationSelected: _onItemTapped,
-            labelType: NavigationRailLabelType.all, // Muestra siempre los labels
+            labelType: NavigationRailLabelType.all,
             destinations: const <NavigationRailDestination>[
               NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('Inicio')),
-              NavigationRailDestination(icon: Icon(Icons.calendar_today_outlined), selectedIcon: Icon(Icons.calendar_today), label: Text('Agenda')),
-              NavigationRailDestination(icon: Icon(Icons.people_alt_outlined), selectedIcon: Icon(Icons.people_alt), label: Text('Clientes')),
-              NavigationRailDestination(icon: Icon(Icons.assessment_outlined), selectedIcon: Icon(Icons.assessment), label: Text('Finanzas')),
               NavigationRailDestination(icon: Icon(Icons.lightbulb_outline), selectedIcon: Icon(Icons.lightbulb), label: Text('Oportunidades')),
+              NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: Text('Configuración')),
             ],
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          // El contenido principal ocupa el resto del espacio.
           Expanded(
             child: _screens.elementAt(_selectedIndex),
           ),
@@ -112,9 +95,22 @@ class _PlaceholderScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: Center(
-        child: Text(
-          'Pantalla de $title',
-          style: Theme.of(context).textTheme.headlineMedium,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+             Text(
+              'Próximamente: $title',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 16),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: const Text(
+                'Estamos construyendo esta sección para traerte nuevas oportunidades de negocio.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       ),
     );
