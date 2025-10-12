@@ -1,3 +1,5 @@
+// lib/features/modules/screens/modules_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +8,7 @@ import '../../../core/models/module_model.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/firestore_service.dart';
 
+// El mapa de íconos que es consistente con nuestra base de datos actual.
 const Map<String, IconData> _iconMap = {
   'people_outline': Icons.people_outline_rounded,
   'calendar_today_outlined': Icons.calendar_today_rounded,
@@ -15,6 +18,7 @@ const Map<String, IconData> _iconMap = {
 };
 
 class ModulesScreen extends StatefulWidget {
+  // La pantalla recibe toda la información que necesita, haciéndola robusta.
   final UserModel userModel;
   final List<ModuleModel> allModules;
 
@@ -37,10 +41,12 @@ class _ModulesScreenState extends State<ModulesScreen> {
   @override
   void initState() {
     super.initState();
+    // Ordenamos la lista que recibimos una sola vez.
     _sortedModules = widget.allModules
       ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
   }
 
+  /// Lógica para activar un nuevo módulo.
   Future<void> _activateModule(ModuleModel moduleToActivate, UserModel currentUserModel) async {
     if (_isLoadingModuleId != null) return;
     setState(() => _isLoadingModuleId = moduleToActivate.moduleId);
@@ -70,6 +76,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
   }
 
+  /// --- CORRECCIÓN: LÓGICA DE DESACTIVACIÓN COMPLETA ---
   Future<void> _deactivateModule(ModuleModel moduleToDeactivate, UserModel currentUserModel) async {
     if (_isLoadingModuleId != null) return;
     setState(() => _isLoadingModuleId = moduleToDeactivate.moduleId);
@@ -110,9 +117,9 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
           return GridView.builder(
             padding: const EdgeInsets.all(16.0),
-            // --- SUGERENCIA DE MEJORA RESPONSIVA ---
+            // --- MEJORA DE RESPONSIVIDAD ---
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              // En lugar de 2 columnas fijas, calcula cuántas caben.
+              // Calcula cuántas columnas de 200px de ancho caben, con un mínimo de 2.
               crossAxisCount: (MediaQuery.of(context).size.width / 220).floor().clamp(2, 5),
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
@@ -142,7 +149,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
     );
   }
 
-  /// --- NUEVO WIDGET: Diálogo de confirmación para ACTIVAR un módulo ---
+  // --- Tus excelentes diálogos de confirmación y métodos auxiliares ---
   void _showActivationDialog(ModuleModel module, UserModel currentUserModel) {
     showDialog(
       context: context,
@@ -178,7 +185,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
     );
   }
 
-  /// --- NUEVO WIDGET: Diálogo de confirmación para DESACTIVAR un módulo ---
   void _showDeactivationDialog(ModuleModel module, UserModel currentUserModel) {
     showDialog(
       context: context,
@@ -247,7 +253,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 }
 
-/// --- WIDGET DE TARJETA COMPLETAMENTE REDISEÑADO ---
+/// --- TU WIDGET DE TARJETA REDISEÑADO SE MANTIENE IGUAL ---
 class _ModuleGridCard extends StatelessWidget {
   final ModuleModel module;
   final bool isInstalled;
@@ -263,10 +269,9 @@ class _ModuleGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- Paleta de colores "Cyber Glow" ---
     const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
-    const successColor = Color(0xFF00FF7F); // Verde neón para "instalado"
+    const successColor = Color(0xFF00FF7F);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -313,7 +318,6 @@ class _ModuleGridCard extends StatelessWidget {
                 ),
               ],
             ),
-            // --- Indicador de Carga ---
             if (isLoading)
               Container(
                 decoration: BoxDecoration(
@@ -322,7 +326,6 @@ class _ModuleGridCard extends StatelessWidget {
                 ),
                 child: const Center(child: CircularProgressIndicator(color: Colors.white)),
               ),
-            // --- Indicador "Instalado" ---
             if (isInstalled && !isLoading)
               Positioned(
                 top: 8,
@@ -336,7 +339,6 @@ class _ModuleGridCard extends StatelessWidget {
                   child: const Icon(Icons.check_circle, color: successColor, size: 24),
                 ),
               ),
-            // --- Indicador "Premium" ---
             if (module.isPremium)
               Positioned(
                 top: 8,
@@ -352,4 +354,3 @@ class _ModuleGridCard extends StatelessWidget {
     );
   }
 }
-

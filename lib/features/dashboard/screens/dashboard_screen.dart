@@ -2,15 +2,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui';
+import 'dart:ui'; // Necesario para el efecto de desenfoque.
 
+// --- Modelos y Servicios ---
 import '../../../core/models/user_model.dart';
 import '../../../core/models/module_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/firestore_service.dart';
-import '../../modules/screens/modules_screen.dart';
+import '../../modules/screens/modules_screen.dart'; 
 import '../../profile/screens/create_profile_screen.dart';
+import '../../public_profile/screens/public_profile_screen.dart'; // Importar Perfil Público
 
+/// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
   'people_outline': Icons.people_outline_rounded,
   'calendar_today_outlined': Icons.calendar_today_rounded,
@@ -21,8 +24,10 @@ const Map<String, IconData> _iconMap = {
   'person_search_outlined': Icons.person_search_rounded,
   'sync_alt_rounded': Icons.sync_alt_rounded,
   'help_outline': Icons.help_outline_rounded,
+  'visibility_outlined': Icons.visibility_outlined, // Ícono para el nuevo botón
 };
 
+/// La pantalla principal y dashboard para el usuario proveedor.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -31,14 +36,12 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
-  // CORRECCIÓN: El Future para cargar los módulos ahora vive aquí.
   late Future<List<ModuleModel>> _modulesFuture;
   late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
-    // La carga de módulos se inicia una sola vez.
     _modulesFuture = context.read<FirestoreService>().getAvailableModules();
     _animationController = AnimationController(
       vsync: this,
@@ -69,7 +72,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       body: userModel == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              // CORRECCIÓN: El FutureBuilder ahora envuelve toda la UI.
               child: FutureBuilder<List<ModuleModel>>(
                 future: _modulesFuture,
                 builder: (context, snapshot) {
@@ -93,7 +95,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   return CustomScrollView(
                     slivers: [
                       _DashboardHeader(userModel: userModel),
-                      // CORRECCIÓN: Pasamos 'allModules' al método que construye la UI.
                       _buildAnimatedContent(context, userModel, activeModules, allModules),
                     ],
                   );
@@ -103,7 +104,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 
-  /// Construye el contenido principal, ahora recibiendo la lista completa de módulos.
+  /// Construye el contenido principal de la pantalla con una animación de entrada.
   Widget _buildAnimatedContent(BuildContext context, UserModel userModel, List<ModuleModel> activeModules, List<ModuleModel> allModules) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -117,6 +118,20 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ),
             ),
           
+          // --- INICIO DE LA MODIFICACIÓN: Botón de Perfil Público ---
+          // Lo colocamos aquí, separado y con jerarquía.
+          _PublicProfileButton(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PublicProfileScreen(providerId: userModel.uid),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 32), // Espacio antes de la siguiente sección
+          // --- FIN DE LA MODIFICACIÓN ---
+
           Text(
             'Mis Módulos',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -136,11 +151,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               child: _ModulesGrid(
                 activeModules: activeModules,
                 onAddModule: () {
-                  // CORRECCIÓN: Pasamos los datos ya cargados a la ModulesScreen.
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => ModulesScreen(
                       userModel: userModel,
-                      allModules: allModules, // <-- LE PASAMOS EL CATÁLOGO COMPLETO
+                      allModules: allModules,
                     )),
                   );
                 },
@@ -272,6 +286,34 @@ class _ProfileCompletionBanner extends StatelessWidget {
   }
 }
 
+class _PublicProfileButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _PublicProfileButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF); // Tu color de acento
+
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.visibility_outlined),
+      label: const Text('Ver mi Perfil Público'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: accentColor, // Color de texto y ícono
+        minimumSize: const Size(double.infinity, 50), // Botón alargado
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        side: const BorderSide(color: accentColor, width: 2), // Borde de color
+        textStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
 /// Un grid responsivo para mostrar los módulos.
 class _ModulesGrid extends StatelessWidget {
   final List<ModuleModel> activeModules;
@@ -283,7 +325,6 @@ class _ModulesGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // UI Polish: Grid adaptable a cualquier tamaño de pantalla.
         final crossAxisCount = (constraints.maxWidth / 180).floor().clamp(2, 5);
         return GridView.count(
           crossAxisCount: crossAxisCount,
@@ -301,6 +342,7 @@ class _ModulesGrid extends StatelessWidget {
                 },
               );
             }),
+            // --- CORRECCIÓN: Se elimina el _ModuleCard de "Ver mi Perfil" de aquí ---
             _AddModuleCard(onTap: onAddModule),
           ],
         );

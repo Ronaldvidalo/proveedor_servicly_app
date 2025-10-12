@@ -1,35 +1,39 @@
-// lib/core/models/user_model.dart
+/// lib/core/models/user_model.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Representa el modelo de datos para un usuario en la plataforma Servicly.
 ///
-/// Este modelo contiene no solo la información básica, sino también el estado
-/// de su rol, plan, módulos activos y configuraciones de personalización.
+/// Este modelo contiene no solo la información de la plataforma (rol, plan),
+/// sino también un mapa flexible 'personalization' que almacena todos los
+/// datos del negocio del proveedor.
 class UserModel {
-  // --- Información Básica y de Autenticación ---
+  // --- DATOS DE LA PLATAFORMA (Gestionados por Servicly) ---
   final String uid;
   final String? email;
   final Timestamp? createdAt;
   final bool isProfileComplete;
-
-  // --- NUEVO: Campos de Rol y Monetización ---
-  /// El rol del usuario en la plataforma ('provider', 'client', 'both').
-  /// Es nulo hasta que el usuario lo selecciona en el onboarding.
   final String? role;
-
-  /// El tipo de plan de suscripción actual del usuario ('free', 'founder', 'premium').
   final String planType;
-
-  /// Una lista de los IDs de los módulos que el usuario tiene activados.
   final List<String> activeModules;
 
-  // --- NUEVO: Campo de Personalización ("Tu Negocio, Tu App") ---
-  /// Un mapa que contiene los datos de la marca del proveedor.
-  /// Ej: {'businessName': 'Plomería Total', 'logoUrl': '...', 'primaryColor': '#00BFFF'}
+  // --- DATOS DEL NEGOCIO (Gestionados por el Proveedor) ---
+  /// Mapa flexible para almacenar toda la configuración de la marca y el perfil público.
+  /// Ejemplos de claves:
+  /// - 'businessName': String
+  /// - 'logoUrl': String
+  /// - 'primaryColor': String (en formato Hex '#RRGGBB')
+  /// - 'publicProfileFormat': String ('cv', 'portfolio', 'store')
+  /// - 'welcomeMessage': String
+  /// - 'address': String
+  /// - 'country': String
+  /// - 'phoneNumber': String
+  /// - 'contactEmail': String
+  /// - 'bankDetails': Map<String, String> (ej: {'cbu': '...', 'alias': '...'})
   final Map<String, dynamic> personalization;
 
-  /// El nombre a mostrar del usuario, que se obtiene de la personalización.
+  // --- GETTERS DE CONVENIENCIA ---
+  /// Acceso directo al nombre del negocio desde el mapa de personalización.
   String? get displayName => personalization['businessName'] as String?;
 
   UserModel({
@@ -37,10 +41,10 @@ class UserModel {
     this.email,
     this.createdAt,
     this.isProfileComplete = false,
-    this.role, // Nulo por defecto al crear la cuenta.
-    this.planType = 'free', // Todo usuario nuevo empieza en el plan gratuito.
-    this.activeModules = const [], // Lista vacía por defecto.
-    this.personalization = const {}, // Mapa vacío por defecto.
+    this.role,
+    this.planType = 'free',
+    this.activeModules = const [],
+    this.personalization = const {},
   });
 
   /// Convierte la instancia del modelo a un mapa para guardarlo en Firestore.
@@ -65,7 +69,6 @@ class UserModel {
       createdAt: json['createdAt'] as Timestamp?,
       isProfileComplete: json['isProfileComplete'] as bool? ?? false,
       role: json['role'] as String?,
-      // Valores por defecto para garantizar que la app no falle si el campo no existe.
       planType: json['planType'] as String? ?? 'free',
       activeModules: List<String>.from(json['activeModules'] ?? []),
       personalization: Map<String, dynamic>.from(json['personalization'] ?? {}),

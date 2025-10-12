@@ -27,6 +27,19 @@ class FirestoreService {
     }
   }
 
+Future<UserModel?> getUser(String uid) async {
+    try {
+      final doc = await _usersCollection.doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        return UserModel.fromJson(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      print('Error al obtener el usuario: $e');
+      rethrow;
+    }
+  }
+  
   /// Obtiene un stream con los datos del perfil de un usuario en tiempo real.
   Stream<UserModel?> getUserStream(String uid) {
     return _usersCollection.doc(uid).snapshots().map((snapshot) {

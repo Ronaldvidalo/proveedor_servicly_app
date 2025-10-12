@@ -1,4 +1,5 @@
 /// lib/features/modules/screens/simple_modules_screen.dart
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

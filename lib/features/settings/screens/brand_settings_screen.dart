@@ -1,5 +1,4 @@
-/// lib/features/settings/screens/brand_settings_screen.dart
-library;
+// lib/features/settings/screens/brand_settings_screen.dart
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -19,16 +18,20 @@ class BrandSettingsScreen extends StatefulWidget {
 
 class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
+  
+  // --- AMPLIADO: Controladores para todos los campos del perfil público ---
   late TextEditingController _businessNameController;
+  late TextEditingController _welcomeMessageController;
+  late TextEditingController _addressController;
+  late TextEditingController _contactEmailController;
+  String? _selectedCountry; // Para el país
+  String _selectedFormat = 'cv'; // Valor por defecto para el formato de perfil
 
   bool _isLoading = false;
-  
-  // Para la selección de imágenes
   XFile? _selectedImageFile;
   String? _existingLogoUrl;
-
-  // Para la selección de color
   Color? _selectedColor;
+
   final List<Color> _predefinedColors = [
     Colors.blue, Colors.green, Colors.red, Colors.purple, Colors.orange, Colors.teal
   ];
@@ -36,18 +39,28 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    final userModel = context.read<UserModel>(); // Leemos una vez
+    final userModel = context.read<UserModel>();
+    final personalization = userModel.personalization;
     
-    _businessNameController = TextEditingController(text: userModel.displayName ?? '');
-    _existingLogoUrl = userModel.personalization['logoUrl'] as String?;
+    // --- AMPLIADO: Inicialización de todos los controladores ---
+    _businessNameController = TextEditingController(text: personalization['businessName'] as String? ?? '');
+    _welcomeMessageController = TextEditingController(text: personalization['welcomeMessage'] as String? ?? '');
+    _addressController = TextEditingController(text: personalization['address'] as String? ?? '');
+    _contactEmailController = TextEditingController(text: personalization['contactEmail'] as String? ?? '');
+    _selectedCountry = personalization['country'] as String?;
+    _selectedFormat = personalization['publicProfileFormat'] as String? ?? 'cv';
+    _existingLogoUrl = personalization['logoUrl'] as String?;
     
-    final hexColor = userModel.personalization['primaryColor'] as String?;
+    final hexColor = personalization['primaryColor'] as String?;
     _selectedColor = _colorFromHex(hexColor) ?? Theme.of(context).primaryColor;
   }
 
   @override
   void dispose() {
     _businessNameController.dispose();
+    _welcomeMessageController.dispose();
+    _addressController.dispose();
+    _contactEmailController.dispose();
     super.dispose();
   }
 
@@ -67,7 +80,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
-
     setState(() => _isLoading = true);
 
     final firestoreService = context.read<FirestoreService>();
@@ -75,27 +87,28 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     String? newLogoUrl;
 
     try {
-      // 1. Subir la nueva imagen si el usuario seleccionó una.
       if (_selectedImageFile != null) {
         final ref = FirebaseStorage.instance.ref('logos/${userModel.uid}');
         await ref.putFile(File(_selectedImageFile!.path));
         newLogoUrl = await ref.getDownloadURL();
       }
 
-      // 2. Construir el mapa de personalización actualizado.
+      // --- AMPLIADO: Construcción del mapa de personalización con todos los campos ---
       final updatedPersonalization = Map<String, dynamic>.from(userModel.personalization);
       updatedPersonalization['businessName'] = _businessNameController.text.trim();
-      if (newLogoUrl != null) {
-        updatedPersonalization['logoUrl'] = newLogoUrl;
-      }
+      updatedPersonalization['welcomeMessage'] = _welcomeMessageController.text.trim();
+      updatedPersonalization['address'] = _addressController.text.trim();
+      updatedPersonalization['contactEmail'] = _contactEmailController.text.trim();
+      updatedPersonalization['country'] = _selectedCountry;
+      updatedPersonalization['publicProfileFormat'] = _selectedFormat;
+      if (newLogoUrl != null) updatedPersonalization['logoUrl'] = newLogoUrl;
       if (_selectedColor != null) {
         updatedPersonalization['primaryColor'] = '#${_selectedColor!.value.toRadixString(16).substring(2, 8)}';
       }
       
-      // 3. Guardar los datos en Firestore.
       await firestoreService.updateUser(userModel.uid, {'personalization': updatedPersonalization});
 
-      _showSnackbar('¡Marca guardada con éxito!');
+      _showSnackbar('¡Perfil público guardado con éxito!');
       if(mounted) Navigator.of(context).pop();
 
     } catch (e) {
@@ -108,33 +121,73 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Personalizar mi Marca')),
+      appBar: AppBar(title: const Text('Editar Perfil Público')),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
+          constraints: const BoxConstraints(maxWidth: 700),
           child: Form(
             key: _formKey,
             child: ListView(
               padding: const EdgeInsets.all(24.0),
               children: [
-                // Sección de Logo
+                _buildSectionTitle('Identidad de Marca'),
+                const SizedBox(height: 16),
                 _buildLogoSelector(),
-                const SizedBox(height: 32),
-
-                // Sección de Nombre del Negocio
-                Text('Nombre de tu Negocio', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
                 TextFormField(
                   controller: _businessNameController,
-                  decoration: const InputDecoration(labelText: 'Ej: Plomería Total'),
+                  decoration: const InputDecoration(labelText: 'Nombre de tu Negocio o Servicio'),
                   validator: (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio' : null,
                 ),
-                const SizedBox(height: 32),
-
-                // Sección de Color de Marca
-                Text('Color de tu Marca', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 _buildColorSelector(),
+                const Divider(height: 48),
+
+                // --- NUEVO: Sección de Formato de Perfil ---
+                _buildSectionTitle('Formato de Perfil Público'),
+                const SizedBox(height: 8),
+                Text('Elige cómo verán tus clientes tu página de presentación.', style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedFormat,
+                  decoration: const InputDecoration(labelText: 'Formato de Perfil'),
+                  items: const [
+                    DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
+                    DropdownMenuItem(value: 'portfolio', child: Text('Catálogo de Trabajos')),
+                    DropdownMenuItem(value: 'store', child: Text('Tienda de Servicios')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _selectedFormat = value);
+                  },
+                ),
+                const Divider(height: 48),
+
+                // --- NUEVO: Sección de Contenido del Perfil ---
+                _buildSectionTitle('Contenido del Perfil'),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _welcomeMessageController,
+                  decoration: const InputDecoration(labelText: 'Mensaje de Bienvenida o Eslogan'),
+                  maxLength: 150,
+                ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _addressController,
+                  decoration: const InputDecoration(labelText: 'Dirección o Zona de Cobertura'),
+                ),
+                const SizedBox(height: 24),
+                 // TODO: Reemplazar con un Dropdown de países predefinidos
+                TextFormField(
+                  initialValue: _selectedCountry,
+                  decoration: const InputDecoration(labelText: 'País'),
+                  onChanged: (value) => _selectedCountry = value,
+                ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _contactEmailController,
+                  decoration: const InputDecoration(labelText: 'Email de Contacto Público'),
+                  keyboardType: TextInputType.emailAddress,
+                ),
                 const SizedBox(height: 48),
 
                 // Botón de Guardar
@@ -153,6 +206,9 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
         ),
       ),
     );
+  }
+   Widget _buildSectionTitle(String title) {
+    return Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold));
   }
 
   Widget _buildLogoSelector() {
