@@ -26,15 +26,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<FirestoreService>(
-          create: (_) => FirestoreService(),
-        ),
+        Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider<AuthService>(
           create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
           ),
         ),
-        // Solo nos importa el estado de autenticación a nivel global
+        // Solo nos importa el estado de autenticación a nivel global.
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,

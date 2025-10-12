@@ -1,5 +1,3 @@
-// lib/features/modules/screens/modules_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,84 +6,134 @@ import '../../../core/models/module_model.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/firestore_service.dart';
 
-// El mapa de íconos sigue siendo necesario para la UI
 const Map<String, IconData> _iconMap = {
-  'people_outline': Icons.people_outline,
-  'calendar_today_outlined': Icons.calendar_today_outlined,
-  'insights': Icons.insights,
-  'add_card': Icons.add_card,
-  'help_outline': Icons.help_outline,
+  'people_outline': Icons.people_outline_rounded,
+  'calendar_today_outlined': Icons.calendar_today_rounded,
+  'insights': Icons.insights_rounded,
+  'add_card': Icons.add_card_rounded,
+  'help_outline': Icons.help_outline_rounded,
 };
-
-// Un modelo de datos simple para contener los datos que necesita la pantalla
-class _ModulesScreenData {
-  final List<ModuleModel> allModules;
-  final UserModel userModel;
-  _ModulesScreenData({required this.allModules, required this.userModel});
-}
 
 class ModulesScreen extends StatefulWidget {
   final UserModel userModel;
-  const ModulesScreen({super.key, required this.userModel});
+  final List<ModuleModel> allModules;
+
+  const ModulesScreen({
+    super.key,
+    required this.userModel,
+    required this.allModules,
+  });
 
   @override
   State<ModulesScreen> createState() => _ModulesScreenState();
 }
 
 class _ModulesScreenState extends State<ModulesScreen> {
-  // 1. Usamos un Future para cargar TODOS los datos necesarios a la vez.
-  late Future<_ModulesScreenData> _dataFuture;
+  String? _isLoadingModuleId;
+  static const int _freePlanModuleLimit = 4;
+
+  late List<ModuleModel> _sortedModules;
 
   @override
   void initState() {
     super.initState();
-    // 2. En initState, preparamos la carga de datos.
-    _dataFuture = _loadScreenData();
+    _sortedModules = widget.allModules
+      ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
   }
 
-  // 3. Este método se encarga de obtener todo lo que la pantalla necesita.
-  Future<_ModulesScreenData> _loadScreenData() async {
+  Future<void> _activateModule(ModuleModel moduleToActivate, UserModel currentUserModel) async {
+    if (_isLoadingModuleId != null) return;
+    setState(() => _isLoadingModuleId = moduleToActivate.moduleId);
     final firestoreService = context.read<FirestoreService>();
-    // Usamos Future.wait para esperar a que el catálogo de módulos cargue.
-    final allModules = await firestoreService.getAvailableModules();
-    // El UserModel ya lo tenemos desde el widget.
-    return _ModulesScreenData(allModules: allModules, userModel: widget.userModel);
+
+    if (moduleToActivate.isPremium && currentUserModel.planType == 'free') {
+      _showUpgradeDialog('Este es un módulo premium. ¡Actualiza tu plan para activarlo!');
+      setState(() => _isLoadingModuleId = null);
+      return;
+    }
+
+    if (currentUserModel.planType == 'free' && currentUserModel.activeModules.length >= _freePlanModuleLimit) {
+      _showUpgradeDialog('Has alcanzado el límite de $_freePlanModuleLimit módulos para el plan gratuito.');
+      setState(() => _isLoadingModuleId = null);
+      return;
+    }
+
+    try {
+      await firestoreService.updateUser(currentUserModel.uid, {
+        'activeModules': FieldValue.arrayUnion([moduleToActivate.moduleId])
+      });
+      _showSnackbar('¡Módulo "${moduleToActivate.name}" activado!');
+    } catch (e) {
+      _showSnackbar('Error al activar el módulo: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoadingModuleId = null);
+    }
+  }
+
+  Future<void> _deactivateModule(ModuleModel moduleToDeactivate, UserModel currentUserModel) async {
+    if (_isLoadingModuleId != null) return;
+    setState(() => _isLoadingModuleId = moduleToDeactivate.moduleId);
+    final firestoreService = context.read<FirestoreService>();
+
+    try {
+      await firestoreService.updateUser(currentUserModel.uid, {
+        'activeModules': FieldValue.arrayRemove([moduleToDeactivate.moduleId])
+      });
+      _showSnackbar('Módulo "${moduleToDeactivate.name}" desactivado.', isError: false);
+    } catch (e) {
+      _showSnackbar('Error al desactivar el módulo: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoadingModuleId = null);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    const backgroundColor = Color(0xFF1A1A2E);
+    
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Tienda de Módulos'),
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        foregroundColor: Colors.white,
       ),
-      // 4. Usamos un solo FutureBuilder que espera a que TODOS los datos estén listos.
-      body: FutureBuilder<_ModulesScreenData>(
-        future: _dataFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: StreamBuilder<UserModel?>(
+        stream: context.read<FirestoreService>().getUserStream(widget.userModel.uid),
+        initialData: widget.userModel,
+        builder: (context, userSnapshot) {
+          if (!userSnapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+          final currentUserModel = userSnapshot.data!;
 
-          if (snapshot.hasError || !snapshot.hasData) {
-            return const Center(child: Text('Error fatal al cargar los datos.'));
-          }
+          return GridView.builder(
+            padding: const EdgeInsets.all(16.0),
+            // --- SUGERENCIA DE MEJORA RESPONSIVA ---
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              // En lugar de 2 columnas fijas, calcula cuántas caben.
+              crossAxisCount: (MediaQuery.of(context).size.width / 220).floor().clamp(2, 5),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.0,
+            ),
+            itemCount: _sortedModules.length,
+            itemBuilder: (context, index) {
+              final module = _sortedModules[index];
+              final isInstalled = currentUserModel.activeModules.contains(module.moduleId);
 
-          final screenData = snapshot.data!;
-          final allModules = screenData.allModules
-            ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
-          
-          // 5. Una vez que tenemos los datos, usamos un StreamBuilder para la reactividad.
-          return StreamBuilder<UserModel?>(
-            stream: context.read<FirestoreService>().getUserStream(screenData.userModel.uid),
-            initialData: screenData.userModel,
-            builder: (context, userSnapshot) {
-              final currentUserModel = userSnapshot.data ?? screenData.userModel;
-
-              // Si llegamos aquí, es seguro construir la lista.
-              return _ModulesListView(
-                allModules: allModules,
-                currentUserModel: currentUserModel,
-                onActivateModule: (module) => _activateModule(context, module),
+              return _ModuleGridCard(
+                module: module,
+                isInstalled: isInstalled,
+                isLoading: _isLoadingModuleId == module.moduleId,
+                onTap: () {
+                  if (isInstalled) {
+                    _showDeactivationDialog(module, currentUserModel);
+                  } else {
+                    _showActivationDialog(module, currentUserModel);
+                  }
+                },
               );
             },
           );
@@ -94,64 +142,214 @@ class _ModulesScreenState extends State<ModulesScreen> {
     );
   }
 
-  // --- Lógica de Activación (ahora separada) ---
-  Future<void> _activateModule(BuildContext context, ModuleModel moduleToActivate) async {
-    // ... La lógica interna de esta función se mantiene igual que antes ...
+  /// --- NUEVO WIDGET: Diálogo de confirmación para ACTIVAR un módulo ---
+  void _showActivationDialog(ModuleModel module, UserModel currentUserModel) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D5A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(_iconMap[module.icon] ?? Icons.help_outline_rounded, color: const Color(0xFF00BFFF)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(module.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: Text(
+          "${module.description}\n\n¿Deseas activar este módulo en tu dashboard?",
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00BFFF), foregroundColor: Colors.black),
+            child: const Text('Activar'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _activateModule(module, currentUserModel);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// --- NUEVO WIDGET: Diálogo de confirmación para DESACTIVAR un módulo ---
+  void _showDeactivationDialog(ModuleModel module, UserModel currentUserModel) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D5A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(_iconMap[module.icon] ?? Icons.help_outline_rounded, color: Colors.redAccent),
+            const SizedBox(width: 12),
+            Expanded(child: Text('Desactivar ${module.name}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: const Text(
+          "El módulo se quitará de tu dashboard, pero tus datos se conservarán por si decides volver a activarlo.\n\n¿Estás seguro?",
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            child: const Text('Sí, desactivar'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _deactivateModule(module, currentUserModel);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUpgradeDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D5A),
+        title: const Text('Plan Premium Requerido', style: TextStyle(color: Colors.white)),
+        content: Text(message, style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            child: const Text('Más Tarde'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          FilledButton(
+            child: const Text('Ver Planes'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+     if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.redAccent : const Color(0xFF00FF7F),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 }
 
-// --- WIDGET DE UI (SEPARADO) ---
-// Separar la UI en su propio widget hace el código más limpio.
-class _ModulesListView extends StatefulWidget {
-  final List<ModuleModel> allModules;
-  final UserModel currentUserModel;
-  final Function(ModuleModel) onActivateModule;
+/// --- WIDGET DE TARJETA COMPLETAMENTE REDISEÑADO ---
+class _ModuleGridCard extends StatelessWidget {
+  final ModuleModel module;
+  final bool isInstalled;
+  final bool isLoading;
+  final VoidCallback onTap;
 
-  const _ModulesListView({
-    required this.allModules,
-    required this.currentUserModel,
-    required this.onActivateModule,
+  const _ModuleGridCard({
+    required this.module,
+    required this.isInstalled,
+    required this.isLoading,
+    required this.onTap,
   });
 
   @override
-  State<_ModulesListView> createState() => _ModulesListViewState();
-}
-
-class _ModulesListViewState extends State<_ModulesListView> {
-  String? _isLoadingModuleId;
-
-  @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: widget.allModules.length,
-      separatorBuilder: (context, index) => const Divider(),
-      itemBuilder: (context, index) {
-        final module = widget.allModules[index];
-        final isInstalled = widget.currentUserModel.activeModules.contains(module.moduleId);
+    // --- Paleta de colores "Cyber Glow" ---
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+    const successColor = Color(0xFF00FF7F); // Verde neón para "instalado"
 
-        return ListTile(
-          leading: Icon(
-            _iconMap[module.icon] ?? Icons.help_outline,
-            size: 40,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          title: Text(module.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(module.description),
-          trailing: isInstalled
-              ? const Text('Instalado', style: TextStyle(color: Colors.green))
-              : ElevatedButton(
-                  onPressed: _isLoadingModuleId == module.moduleId ? null : () async {
-                    setState(() => _isLoadingModuleId = module.moduleId);
-                    await widget.onActivateModule(module);
-                    if (mounted) setState(() => _isLoadingModuleId = null);
-                  },
-                  child: _isLoadingModuleId == module.moduleId
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Activar'),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 4.0,
+      color: surfaceColor,
+      shadowColor: isInstalled ? successColor.withAlpha(100) : accentColor.withAlpha(80),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isInstalled ? successColor : accentColor.withAlpha(150),
+          width: 2,
+        ),
+      ),
+      child: InkWell(
+        onTap: isLoading ? null : onTap,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _iconMap[module.icon] ?? Icons.help_outline_rounded,
+                  size: 40,
+                  color: isInstalled ? successColor : accentColor,
                 ),
-        );
-      },
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(
+                    module.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      shadows: [
+                        if (isInstalled) Shadow(color: successColor, blurRadius: 10),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // --- Indicador de Carga ---
+            if (isLoading)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+              ),
+            // --- Indicador "Instalado" ---
+            if (isInstalled && !isLoading)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle, color: successColor, size: 24),
+                ),
+              ),
+            // --- Indicador "Premium" ---
+            if (module.isPremium)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Tooltip(
+                  message: 'Módulo Premium',
+                  child: Icon(Icons.star, color: Colors.amber.shade600, size: 20),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
+

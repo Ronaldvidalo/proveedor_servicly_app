@@ -1,31 +1,16 @@
+// lib/features/dashboard/screens/dashboard_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui'; // Necesario para el efecto de desenfoque.
+import 'dart:ui';
 
-// --- Modelos y Servicios (sin cambios) ---
 import '../../../core/models/user_model.dart';
 import '../../../core/models/module_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/firestore_service.dart';
-import '../../modules/screens/simple_modules_screen.dart';
+import '../../modules/screens/modules_screen.dart';
+import '../../profile/screens/create_profile_screen.dart';
 
-// --- Placeholders de Pantallas para que el código sea ejecutable ---
-// Asegúrate de reemplazar estos con tus implementaciones reales.
-class CreateProfileScreen extends StatelessWidget {
-  const CreateProfileScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Crear Perfil")));
-}
-class ModulesScreen extends StatelessWidget {
-  final UserModel userModel;
-  const ModulesScreen({super.key, required this.userModel});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Módulos")));
-}
-// -----------------------------------------------------------------
-
-
-/// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
   'people_outline': Icons.people_outline_rounded,
   'calendar_today_outlined': Icons.calendar_today_rounded,
@@ -38,8 +23,6 @@ const Map<String, IconData> _iconMap = {
   'help_outline': Icons.help_outline_rounded,
 };
 
-/// La pantalla principal y dashboard para el usuario proveedor.
-/// Rediseñada como un "Hub Digital" con estilo "Cyber Glow".
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -48,14 +31,15 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+  // CORRECCIÓN: El Future para cargar los módulos ahora vive aquí.
   late Future<List<ModuleModel>> _modulesFuture;
   late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
+    // La carga de módulos se inicia una sola vez.
     _modulesFuture = context.read<FirestoreService>().getAvailableModules();
-    // Controlador para las animaciones de entrada.
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -78,8 +62,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final userModel = context.watch<UserModel?>();
-
-    // --- Definición del Tema "Cyber Glow" ---
     const backgroundColor = Color(0xFF1A1A2E);
     
     return Scaffold(
@@ -87,10 +69,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       body: userModel == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
+              // CORRECCIÓN: El FutureBuilder ahora envuelve toda la UI.
               child: FutureBuilder<List<ModuleModel>>(
                 future: _modulesFuture,
                 builder: (context, snapshot) {
-                  // UX Improvement: Muestra un esqueleto de carga elegante en lugar de un simple spinner.
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return _LoadingSkeleton(
                       userName: userModel.displayName, 
@@ -108,11 +90,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       .toList()
                     ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
                   
-                  // UI Polish: Usa CustomScrollView para un layout más dinámico y animado.
                   return CustomScrollView(
                     slivers: [
                       _DashboardHeader(userModel: userModel),
-                      _buildAnimatedContent(context, userModel, activeModules),
+                      // CORRECCIÓN: Pasamos 'allModules' al método que construye la UI.
+                      _buildAnimatedContent(context, userModel, activeModules, allModules),
                     ],
                   );
                 },
@@ -121,8 +103,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 
-  /// Construye el contenido principal de la pantalla con una animación de entrada.
-  Widget _buildAnimatedContent(BuildContext context, UserModel userModel, List<ModuleModel> activeModules) {
+  /// Construye el contenido principal, ahora recibiendo la lista completa de módulos.
+  Widget _buildAnimatedContent(BuildContext context, UserModel userModel, List<ModuleModel> activeModules, List<ModuleModel> allModules) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
       sliver: SliverList(
@@ -144,7 +126,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           const SizedBox(height: 16),
 
-          // UI Polish: El Grid de módulos se anima al entrar.
           FadeTransition(
             opacity: CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
             child: SlideTransition(
@@ -155,8 +136,12 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               child: _ModulesGrid(
                 activeModules: activeModules,
                 onAddModule: () {
+                  // CORRECCIÓN: Pasamos los datos ya cargados a la ModulesScreen.
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_)=> ModulesScreen(userModel: userModel)),
+                    MaterialPageRoute(builder: (_) => ModulesScreen(
+                      userModel: userModel,
+                      allModules: allModules, // <-- LE PASAMOS EL CATÁLOGO COMPLETO
+                    )),
                   );
                 },
               ),
@@ -167,7 +152,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 }
-
 
 // --- WIDGETS PERSONALIZADOS Y REDISEÑADOS ---
 
