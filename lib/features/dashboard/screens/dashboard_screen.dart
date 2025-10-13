@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui'; // Necesario para el efecto de desenfoque.
+import 'dart:ui';
 
 // --- Modelos y Servicios ---
 import '../../../core/models/user_model.dart';
@@ -10,8 +10,9 @@ import '../../../core/services/firestore_service.dart';
 import '../../modules/screens/modules_screen.dart';
 import '../../profile/screens/create_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
+import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
 
-/// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
+
 const Map<String, IconData> _iconMap = {
   'people_outline': Icons.people_outline_rounded,
   'calendar_today_outlined': Icons.calendar_today_rounded,
@@ -23,9 +24,9 @@ const Map<String, IconData> _iconMap = {
   'sync_alt_rounded': Icons.sync_alt_rounded,
   'help_outline': Icons.help_outline_rounded,
   'visibility_outlined': Icons.visibility_outlined,
+  'add_circle_rounded': Icons.add_circle_rounded, // Ícono para crear
 };
 
-/// La pantalla principal y dashboard para el usuario proveedor.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -52,12 +53,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   void dispose() {
     _animationController.dispose();
     super.dispose();
-  }
-
-  void _navigateToCreateProfile(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CreateProfileScreen()),
-    );
   }
 
   @override
@@ -102,7 +97,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 
-  /// Construye el contenido principal de la pantalla con una animación de entrada.
   Widget _buildAnimatedContent(BuildContext context, UserModel userModel, List<ModuleModel> activeModules, List<ModuleModel> allModules) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -112,19 +106,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
               child: _ProfileCompletionBanner(
-                onCompleteProfile: () => _navigateToCreateProfile(context),
+                onCompleteProfile: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CreateProfileScreen()),
+                ),
               ),
             ),
-
-          _PublicProfileButton(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PublicProfileScreen(providerId: userModel.uid),
-                ),
-              );
-            },
-          ),
+          
+          // --- MODIFICACIÓN: El botón ahora es condicional ---
+          _PublicProfileButton(userModel: userModel),
           const SizedBox(height: 32),
 
           Text(
@@ -135,7 +124,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 ),
           ),
           const SizedBox(height: 16),
-
           FadeTransition(
             opacity: CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
             child: SlideTransition(
@@ -277,18 +265,35 @@ class _ProfileCompletionBanner extends StatelessWidget {
   }
 }
 
+// --- MODIFICACIÓN: El botón ahora recibe el UserModel y decide qué hacer ---
 class _PublicProfileButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _PublicProfileButton({required this.onTap});
+  final UserModel userModel;
+  const _PublicProfileButton({required this.userModel});
 
   @override
   Widget build(BuildContext context) {
     const accentColor = Color(0xFF00BFFF);
 
+    final bool hasProfile = userModel.publicProfileCreated;
+    final String buttonText = hasProfile ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
+    final IconData buttonIcon = hasProfile ? Icons.visibility_outlined : Icons.add_circle_rounded;
+
+    final VoidCallback onPressedAction = () {
+      if (hasProfile) {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => PublicProfileScreen(providerId: userModel.uid),
+        ));
+      } else {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => SelectProfileTemplateScreen(user: userModel),
+        ));
+      }
+    };
+
     return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: const Icon(Icons.visibility_outlined),
-      label: const Text('Ver mi Perfil Público'),
+      onPressed: onPressedAction,
+      icon: Icon(buttonIcon),
+      label: Text(buttonText),
       style: OutlinedButton.styleFrom(
         foregroundColor: accentColor,
         minimumSize: const Size(double.infinity, 50),
@@ -304,6 +309,7 @@ class _PublicProfileButton extends StatelessWidget {
     );
   }
 }
+
 
 class _ModulesGrid extends StatelessWidget {
   final List<ModuleModel> activeModules;
@@ -508,8 +514,6 @@ class _DottedPainter extends CustomPainter {
       path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     }
     
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Esta implementación manual no requiere paquetes externos.
     Path dashPath = Path();
     double distance = 0.0;
     for (PathMetric pathMetric in path.computeMetrics()) {
@@ -522,7 +526,6 @@ class _DottedPainter extends CustomPainter {
       }
     }
     canvas.drawPath(dashPath, paint);
-    // --- FIN DE LA CORRECCIÓN ---
   }
 
   @override

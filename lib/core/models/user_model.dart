@@ -1,13 +1,12 @@
-/// lib/core/models/user_model.dart
-library;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 /// Representa el modelo de datos para un usuario en la plataforma Servicly.
 ///
 /// Este modelo contiene no solo la información de la plataforma (rol, plan),
 /// sino también un mapa flexible 'personalization' que almacena todos los
 /// datos del negocio del proveedor.
+@immutable
 class UserModel {
   // --- DATOS DE LA PLATAFORMA (Gestionados por Servicly) ---
   final String uid;
@@ -18,26 +17,23 @@ class UserModel {
   final String planType;
   final List<String> activeModules;
 
+  // --- MODIFICACIÓN: Campos para el nuevo flujo de perfil público ---
+  /// Indica si el usuario ya ha completado la creación de su perfil público.
+  /// Por defecto es `false`.
+  final bool publicProfileCreated;
+  /// Almacena el identificador de la plantilla seleccionada (ej: 'cv', 'tienda').
+  /// Es `null` si el perfil no ha sido creado.
+  final String? publicProfileTemplate;
+
   // --- DATOS DEL NEGOCIO (Gestionados por el Proveedor) ---
   /// Mapa flexible para almacenar toda la configuración de la marca y el perfil público.
-  /// Ejemplos de claves:
-  /// - 'businessName': String
-  /// - 'logoUrl': String
-  /// - 'primaryColor': String (en formato Hex '#RRGGBB')
-  /// - 'publicProfileFormat': String ('cv', 'portfolio', 'store')
-  /// - 'welcomeMessage': String
-  /// - 'address': String
-  /// - 'country': String
-  /// - 'phoneNumber': String
-  /// - 'contactEmail': String
-  /// - 'bankDetails': Map<String, String> (ej: {'cbu': '...', 'alias': '...'})
   final Map<String, dynamic> personalization;
 
   // --- GETTERS DE CONVENIENCIA ---
   /// Acceso directo al nombre del negocio desde el mapa de personalización.
   String? get displayName => personalization['businessName'] as String?;
 
-  UserModel({
+  const UserModel({
     required this.uid,
     this.email,
     this.createdAt,
@@ -46,6 +42,9 @@ class UserModel {
     this.planType = 'free',
     this.activeModules = const [],
     this.personalization = const {},
+    // --- MODIFICACIÓN: Se añaden los nuevos campos al constructor ---
+    this.publicProfileCreated = false,
+    this.publicProfileTemplate,
   });
 
   /// Convierte la instancia del modelo a un mapa para guardarlo en Firestore.
@@ -59,6 +58,8 @@ class UserModel {
       'planType': planType,
       'activeModules': activeModules,
       'personalization': personalization,
+      'publicProfileCreated': publicProfileCreated,
+      'publicProfileTemplate': publicProfileTemplate,
     };
   }
 
@@ -73,6 +74,10 @@ class UserModel {
       planType: json['planType'] as String? ?? 'free',
       activeModules: List<String>.from(json['activeModules'] ?? []),
       personalization: Map<String, dynamic>.from(json['personalization'] ?? {}),
+      // --- MODIFICACIÓN: Se leen los nuevos campos de forma segura ---
+      publicProfileCreated: json['publicProfileCreated'] as bool? ?? false,
+      publicProfileTemplate: json['publicProfileTemplate'] as String?,
     );
   }
 }
+
