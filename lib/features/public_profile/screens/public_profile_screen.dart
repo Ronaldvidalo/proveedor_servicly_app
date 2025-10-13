@@ -1,75 +1,72 @@
-/// lib/features/public_profile/screens/public_profile_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/models/user_model.dart';
-import '../../../core/services/firestore_service.dart';
+// --- CORRECCIÓN: Se ajustan las rutas para que coincidan con la estructura del proyecto ---
+import '../../../core/models/provider_profile_model.dart';
+import '../../../core/services/provider_service.dart';
+import 'package:proveedor_servicly_app/core/services/provider_service.dart';
+import 'package:proveedor_servicly_app/core/models/public_profile_view_model.dart';
+
 
 /// La "mini-app" pública de un proveedor, visible para sus clientes.
+///
 /// Construye su UI dinámicamente basada en la configuración de personalización
-/// del proveedor.
-class PublicProfileScreen extends StatefulWidget {
+/// del proveedor, utilizando un ViewModel para gestionar el estado.
+class PublicProfileScreen extends StatelessWidget {
+  /// The unique ID of the provider whose profile will be displayed.
   final String providerId;
+
+  /// Creates an instance of [PublicProfileScreen].
+  ///
+  /// The [providerId] is required to fetch the correct profile.
   const PublicProfileScreen({super.key, required this.providerId});
 
   @override
-  State<PublicProfileScreen> createState() => _PublicProfileScreenState();
-}
-
-class _PublicProfileScreenState extends State<PublicProfileScreen> {
-  late Future<UserModel?> _providerFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    // Al iniciar la pantalla, llamamos al servicio para obtener los datos del proveedor.
-    _providerFuture = context.read<FirestoreService>().getUser(widget.providerId);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<UserModel?>(
-      future: _providerFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
+    return ChangeNotifierProvider(
+      create: (context) => PublicProfileViewModel(
+        providerService: context.read<ProviderService>(),
+      )..fetchProfile(providerId),
+      child: Consumer<PublicProfileViewModel>(
+        builder: (context, viewModel, child) {
+          if (viewModel.isLoading) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
 
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: Text('No se pudo encontrar el perfil del proveedor.')),
-          );
-        }
+          if (viewModel.hasError || viewModel.profile == null) {
+            return Scaffold(
+              appBar: AppBar(),
+              body: Center(child: Text(viewModel.error ?? 'No se pudo encontrar el perfil del proveedor.')),
+            );
+          }
 
-        final provider = snapshot.data!;
-        final format = provider.personalization['publicProfileFormat'] as String? ?? 'cv';
+          final profile = viewModel.profile!;
 
-        // --- EL CAMALEÓN: Elige qué layout construir ---
-        switch (format) {
-          case 'portfolio':
-            // TODO: Construir el layout de Portafolio/Catálogo
-            return _buildCvLayout(provider); // Placeholder
-          case 'store':
-            // TODO: Construir el layout de Tienda
-            return _buildCvLayout(provider); // Placeholder
-          case 'cv':
-          default:
-            return _buildCvLayout(provider);
-        }
-      },
+          // --- EL CAMALEÓN: Elige qué layout construir ---
+          switch (profile.publicProfileFormat) {
+            case 'portfolio':
+              // TODO: Construir el layout de Portafolio/Catálogo
+              return _buildCvLayout(context, profile); // Placeholder
+            case 'store':
+              // TODO: Construir el layout de Tienda
+              return _buildCvLayout(context, profile); // Placeholder
+            case 'cv':
+            default:
+              return _buildCvLayout(context, profile);
+          }
+        },
+      ),
     );
   }
 
   /// Construye el layout de perfil público estilo "CV Simple".
-  Widget _buildCvLayout(UserModel provider) {
-    final personalization = provider.personalization;
-    final brandColor = _colorFromHex(personalization['primaryColor'] as String?) ?? Theme.of(context).primaryColor;
-    final businessName = personalization['businessName'] as String? ?? 'Proveedor de Servicios';
-    final logoUrl = personalization['logoUrl'] as String?;
-    final welcomeMessage = personalization['welcomeMessage'] as String? ?? 'Servicios profesionales a tu disposición.';
-    final contactEmail = personalization['contactEmail'] as String? ?? provider.email;
-    final address = personalization['address'] as String?;
+  Widget _buildCvLayout(BuildContext context, ProviderProfileModel profile) {
+    // We now get all data directly from the strongly-typed model.
+    final brandColor = profile.brandColor;
+    final businessName = profile.businessName;
+    final logoUrl = profile.logoUrl;
+    final welcomeMessage = profile.welcomeMessage;
+    final contactEmail = profile.contactEmail;
+    final address = profile.address;
 
     return Scaffold(
       body: CustomScrollView(
@@ -79,13 +76,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             floating: false,
             pinned: true,
             backgroundColor: brandColor,
+            foregroundColor: ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark
+                ? Colors.white
+                : Colors.black,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                businessName, 
-                style: const TextStyle(shadows: [Shadow(color: Colors.black38, blurRadius: 4)])
+                businessName,
+                style: const TextStyle(shadows: [Shadow(color: Colors.black38, blurRadius: 4)]),
               ),
-              background: logoUrl != null
-                  ? Image.network(logoUrl, fit: BoxFit.cover)
+              centerTitle: true,
+              background: logoUrl.isNotEmpty
+                  ? Image.network(
+                      logoUrl,
+                      fit: BoxFit.cover,
+                      // Handle potential network errors gracefully
+                      errorBuilder: (context, error, stackTrace) => Container(color: brandColor.withOpacity(0.5)),
+                    )
                   : Container(color: brandColor.withOpacity(0.5)),
             ),
           ),
@@ -93,24 +99,27 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             padding: const EdgeInsets.all(24.0),
             sliver: SliverList(
               delegate: SliverChildListDelegate.fixed([
-                _SectionTitle(title: 'Sobre Mí'),
+                _SectionTitle(title: 'Sobre Nosotros'),
                 const SizedBox(height: 8),
                 Text(welcomeMessage, style: Theme.of(context).textTheme.bodyLarge),
                 const Divider(height: 48),
 
                 _SectionTitle(title: 'Información de Contacto'),
                 const SizedBox(height: 16),
-                if (contactEmail != null)
+                if (contactEmail.isNotEmpty)
                   _ContactInfoTile(
                     icon: Icons.email_outlined,
                     text: contactEmail,
                   ),
-                if (address != null)
+                if (address != null && address.isNotEmpty)
                   _ContactInfoTile(
                     icon: Icons.location_on_outlined,
                     text: address,
                   ),
                 // TODO: Añadir más campos de contacto como teléfono, redes sociales, etc.
+                const Divider(height: 48),
+
+                _buildModulesSection(context, profile),
               ]),
             ),
           ),
@@ -118,15 +127,31 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       ),
     );
   }
-
-  /// Función de utilidad para convertir un color Hex a un objeto Color.
-  Color? _colorFromHex(String? hexColor) {
-    if (hexColor == null) return null;
-    final hexCode = hexColor.replaceAll('#', '');
-    if (hexCode.length == 6) {
-      return Color(int.parse('FF$hexCode', radix: 16));
+  
+  /// Builds the list of active modules. (Re-integrated from previous version)
+  Widget _buildModulesSection(BuildContext context, ProviderProfileModel profile) {
+    if (profile.activeModules.isEmpty) {
+      return const SizedBox.shrink(); // Don't show anything if no modules are active
     }
-    return null;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(title: 'Nuestros Servicios'),
+        const SizedBox(height: 16),
+        ...profile.activeModules.map((moduleName) {
+          return Card(
+            elevation: 1,
+            margin: const EdgeInsets.only(bottom: 12.0),
+            child: ListTile(
+              leading: Icon(Icons.extension, color: profile.brandColor),
+              title: Text(moduleName),
+              subtitle: const Text('Funcionalidad próximamente disponible.'),
+            ),
+          );
+        }).toList(),
+      ],
+    );
   }
 }
 
@@ -154,6 +179,7 @@ class _ContactInfoTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
           const SizedBox(width: 16),
@@ -163,3 +189,4 @@ class _ContactInfoTile extends StatelessWidget {
     );
   }
 }
+

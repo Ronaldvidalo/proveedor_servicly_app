@@ -1,5 +1,3 @@
-// lib/features/dashboard/screens/dashboard_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui'; // Necesario para el efecto de desenfoque.
@@ -9,9 +7,9 @@ import '../../../core/models/user_model.dart';
 import '../../../core/models/module_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/firestore_service.dart';
-import '../../modules/screens/modules_screen.dart'; 
+import '../../modules/screens/modules_screen.dart';
 import '../../profile/screens/create_profile_screen.dart';
-import '../../public_profile/screens/public_profile_screen.dart'; // Importar Perfil Público
+import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
 
 /// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
@@ -24,7 +22,7 @@ const Map<String, IconData> _iconMap = {
   'person_search_outlined': Icons.person_search_rounded,
   'sync_alt_rounded': Icons.sync_alt_rounded,
   'help_outline': Icons.help_outline_rounded,
-  'visibility_outlined': Icons.visibility_outlined, // Ícono para el nuevo botón
+  'visibility_outlined': Icons.visibility_outlined,
 };
 
 /// La pantalla principal y dashboard para el usuario proveedor.
@@ -66,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final userModel = context.watch<UserModel?>();
     const backgroundColor = Color(0xFF1A1A2E);
-    
+
     return Scaffold(
       backgroundColor: backgroundColor,
       body: userModel == null
@@ -77,8 +75,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return _LoadingSkeleton(
-                      userName: userModel.displayName, 
-                      businessName: userModel.personalization['businessName'] as String?
+                      userName: userModel.displayName,
+                      businessName: userModel.personalization['businessName'] as String?,
                     );
                   }
 
@@ -91,7 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       .where((module) => userModel.activeModules.contains(module.moduleId))
                       .toList()
                     ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
-                  
+
                   return CustomScrollView(
                     slivers: [
                       _DashboardHeader(userModel: userModel),
@@ -117,9 +115,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 onCompleteProfile: () => _navigateToCreateProfile(context),
               ),
             ),
-          
-          // --- INICIO DE LA MODIFICACIÓN: Botón de Perfil Público ---
-          // Lo colocamos aquí, separado y con jerarquía.
+
           _PublicProfileButton(
             onTap: () {
               Navigator.of(context).push(
@@ -129,15 +125,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               );
             },
           ),
-          const SizedBox(height: 32), // Espacio antes de la siguiente sección
-          // --- FIN DE LA MODIFICACIÓN ---
+          const SizedBox(height: 32),
 
           Text(
             'Mis Módulos',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 16),
 
@@ -167,9 +162,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   }
 }
 
-// --- WIDGETS PERSONALIZADOS Y REDISEÑADOS ---
+// --- WIDGETS PERSONALIZADOS ---
 
-/// Un encabezado de dashboard elegante que reemplaza el AppBar estándar.
 class _DashboardHeader extends StatelessWidget {
   final UserModel userModel;
   const _DashboardHeader({required this.userModel});
@@ -196,7 +190,6 @@ class _DashboardHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  // UI Polish: El nombre del negocio tiene un efecto de "glow".
                   Text(
                     businessName,
                     style: TextStyle(
@@ -213,7 +206,6 @@ class _DashboardHeader extends StatelessWidget {
                 ],
               ),
             ),
-            // UI Polish: Botón de logout con estilo.
             Material(
               color: const Color(0xFF2D2D5A),
               shape: const CircleBorder(),
@@ -237,7 +229,6 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
-/// Banner rediseñado para completar perfil con estilo "Cyber Glow".
 class _ProfileCompletionBanner extends StatelessWidget {
   final VoidCallback onCompleteProfile;
   const _ProfileCompletionBanner({required this.onCompleteProfile});
@@ -246,7 +237,7 @@ class _ProfileCompletionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
-    
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -260,15 +251,15 @@ class _ProfileCompletionBanner extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline_rounded, color: accentColor, size: 32),
+              const Icon(Icons.info_outline_rounded, color: accentColor, size: 32),
               const SizedBox(width: 16),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Finaliza la configuración', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    const Text('Completa tu perfil para desbloquear todas las funciones.', style: TextStyle(color: Colors.white70)),
+                    Text('Finaliza la configuración', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+                    SizedBox(height: 4),
+                    Text('Completa tu perfil para desbloquear todas las funciones.', style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               ),
@@ -292,19 +283,19 @@ class _PublicProfileButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accentColor = Color(0xFF00BFFF); // Tu color de acento
+    const accentColor = Color(0xFF00BFFF);
 
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: const Icon(Icons.visibility_outlined),
       label: const Text('Ver mi Perfil Público'),
       style: OutlinedButton.styleFrom(
-        foregroundColor: accentColor, // Color de texto y ícono
-        minimumSize: const Size(double.infinity, 50), // Botón alargado
+        foregroundColor: accentColor,
+        minimumSize: const Size(double.infinity, 50),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        side: const BorderSide(color: accentColor, width: 2), // Borde de color
+        side: const BorderSide(color: accentColor, width: 2),
         textStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -314,11 +305,10 @@ class _PublicProfileButton extends StatelessWidget {
   }
 }
 
-/// Un grid responsivo para mostrar los módulos.
 class _ModulesGrid extends StatelessWidget {
   final List<ModuleModel> activeModules;
   final VoidCallback onAddModule;
-  
+
   const _ModulesGrid({required this.activeModules, required this.onAddModule});
 
   @override
@@ -342,7 +332,6 @@ class _ModulesGrid extends StatelessWidget {
                 },
               );
             }),
-            // --- CORRECCIÓN: Se elimina el _ModuleCard de "Ver mi Perfil" de aquí ---
             _AddModuleCard(onTap: onAddModule),
           ],
         );
@@ -351,7 +340,6 @@ class _ModulesGrid extends StatelessWidget {
   }
 }
 
-/// La tarjeta de módulo, el corazón visual del dashboard.
 class _ModuleCard extends StatefulWidget {
   final String title;
   final IconData icon;
@@ -379,7 +367,6 @@ class _ModuleCardState extends State<_ModuleCard> {
         curve: Curves.easeOut,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          // UI Polish: El efecto "glow" se intensifica en hover.
           boxShadow: [
             BoxShadow(
               color: _isHovered ? accentColor.withAlpha((255 * 0.5).round()) : accentColor.withAlpha((255 * 0.25).round()),
@@ -420,7 +407,6 @@ class _ModuleCardState extends State<_ModuleCard> {
   }
 }
 
-/// Una tarjeta visualmente distinta para la acción de añadir un nuevo módulo.
 class _AddModuleCard extends StatelessWidget {
   final VoidCallback onTap;
   const _AddModuleCard({required this.onTap});
@@ -440,7 +426,7 @@ class _AddModuleCard extends StatelessWidget {
           color: accentColor.withAlpha((255 * 0.6).round()),
           strokeWidth: 2,
           radius: const Radius.circular(16),
-          borderType: BorderType.RRect,
+          borderType: BorderType.rRect,
           dashPattern: const [8, 6],
           child: const Center(
             child: Column(
@@ -458,10 +444,8 @@ class _AddModuleCard extends StatelessWidget {
   }
 }
 
-/// CORRECCIÓN: Se define el enum faltante.
-enum BorderType { Rect, RRect }
+enum BorderType { rect, rRect }
 
-/// Widget para simular un borde punteado.
 class DottedBorder extends StatelessWidget {
   final Widget child;
   final Color color;
@@ -476,7 +460,7 @@ class DottedBorder extends StatelessWidget {
     this.color = Colors.black,
     this.strokeWidth = 1,
     this.radius = const Radius.circular(0),
-    this.borderType = BorderType.Rect,
+    this.borderType = BorderType.rect,
     this.dashPattern = const <double>[3, 1],
   });
 
@@ -506,7 +490,7 @@ class _DottedPainter extends CustomPainter {
     this.color = Colors.black,
     this.strokeWidth = 1,
     this.radius = const Radius.circular(0),
-    this.borderType = BorderType.Rect,
+    this.borderType = BorderType.rect,
     this.dashPattern = const <double>[3, 1],
   });
 
@@ -518,12 +502,14 @@ class _DottedPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     Path path;
-    if (borderType == BorderType.RRect) {
+    if (borderType == BorderType.rRect) {
       path = Path()..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), radius));
     } else {
       path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     }
-
+    
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Esta implementación manual no requiere paquetes externos.
     Path dashPath = Path();
     double distance = 0.0;
     for (PathMetric pathMetric in path.computeMetrics()) {
@@ -532,35 +518,32 @@ class _DottedPainter extends CustomPainter {
           pathMetric.extractPath(distance, distance + dashPattern[0]),
           Offset.zero,
         );
-        distance += dashPattern[0] + dashPattern[1];
+        distance += dashPattern[0] + (dashPattern.length > 1 ? dashPattern[1] : 0);
       }
     }
     canvas.drawPath(dashPath, paint);
+    // --- FIN DE LA CORRECCIÓN ---
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => true;
 }
 
-/// Esqueleto de carga con efecto "shimmer" para una UX superior.
 class _LoadingSkeleton extends StatefulWidget {
   final String? userName;
   final String? businessName;
   const _LoadingSkeleton({this.userName, this.businessName});
-  
+
   @override
-  __LoadingSkeletonState createState() => __LoadingSkeletonState();
+  _LoadingSkeletonState createState() => _LoadingSkeletonState();
 }
 
-class __LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerProviderStateMixin {
+class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerProviderStateMixin {
   late AnimationController _shimmerController;
 
   @override
   void initState() {
     super.initState();
-    // --- CORRECCIÓN DEL ERROR ---
-    // Se cambia AnimationController.unbounded por una implementación estándar
-    // que es más estable y soluciona la Assertion Error.
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -572,7 +555,7 @@ class __LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPr
     _shimmerController.dispose();
     super.dispose();
   }
-  
+
   LinearGradient get _shimmerGradient {
     return LinearGradient(
       colors: const [Color(0xFF2D2D5A), Color(0xFF3A3A6E), Color(0xFF2D2D5A)],
@@ -586,39 +569,44 @@ class __LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                       _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
-                       const SizedBox(height: 8),
-                       _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
-                    ],
-                  ),
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
+                          const SizedBox(height: 8),
+                          _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
+                        ],
+                      ),
+                    ),
+                    _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
+                  ],
                 ),
-                _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
-              ],
+              ),
             ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.all(24.0),
-          sliver: SliverGrid.count(
-            crossAxisCount: (MediaQuery.of(context).size.width / 180).floor().clamp(2, 5),
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            children: List.generate(6, (index) => _ShimmerObject(gradient: _shimmerGradient)),
-          ),
-        ),
-      ],
+            SliverPadding(
+              padding: const EdgeInsets.all(24.0),
+              sliver: SliverGrid.count(
+                crossAxisCount: (MediaQuery.of(context).size.width / 180).floor().clamp(2, 5),
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                children: List.generate(6, (index) => _ShimmerObject(gradient: _shimmerGradient)),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

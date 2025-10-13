@@ -149,7 +149,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 Text('Elige cómo verán tus clientes tu página de presentación.', style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedFormat,
+                  initialValue: _selectedFormat,
                   decoration: const InputDecoration(labelText: 'Formato de Perfil'),
                   items: const [
                     DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
