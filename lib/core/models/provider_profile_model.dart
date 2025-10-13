@@ -21,8 +21,10 @@ class ProviderProfileModel {
   /// Una lista de los IDs de los módulos que están activos para este proveedor.
   final List<String> activeModules;
 
-  /// El formato para el diseño del perfil público (ej: 'cv', 'portfolio').
-  final String publicProfileFormat;
+  // --- MODIFICACIÓN CLAVE ---
+  // Se renombra 'publicProfileFormat' a 'publicProfileTemplate' para consistencia.
+  /// La plantilla para el diseño del perfil público (ej: 'cv', 'tienda').
+  final String? publicProfileTemplate;
 
   /// Un mensaje de bienvenida para el perfil.
   final String welcomeMessage;
@@ -40,7 +42,7 @@ class ProviderProfileModel {
     required this.logoUrl,
     required this.brandColor,
     required this.activeModules,
-    required this.publicProfileFormat,
+    this.publicProfileTemplate,
     required this.welcomeMessage,
     required this.contactEmail,
     this.address,
@@ -57,7 +59,11 @@ class ProviderProfileModel {
       logoUrl: personalization['logoUrl'] as String? ?? '',
       brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
-      publicProfileFormat: personalization['publicProfileFormat'] as String? ?? 'cv',
+      
+      // --- LECTURA CORREGIDA ---
+      // Leemos el template directamente del documento principal.
+      publicProfileTemplate: data['publicProfileTemplate'] as String?,
+
       welcomeMessage: personalization['welcomeMessage'] as String? ?? 'Bienvenido a mi perfil.',
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
       address: personalization['address'] as String?,

@@ -3,16 +3,19 @@ import 'package:provider/provider.dart';
 import 'dart:ui';
 
 // --- Modelos y Servicios ---
-import '../../../core/models/user_model.dart';
-import '../../../core/models/module_model.dart';
-import '../../../core/services/auth_service.dart';
-import '../../../core/services/firestore_service.dart';
-import '../../modules/screens/modules_screen.dart';
-import '../../profile/screens/create_profile_screen.dart';
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/models/module_model.dart';
+import 'package:proveedor_servicly_app/core/services/auth_service.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/features/modules/screens/modules_screen.dart';
+import 'package:proveedor_servicly_app/features/profile/screens/create_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
+// --- NUEVA IMPORTACIÓN ---
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
 
 
+/// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
   'people_outline': Icons.people_outline_rounded,
   'calendar_today_outlined': Icons.calendar_today_rounded,
@@ -24,9 +27,11 @@ const Map<String, IconData> _iconMap = {
   'sync_alt_rounded': Icons.sync_alt_rounded,
   'help_outline': Icons.help_outline_rounded,
   'visibility_outlined': Icons.visibility_outlined,
-  'add_circle_rounded': Icons.add_circle_rounded, // Ícono para crear
+  // --- NUEVO ÍCONO ---
+  'storefront_outlined': Icons.storefront_outlined,
 };
 
+/// La pantalla principal y dashboard para el usuario proveedor.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -97,6 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 
+  /// Construye el contenido principal de la pantalla con una animación de entrada.
   Widget _buildAnimatedContent(BuildContext context, UserModel userModel, List<ModuleModel> activeModules, List<ModuleModel> allModules) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -111,8 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 ),
               ),
             ),
-          
-          // --- MODIFICACIÓN: El botón ahora es condicional ---
+
           _PublicProfileButton(userModel: userModel),
           const SizedBox(height: 32),
 
@@ -124,6 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 ),
           ),
           const SizedBox(height: 16),
+
           FadeTransition(
             opacity: CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
             child: SlideTransition(
@@ -133,6 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut)),
               child: _ModulesGrid(
                 activeModules: activeModules,
+                user: userModel, // Pasamos el usuario al grid
                 onAddModule: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => ModulesScreen(
@@ -265,7 +272,6 @@ class _ProfileCompletionBanner extends StatelessWidget {
   }
 }
 
-// --- MODIFICACIÓN: El botón ahora recibe el UserModel y decide qué hacer ---
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
   const _PublicProfileButton({required this.userModel});
@@ -273,13 +279,13 @@ class _PublicProfileButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accentColor = Color(0xFF00BFFF);
+    final bool isProfileCreated = userModel.publicProfileCreated;
 
-    final bool hasProfile = userModel.publicProfileCreated;
-    final String buttonText = hasProfile ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
-    final IconData buttonIcon = hasProfile ? Icons.visibility_outlined : Icons.add_circle_rounded;
-
+    final String buttonText = isProfileCreated ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
+    final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
+    
     final VoidCallback onPressedAction = () {
-      if (hasProfile) {
+      if (isProfileCreated) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PublicProfileScreen(providerId: userModel.uid),
         ));
@@ -310,15 +316,23 @@ class _PublicProfileButton extends StatelessWidget {
   }
 }
 
-
 class _ModulesGrid extends StatelessWidget {
   final List<ModuleModel> activeModules;
   final VoidCallback onAddModule;
+  final UserModel user;
 
-  const _ModulesGrid({required this.activeModules, required this.onAddModule});
+  const _ModulesGrid({
+    required this.activeModules,
+    required this.onAddModule,
+    required this.user,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // --- REFACTORIZACIÓN PARA SOLUCIONAR EL ERROR DE TIPO ---
+    // Se construye la lista de widgets directamente dentro del GridView
+    // utilizando una sintaxis más moderna y segura (collection-if y spread operator).
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = (constraints.maxWidth / 180).floor().clamp(2, 5);
@@ -329,6 +343,19 @@ class _ModulesGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
+            // Se añade condicionalmente el módulo de gestión de la tienda
+            if (user.publicProfileTemplate == 'tienda')
+              _ModuleCard(
+                title: 'Gestionar Mi Tienda',
+                icon: _iconMap['storefront_outlined']!,
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ManageStoreScreen(user: user),
+                  ));
+                },
+              ),
+            
+            // Se expanden los módulos activos del usuario
             ...activeModules.map((module) {
               return _ModuleCard(
                 title: module.name,
@@ -338,6 +365,8 @@ class _ModulesGrid extends StatelessWidget {
                 },
               );
             }),
+            
+            // Se añade la tarjeta para "Añadir Módulo" al final
             _AddModuleCard(onTap: onAddModule),
           ],
         );

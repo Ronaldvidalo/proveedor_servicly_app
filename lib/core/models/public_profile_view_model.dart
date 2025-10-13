@@ -1,42 +1,41 @@
 import 'package:flutter/foundation.dart';
-import '../../../../core/models/provider_profile_model.dart';
-import '../../../../core/services/provider_service.dart';
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
+import 'package:proveedor_servicly_app/core/services/provider_service.dart';
 
-/// Documentation for `PublicProfileViewModel`.
+/// Gestiona el estado de la [PublicProfileScreen].
 ///
-/// This ViewModel manages the state for the [PublicProfileScreen]. It fetches
-/// the provider's profile data using [ProviderService] and notifies its listeners
-/// about state changes (loading, success, error).
+/// Obtiene los datos del perfil del proveedor utilizando [ProviderService] y
+/// notifica a sus listeners sobre los cambios de estado (cargando, éxito, error).
 class PublicProfileViewModel extends ChangeNotifier {
   final ProviderService _providerService;
 
-  /// Creates an instance of [PublicProfileViewModel].
+  /// Crea una instancia de [PublicProfileViewModel].
   ///
-  /// Requires a [ProviderService] to fetch profile data.
+  /// Requiere un [ProviderService] para obtener los datos del perfil.
   PublicProfileViewModel({required ProviderService providerService})
       : _providerService = providerService;
 
-  /// The provider's profile data. Null if not yet fetched or if an error occurred.
+  /// Los datos del perfil del proveedor. Es nulo si aún no se han obtenido o si ocurrió un error.
   ProviderProfileModel? _profile;
   ProviderProfileModel? get profile => _profile;
 
-  /// Represents the loading state of the profile fetching operation.
+  /// Representa el estado de carga de la operación de obtención del perfil.
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  /// Holds an error message if the fetching operation fails.
+  /// Contiene un mensaje de error si la operación de obtención falla.
   String? _error;
   String? get error => _error;
   bool get hasError => _error != null;
 
-  /// Fetches the profile for the given [providerId].
+  /// Obtiene el perfil para un [providerId] dado.
   ///
-  /// Manages the state flow:
-  /// 1. Sets loading to true.
-  /// 2. Calls the [ProviderService] to get the data.
-  /// 3. On success, updates the [profile].
-  /// 4. On failure or if no profile is found, sets an [error] message.
-  /// 5. Sets loading to false and notifies listeners.
+  /// Gestiona el flujo de estado:
+  /// 1. Establece el estado de carga a verdadero.
+  /// 2. Llama al [ProviderService] para obtener los datos.
+  /// 3. Si tiene éxito, actualiza el [profile].
+  /// 4. Si falla o no se encuentra el perfil, establece un mensaje de [error].
+  /// 5. Establece el estado de carga a falso y notifica a los listeners.
   Future<void> fetchProfile(String providerId) async {
     _isLoading = true;
     _error = null;
@@ -56,3 +55,4 @@ class PublicProfileViewModel extends ChangeNotifier {
     }
   }
 }
+

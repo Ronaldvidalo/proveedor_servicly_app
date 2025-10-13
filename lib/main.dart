@@ -7,8 +7,10 @@ import 'firebase_options.dart';
 import 'shared/theme/theme.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/firestore_service.dart';
-// --- AÑADIR ESTA LÍNEA ---
-import 'core/services/provider_service.dart'; 
+import 'core/services/provider_service.dart';
+import 'core/services/product_service.dart';
+// --- NUEVA IMPORTACIÓN ---
+import 'core/services/storage_service.dart';
 import 'features/auth/widgets/auth_wrapper.dart';
 
 void main() async {
@@ -32,13 +34,17 @@ class MyApp extends StatelessWidget {
             firestoreService: context.read<FirestoreService>(),
           ),
         ),
-        // --- AÑADIR ESTA LÍNEA ---
-        // Este provider crea una instancia de ProviderService que estará
-        // disponible en toda la aplicación.
         Provider<ProviderService>(
           create: (_) => ProviderService(),
         ),
-        // Solo nos importa el estado de autenticación a nivel global.
+        Provider<ProductService>(
+          create: (_) => ProductService(),
+        ),
+        // --- NUEVO PROVIDER ---
+        // Registramos el StorageService para que esté disponible en la app.
+        Provider<StorageService>(
+          create: (_) => StorageService(),
+        ),
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
@@ -55,3 +61,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
