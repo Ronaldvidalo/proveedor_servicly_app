@@ -7,8 +7,6 @@ import 'add_edit_product_screen.dart';
 
 /// La pantalla principal para que un proveedor gestione los productos de su tienda.
 class ManageStoreScreen extends StatelessWidget {
-  // --- MODIFICACIÓN ---
-  // Aceptamos el UserModel directamente para evitar problemas de contexto.
   final UserModel user;
 
   const ManageStoreScreen({super.key, required this.user});
@@ -69,6 +67,32 @@ class ManageStoreScreen extends StatelessWidget {
                   ),
                 ),
                 child: ListTile(
+                  // --- MODIFICACIÓN ---
+                  // Se añade un widget 'leading' para mostrar la imagen.
+                  leading: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: product.imageUrl.isNotEmpty
+                          ? Image.network(
+                              product.imageUrl,
+                              fit: BoxFit.cover,
+                              // Muestra un indicador de carga mientras la imagen se descarga.
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                              },
+                              // Muestra un ícono de error si la imagen no se puede cargar.
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
+                            )
+                          : Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.shopping_bag_outlined, color: Colors.grey),
+                          ),
+                    ),
+                  ),
                   title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   subtitle: Text(
                     'Precio: \$${product.price.toStringAsFixed(2)}',

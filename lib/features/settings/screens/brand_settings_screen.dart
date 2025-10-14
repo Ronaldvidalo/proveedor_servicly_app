@@ -1,16 +1,15 @@
-// lib/features/settings/screens/brand_settings_screen.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
-import '../../../core/models/user_model.dart';
-import '../../../core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 
 class BrandSettingsScreen extends StatefulWidget {
-  const BrandSettingsScreen({super.key});
+  final UserModel user;
+
+  const BrandSettingsScreen({super.key, required this.user});
 
   @override
   State<BrandSettingsScreen> createState() => _BrandSettingsScreenState();
@@ -19,18 +18,19 @@ class BrandSettingsScreen extends StatefulWidget {
 class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // --- AMPLIADO: Controladores para todos los campos del perfil público ---
+  // Los controladores se declaran aquí, pero no se inicializan.
   late TextEditingController _businessNameController;
   late TextEditingController _welcomeMessageController;
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
-  String? _selectedCountry; // Para el país
-  String _selectedFormat = 'cv'; // Valor por defecto para el formato de perfil
+  String? _selectedCountry;
+  String _selectedFormat = 'cv';
 
   bool _isLoading = false;
   XFile? _selectedImageFile;
   String? _existingLogoUrl;
   Color? _selectedColor;
+  bool _isInitialized = false; // Bandera para controlar la inicialización
 
   final List<Color> _predefinedColors = [
     Colors.blue, Colors.green, Colors.red, Colors.purple, Colors.orange, Colors.teal
@@ -39,20 +39,35 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    final userModel = context.read<UserModel>();
-    final personalization = userModel.personalization;
-    
-    // --- AMPLIADO: Inicialización de todos los controladores ---
-    _businessNameController = TextEditingController(text: personalization['businessName'] as String? ?? '');
-    _welcomeMessageController = TextEditingController(text: personalization['welcomeMessage'] as String? ?? '');
-    _addressController = TextEditingController(text: personalization['address'] as String? ?? '');
-    _contactEmailController = TextEditingController(text: personalization['contactEmail'] as String? ?? '');
-    _selectedCountry = personalization['country'] as String?;
-    _selectedFormat = personalization['publicProfileFormat'] as String? ?? 'cv';
-    _existingLogoUrl = personalization['logoUrl'] as String?;
-    
-    final hexColor = personalization['primaryColor'] as String?;
-    _selectedColor = _colorFromHex(hexColor) ?? Theme.of(context).primaryColor;
+    // Inicializamos los controladores con valores vacíos.
+    _businessNameController = TextEditingController();
+    _welcomeMessageController = TextEditingController();
+    _addressController = TextEditingController();
+    _contactEmailController = TextEditingController();
+  }
+
+  // --- MODIFICACIÓN CLAVE ---
+  // Usamos didChangeDependencies para inicializar los valores desde el context.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Usamos una bandera para asegurarnos de que esto solo se ejecute una vez.
+    if (!_isInitialized) {
+      final personalization = widget.user.personalization;
+      
+      _businessNameController.text = personalization['businessName'] as String? ?? '';
+      _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '';
+      _addressController.text = personalization['address'] as String? ?? '';
+      _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
+      _selectedCountry = personalization['country'] as String?;
+      _selectedFormat = personalization['publicProfileFormat'] as String? ?? 'cv';
+      _existingLogoUrl = personalization['logoUrl'] as String?;
+      
+      final hexColor = personalization['primaryColor'] as String?;
+      _selectedColor = _colorFromHex(hexColor) ?? Theme.of(context).primaryColor;
+
+      _isInitialized = true;
+    }
   }
 
   @override
@@ -67,7 +82,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
       if (image != null) {
         setState(() {
           _selectedImageFile = image;
@@ -83,17 +98,18 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     setState(() => _isLoading = true);
 
     final firestoreService = context.read<FirestoreService>();
-    final userModel = context.read<UserModel>();
+    final storageService = context.read<StorageService>();
+    final userModel = widget.user;
     String? newLogoUrl;
 
     try {
       if (_selectedImageFile != null) {
-        final ref = FirebaseStorage.instance.ref('logos/${userModel.uid}');
-        await ref.putFile(File(_selectedImageFile!.path));
-        newLogoUrl = await ref.getDownloadURL();
+        newLogoUrl = await storageService.uploadProductImage(
+          imageFile: _selectedImageFile!,
+          userId: userModel.uid,
+        );
       }
 
-      // --- AMPLIADO: Construcción del mapa de personalización con todos los campos ---
       final updatedPersonalization = Map<String, dynamic>.from(userModel.personalization);
       updatedPersonalization['businessName'] = _businessNameController.text.trim();
       updatedPersonalization['welcomeMessage'] = _welcomeMessageController.text.trim();
@@ -143,13 +159,12 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 _buildColorSelector(),
                 const Divider(height: 48),
 
-                // --- NUEVO: Sección de Formato de Perfil ---
                 _buildSectionTitle('Formato de Perfil Público'),
                 const SizedBox(height: 8),
                 Text('Elige cómo verán tus clientes tu página de presentación.', style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedFormat,
+                  value: _selectedFormat,
                   decoration: const InputDecoration(labelText: 'Formato de Perfil'),
                   items: const [
                     DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
@@ -162,7 +177,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 ),
                 const Divider(height: 48),
 
-                // --- NUEVO: Sección de Contenido del Perfil ---
                 _buildSectionTitle('Contenido del Perfil'),
                 const SizedBox(height: 24),
                 TextFormField(
@@ -176,7 +190,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   decoration: const InputDecoration(labelText: 'Dirección o Zona de Cobertura'),
                 ),
                 const SizedBox(height: 24),
-                 // TODO: Reemplazar con un Dropdown de países predefinidos
                 TextFormField(
                   initialValue: _selectedCountry,
                   decoration: const InputDecoration(labelText: 'País'),
@@ -190,7 +203,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 ),
                 const SizedBox(height: 48),
 
-                // Botón de Guardar
                 SizedBox(
                   height: 50,
                   child: ElevatedButton(
@@ -207,7 +219,8 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       ),
     );
   }
-   Widget _buildSectionTitle(String title) {
+
+  Widget _buildSectionTitle(String title) {
     return Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold));
   }
 
@@ -215,7 +228,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     ImageProvider? image;
     if (_selectedImageFile != null) {
       image = FileImage(File(_selectedImageFile!.path));
-    } else if (_existingLogoUrl != null) {
+    } else if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
       image = NetworkImage(_existingLogoUrl!);
     } else {
       image = null; // No hay imagen
@@ -242,33 +255,39 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
   
   Widget _buildColorSelector() {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: _predefinedColors.map((color) {
-        bool isSelected = _selectedColor?.value == color.value;
-        return GestureDetector(
-          onTap: () => setState(() => _selectedColor = color),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: isSelected 
-                  ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 3)
-                  : null,
-            ),
-            child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
-          ),
-        );
-      }).toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Color de Marca', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: _predefinedColors.map((color) {
+            bool isSelected = _selectedColor?.value == color.value;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedColor = color),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: isSelected 
+                      ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 3)
+                      : null,
+                ),
+                child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
-  // --- Funciones de Utilidad ---
   void _showSnackbar(String message, {bool isError = false}) {
-     if (!mounted) return;
+      if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
       backgroundColor: isError ? Theme.of(context).colorScheme.error : Colors.green,
@@ -284,3 +303,4 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     return null;
   }
 }
+

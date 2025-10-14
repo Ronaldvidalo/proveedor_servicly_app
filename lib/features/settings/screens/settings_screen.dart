@@ -1,8 +1,6 @@
-/// lib/features/settings/screens/settings_screen.dart
-library;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import '../../../core/services/auth_service.dart';
 import 'brand_settings_screen.dart';
 
@@ -14,6 +12,8 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = context.read<AuthService>();
+    // Obtenemos el UserModel para pasarlo a las pantallas secundarias.
+    final user = context.watch<UserModel?>();
 
     return Scaffold(
       appBar: AppBar(
@@ -31,11 +31,21 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: const Text('Sube tu logo, elige tus colores y más.'),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const BrandSettingsScreen(),
-                    ),
-                  );
+                  // --- MODIFICACIÓN CLAVE ---
+                  // Verificamos que el usuario exista antes de navegar.
+                  if (user != null) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        // Le pasamos el UserModel a la BrandSettingsScreen.
+                        builder: (_) => BrandSettingsScreen(user: user),
+                      ),
+                    );
+                  } else {
+                    // Mostramos un error si no se encuentra el usuario.
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error: No se pudo cargar la información del usuario.')),
+                    );
+                  }
                 },
               ),
               const Divider(),

@@ -24,7 +24,6 @@ class TiendaLayout extends StatelessWidget {
     final businessName = profile.businessName;
     final logoUrl = profile.logoUrl;
 
-    // Determina el color del texto del AppBar para un buen contraste.
     final appBarTextColor = ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark
         ? Colors.white
         : Colors.black;
@@ -52,15 +51,12 @@ class TiendaLayout extends StatelessWidget {
                       logoUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
-                          // --- CORRECCIÓN ---
-                          // Se reemplaza .withOpacity() por .withAlpha()
                           Container(color: brandColor.withAlpha((255 * 0.5).round())),
                     )
                   : Container(color: brandColor.withAlpha((255 * 0.5).round())),
             ),
           ),
           
-          // Encabezado de la sección de productos
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(16, 24, 16, 16),
@@ -71,10 +67,7 @@ class TiendaLayout extends StatelessWidget {
             ),
           ),
           
-          // StreamBuilder para mostrar los productos en tiempo real.
           StreamBuilder<List<ProductModel>>(
-            // --- CORRECCIÓN ---
-            // Se usa el nombre de método correcto 'getProducts'.
             stream: productService.getProducts(providerId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -104,15 +97,14 @@ class TiendaLayout extends StatelessWidget {
 
               final products = snapshot.data!;
 
-              // Usamos un SliverGrid para mostrar los productos.
               return SliverPadding(
                 padding: const EdgeInsets.all(16.0),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // Muestra 2 productos por fila
+                    crossAxisCount: 2,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 0.75, // Ajusta la proporción de las tarjetas
+                    childAspectRatio: 0.75,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -144,45 +136,135 @@ class _ProductCard extends StatelessWidget {
       shadowColor: Colors.black.withAlpha((255 * 0.1).round()),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Container(
-              color: Colors.grey.shade200,
-              // TODO: Reemplazar este placeholder por la Image.network(product.imageUrl)
-              // cuando se implemente la subida de imágenes.
-              child: const Center(
-                child: Icon(Icons.shopping_bag_outlined, size: 50, color: Colors.grey),
+      child: InkWell(
+        onTap: () => _showProductDetailDialog(context, product),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              // --- MODIFICACIÓN ---
+              // Se muestra la imagen del producto.
+              child: product.imageUrl.isNotEmpty
+                ? Image.network(
+                    product.imageUrl,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) => 
+                      progress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    errorBuilder: (context, error, stackTrace) => 
+                      const Center(child: Icon(Icons.image_not_supported_outlined, color: Colors.grey, size: 40)),
+                  )
+                : Container(
+                    color: Colors.grey.shade200,
+                    child: const Center(child: Icon(Icons.shopping_bag_outlined, size: 50, color: Colors.grey)),
+                  ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${product.price.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '\$${product.price.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+/// Muestra un diálogo con los detalles del producto y un selector de cantidad.
+void _showProductDetailDialog(BuildContext context, ProductModel product) {
+  int quantity = 1;
+
+  showDialog(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 180,
+                    width: double.infinity,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: product.imageUrl.isNotEmpty
+                        ? Image.network(product.imageUrl, fit: BoxFit.cover)
+                        : const Icon(Icons.shopping_bag_outlined, size: 80, color: Colors.grey),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(product.description, style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Cantidad:', style: TextStyle(fontSize: 16)),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: () {
+                              if (quantity > 1) setState(() => quantity--);
+                            },
+                          ),
+                          Text('$quantity', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: () => setState(() => quantity++),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cerrar'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Se añadieron $quantity "${product.name}" al carrito (simulación).'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_shopping_cart_outlined),
+                label: const Text('Añadir al Carrito'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }
 
