@@ -39,9 +39,9 @@ class CvLayout extends StatelessWidget {
                       logoUrl,
                       fit: BoxFit.cover,
                       // Maneja errores de red de forma elegante.
-                      errorBuilder: (context, error, stackTrace) => Container(color: brandColor.withOpacity(0.5)),
+                      errorBuilder: (context, error, stackTrace) => Container(color: brandColor.withAlpha(128)),
                     )
-                  : Container(color: brandColor.withOpacity(0.5)),
+                  : Container(color: brandColor.withAlpha(128)),
             ),
           ),
           SliverPadding(
@@ -110,4 +110,3 @@ class _ContactInfoTile extends StatelessWidget {
     );
   }
 }
-

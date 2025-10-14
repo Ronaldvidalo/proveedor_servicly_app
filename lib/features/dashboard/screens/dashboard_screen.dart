@@ -14,6 +14,14 @@ import 'package:proveedor_servicly_app/features/public_profile/screens/presentat
 // --- NUEVA IMPORTACIÓN ---
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
 
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 10/10/2025
+// Style: Cyber Glow
+// This screen was refactored to use a responsive GridView layout,
+// custom product cards, and an enhanced loading/empty state experience,
+// aligning with the "Cyber Glow" design philosophy.
+// ---------------------------------
+
 
 /// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
@@ -284,7 +292,7 @@ class _PublicProfileButton extends StatelessWidget {
     final String buttonText = isProfileCreated ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
     final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
     
-    final VoidCallback onPressedAction = () {
+    void onPressedAction() {
       if (isProfileCreated) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PublicProfileScreen(providerId: userModel.uid),
@@ -294,7 +302,7 @@ class _PublicProfileButton extends StatelessWidget {
           builder: (_) => SelectProfileTemplateScreen(user: userModel),
         ));
       }
-    };
+    }
 
     return OutlinedButton.icon(
       onPressed: onPressedAction,

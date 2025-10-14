@@ -1,4 +1,10 @@
-// lib/features/profile/screens/create_profile_screen.dart
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to align with the "Cyber Glow" design philosophy.
+// It features custom-styled form elements for a professional and cohesive
+// profile creation/editing experience.
+// ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,10 +31,8 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Usamos 'read' para obtener los datos una sola vez al construir la pantalla.
     final userModel = context.read<UserModel?>();
     if (userModel != null) {
-      // CORRECCIÓN: Leemos los datos desde el mapa 'personalization'.
       _displayNameController.text = userModel.displayName ?? '';
       _professionController.text = userModel.personalization['profession'] as String? ?? '';
     }
@@ -48,7 +52,6 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
 
       final firestoreService = context.read<FirestoreService>();
       final user = context.read<User?>();
-      // CORRECCIÓN: Obtenemos el modelo actual para no sobreescribir otros datos de personalización.
       final currentUserModel = context.read<UserModel?>();
 
       if (user == null) {
@@ -57,16 +60,13 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
         return;
       }
 
-      // CORRECCIÓN: Construimos el mapa de datos a actualizar de forma segura.
-      // 1. Hacemos una copia del mapa de personalización existente.
       final updatedPersonalization = Map<String, dynamic>.from(currentUserModel?.personalization ?? {});
       
-      // 2. Actualizamos los campos específicos que el usuario modificó en esta pantalla.
       updatedPersonalization['businessName'] = _displayNameController.text.trim();
       updatedPersonalization['profession'] = _professionController.text.trim();
 
-      // 3. Este es el mapa final que enviaremos a Firestore.
       final dataToUpdate = {
+        'displayName': _displayNameController.text.trim(),
         'personalization': updatedPersonalization,
         'isProfileComplete': true,
       };
@@ -95,22 +95,25 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: isError
-            ? Theme.of(context).colorScheme.error
+            ? Colors.redAccent
             : Colors.green.shade600,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    const backgroundColor = Color(0xFF1A1A2E);
+    const accentColor = Color(0xFF00BFFF);
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Completar Perfil'),
         elevation: 0,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -124,26 +127,25 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 children: [
                   const SizedBox(height: 16),
                   Text(
-                    'Cuéntanos un poco sobre ti',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    'Cuéntanos sobre tu negocio',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Esta información aparecerá en tus presupuestos y contratos.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).textTheme.bodySmall?.color,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.white70,
                         ),
                   ),
                   const SizedBox(height: 40),
 
-                  // CORRECCIÓN: El campo ahora se llama 'Nombre de tu Negocio o Servicio'
-                  TextFormField(
+                  _StyledTextFormField(
                     controller: _displayNameController,
-                    decoration: _buildInputDecoration(
-                      context,
-                      labelText: 'Nombre de tu Negocio o Servicio',
-                      prefixIcon: Icons.person_outline,
-                    ),
+                    labelText: 'Nombre de tu Negocio o Servicio',
+                    prefixIcon: Icons.business_center_outlined,
                     textCapitalization: TextCapitalization.words,
                     validator: (value) {
                       if (value == null || value.trim().length < 3) {
@@ -153,29 +155,27 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                     },
                   ),
                   const SizedBox(height: 24),
-
-                  TextFormField(
+                  _StyledTextFormField(
                     controller: _professionController,
-                    decoration: _buildInputDecoration(
-                      context,
-                      labelText: 'Profesión o Rubro',
-                      prefixIcon: Icons.work_outline,
-                    ),
+                    labelText: 'Profesión o Rubro',
+                    prefixIcon: Icons.work_outline_rounded,
                     textCapitalization: TextCapitalization.sentences,
-                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Por favor, ingresa tu profesión o rubro.';
-                      }
-                      return null;
-                    },
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Por favor, ingresa tu profesión o rubro.';
+                        }
+                        return null;
+                      },
                   ),
                   const SizedBox(height: 48),
 
                   SizedBox(
                     height: 50,
-                    child: ElevatedButton(
+                    child: FilledButton(
                       onPressed: _isLoading ? null : _saveProfile,
-                      style: ElevatedButton.styleFrom(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        foregroundColor: Colors.black,
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       child: _isLoading
@@ -184,7 +184,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                               width: 24,
                               child: CircularProgressIndicator(
                                 strokeWidth: 3,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             )
                           : const Text('Guardar Perfil'),
@@ -199,23 +199,50 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       ),
     );
   }
+}
 
-  InputDecoration _buildInputDecoration(BuildContext context, {required String labelText, required IconData prefixIcon}) {
-    final theme = Theme.of(context);
-    return InputDecoration(
-      labelText: labelText,
-      // CORRECCIÓN: 'withOpacity' deprecado, se usa 'withAlpha'.
-      prefixIcon: Icon(prefixIcon, color: theme.colorScheme.onSurface.withAlpha(153)), // alpha 153 es ~60% opacidad
-      filled: true,
-      fillColor: theme.colorScheme.onSurface.withAlpha(13), // alpha 13 es ~5% opacidad
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+/// Un widget reutilizable para los campos de texto con el estilo "Cyber Glow".
+class _StyledTextFormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String labelText;
+  final IconData prefixIcon;
+  final FormFieldValidator<String>? validator;
+  final TextCapitalization textCapitalization;
+
+  const _StyledTextFormField({
+    required this.controller,
+    required this.labelText,
+    required this.prefixIcon,
+    this.validator,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
+    return TextFormField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: labelText,
+        prefixIcon: Icon(prefixIcon, color: accentColor),
+        filled: true,
+        fillColor: surfaceColor,
+        labelStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: accentColor, width: 2),
+        ),
+         errorStyle: TextStyle(color: Colors.redAccent.shade100),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: theme.primaryColor, width: 2),
-      ),
+      textCapitalization: textCapitalization,
+      validator: validator,
     );
   }
 }

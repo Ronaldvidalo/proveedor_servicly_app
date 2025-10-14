@@ -50,7 +50,6 @@ class AuthService {
       );
 
       if (userCredential.user != null) {
-        // --- INICIO DE LA MODIFICACIÓN (Paso 1.2) ---
         // Creamos el UserModel con los valores por defecto de la plataforma.
         final newUser = UserModel(
           uid: userCredential.user!.uid,
@@ -64,7 +63,6 @@ class AuthService {
           personalization: {}, // La personalización se configura después.
         );
         await _firestoreService.createUser(newUser);
-        // --- FIN DE LA MODIFICACIÓN ---
       }
       
       return userCredential;
@@ -88,7 +86,6 @@ class AuthService {
       final userCredential = await _firebaseAuth.signInWithCredential(credential);
 
       if (userCredential.additionalUserInfo?.isNewUser == true && userCredential.user != null) {
-        // --- INICIO DE LA MODIFICACIÓN (Paso 1.2) ---
         // Creamos el UserModel con los valores por defecto, aprovechando el nombre de Google.
         final newUser = UserModel(
           uid: userCredential.user!.uid,
@@ -102,16 +99,16 @@ class AuthService {
           personalization: { 'businessName': userCredential.user!.displayName },
         );
         await _firestoreService.createUser(newUser);
-        // --- FIN DE LA MODIFICACIÓN ---
       }
       
       return userCredential;
-    } on PlatformException catch (e) {
-      print('--- ERROR DETALLADO DE PLATFORM EXCEPTION ---');
-      print('Código de error: ${e.code}');
-      print('Mensaje: ${e.message}');
-      print('Detalles: ${e.details}');
-      print('-------------------------------------------');
+    } on PlatformException {
+      // Dejamos este print comentado para depuración futura si es necesario.
+      // print('--- ERROR DETALLADO DE PLATFORM EXCEPTION ---');
+      // print('Código de error: ${e.code}');
+      // print('Mensaje: ${e.message}');
+      // print('Detalles: ${e.details}');
+      // print('-------------------------------------------');
       rethrow;
     } on FirebaseAuthException {
       rethrow;
@@ -123,3 +120,4 @@ class AuthService {
     await _firebaseAuth.signOut();
   }
 }
+

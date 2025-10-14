@@ -8,6 +8,14 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to use a responsive GridView layout,
+// custom product cards, and an enhanced loading/empty state experience,
+// aligning with the "Cyber Glow" design philosophy.
+// ---------------------------------
+
 /// Un formulario para crear un nuevo producto o editar uno existente,
 /// con capacidad para subir imágenes.
 class AddEditProductScreen extends StatefulWidget {
@@ -31,9 +39,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   late final TextEditingController _priceController;
   DateTime? _expiryDate;
 
-  // --- NUEVOS ESTADOS ---
-  XFile? _imageFile; // Archivo de imagen seleccionado
-  bool _isUploading = false; // Estado para mostrar el loading
+  XFile? _imageFile;
+  bool _isUploading = false;
 
   bool get _isEditing => widget.productToEdit != null;
 
@@ -56,12 +63,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     super.dispose();
   }
   
-  /// Abre la galería para seleccionar una imagen y la comprime.
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
-    // --- MODIFICACIÓN CLAVE ---
-    // Se añade 'imageQuality: 70' para comprimir la imagen al 70%
-    // de su calidad original, reduciendo significativamente su tamaño.
     final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (image != null) {
       setState(() {
@@ -71,7 +74,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   }
 
   Future<void> _saveProduct() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate() || _isUploading) {
       return;
     }
 
@@ -85,7 +88,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     try {
       String imageUrl = widget.productToEdit?.imageUrl ?? '';
 
-      // Si se seleccionó una nueva imagen, súbela primero.
       if (_imageFile != null) {
         imageUrl = await storageService.uploadProductImage(
           imageFile: _imageFile!,
@@ -95,20 +97,20 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
 
       final product = ProductModel(
         id: widget.productToEdit?.id ?? '',
-        name: _nameController.text,
-        description: _descriptionController.text,
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
         price: double.tryParse(_priceController.text) ?? 0.0,
         expiryDate: _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
         createdAt: widget.productToEdit?.createdAt ?? Timestamp.now(),
-        imageUrl: imageUrl, // Guarda la URL de la imagen
+        imageUrl: imageUrl,
       );
 
       if (_isEditing) {
         await productService.updateProduct(widget.user.uid, product);
-        messenger.showSnackBar(const SnackBar(content: Text('Producto actualizado con éxito.')));
+        messenger.showSnackBar(const SnackBar(content: Text('Producto actualizado con éxito.'), backgroundColor: Colors.green));
       } else {
         await productService.addProduct(widget.user.uid, product);
-        messenger.showSnackBar(const SnackBar(content: Text('Producto añadido con éxito.')));
+        messenger.showSnackBar(const SnackBar(content: Text('Producto añadido con éxito.'), backgroundColor: Colors.green));
       }
 
       if (navigator.canPop()) {
@@ -116,7 +118,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       }
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Error al guardar el producto: $e')),
+        SnackBar(content: Text('Error al guardar el producto: $e'), backgroundColor: Colors.redAccent),
       );
     } finally {
       if(mounted) {
@@ -133,15 +135,18 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmar Borrado'),
+        backgroundColor: const Color(0xFF2D2D5A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirmar Eliminación', style: TextStyle(color: Colors.white)),
         content:
-            const Text('¿Estás seguro de que quieres eliminar este producto?'),
+            const Text('¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer.', style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Cancelar')),
-          TextButton(
+          FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
               child: const Text('Eliminar')),
         ],
       ),
@@ -153,8 +158,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
          if (navigator.canPop()) {
           navigator.pop();
         }
+        messenger.showSnackBar(const SnackBar(content: Text('Producto eliminado.'), backgroundColor: Colors.orange));
       } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('Error al eliminar: $e')));
+        messenger.showSnackBar(SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: Colors.redAccent));
       }
     }
   }
@@ -166,114 +172,145 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const backgroundColor = Color(0xFF1A1A2E);
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+    
+    // UI Polish: Definición de un estilo de InputDecoration reutilizable.
+    final inputDecoration = InputDecoration(
+      filled: true,
+      fillColor: surfaceColor,
+      labelStyle: const TextStyle(color: Colors.white70),
+      hintStyle: const TextStyle(color: Colors.white38),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: accentColor, width: 2),
+      ),
+      prefixStyle: const TextStyle(color: Colors.white, fontSize: 16)
+    );
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Text(_isEditing ? 'Editar Producto' : 'Añadir Producto'),
+        backgroundColor: backgroundColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           if (_isEditing)
             IconButton(
-              icon: const Icon(Icons.delete_outline),
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
               onPressed: _deleteProduct,
               tooltip: 'Eliminar Producto',
             ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            // --- NUEVO WIDGET DE IMAGEN ---
-            _ImagePickerWidget(
-              onTap: _pickImage,
-              imageFile: _imageFile,
-              existingImageUrl: widget.productToEdit?.imageUrl,
+      // UX Improvement: El formulario se centra y limita en ancho para web.
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(24.0),
+              children: [
+                _ImagePickerWidget(
+                  onTap: _pickImage,
+                  imageFile: _imageFile,
+                  existingImageUrl: widget.productToEdit?.imageUrl,
+                ),
+                const SizedBox(height: 32),
+                TextFormField(
+                  controller: _nameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: inputDecoration.copyWith(labelText: 'Nombre del Producto'),
+                  validator: (value) =>
+                      value!.isEmpty ? 'Este campo es requerido' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _descriptionController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: inputDecoration.copyWith(labelText: 'Descripción'),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _priceController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: inputDecoration.copyWith(labelText: 'Precio', prefixText: '\$ '),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  validator: (value) {
+                    if (value!.isEmpty) return 'Este campo es requerido';
+                    if (double.tryParse(value) == null) return 'Por favor, introduce un número válido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                InputDecorator(
+                  decoration: inputDecoration.copyWith(labelText: 'Fecha de Vencimiento (Opcional)'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _expiryDate == null
+                            ? 'No establecida'
+                            : _formatDate(_expiryDate!),
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today_rounded, color: accentColor),
+                        onPressed: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: _expiryDate ?? DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
+                          );
+                          if (pickedDate != null) {
+                            setState(() => _expiryDate = pickedDate);
+                          }
+                        },
+                      )
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isUploading ? null : _saveProduct,
+                    icon: _isUploading
+                        ? Container(
+                            width: 20,
+                            height: 20,
+                            child: const CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
+                          )
+                        : Icon(_isEditing ? Icons.save_alt_outlined : Icons.add_circle_outline),
+                    label: Text(_isEditing ? 'Guardar Cambios' : 'Añadir Producto'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.black,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Nombre del Producto'),
-              validator: (value) =>
-                  value!.isEmpty ? 'Este campo es requerido' : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(labelText: 'Descripción'),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _priceController,
-              decoration:
-                  const InputDecoration(labelText: 'Precio', prefixText: '\$'),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              validator: (value) {
-                if (value!.isEmpty) return 'Este campo es requerido';
-                if (double.tryParse(value) == null) {
-                  return 'Por favor, introduce un número válido';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-            InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'Fecha de Vencimiento (Opcional)',
-                border: OutlineInputBorder(),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(_expiryDate == null
-                      ? 'No establecida'
-                      : _formatDate(_expiryDate!)),
-                  IconButton(
-                    icon: const Icon(Icons.calendar_today),
-                    onPressed: () async {
-                      final pickedDate = await showDatePicker(
-                        context: context,
-                        initialDate: _expiryDate ?? DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate:
-                            DateTime.now().add(const Duration(days: 365 * 10)),
-                      );
-                      if (pickedDate != null) {
-                        setState(() {
-                          _expiryDate = pickedDate;
-                        });
-                      }
-                    },
-                  )
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: _isUploading ? null : _saveProduct,
-              icon: _isUploading
-                  ? Container(
-                      width: 24,
-                      height: 24,
-                      padding: const EdgeInsets.all(2.0),
-                      child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                    )
-                  : Icon(_isEditing ? Icons.save_alt_outlined : Icons.add_circle_outline),
-              label: Text(_isEditing ? 'Guardar Cambios' : 'Añadir Producto'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Un widget para seleccionar y previsualizar la imagen del producto.
+/// Widget de selector de imagen rediseñado con estilo "Cyber Glow".
 class _ImagePickerWidget extends StatelessWidget {
   final VoidCallback onTap;
   final XFile? imageFile;
@@ -287,41 +324,46 @@ class _ImagePickerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+    
     return Center(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 150,
-          height: 150,
+          width: 180,
+          height: 180,
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade400),
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: accentColor.withAlpha(150), width: 2),
+            boxShadow: [
+              BoxShadow(color: accentColor.withAlpha(80), blurRadius: 15, spreadRadius: 2)
+            ]
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(11),
-            child: _buildImage(),
+            borderRadius: BorderRadius.circular(22),
+            child: _buildImage(accentColor),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(Color iconColor) {
     if (imageFile != null) {
-      return Image.file(File(imageFile!.path), fit: BoxFit.cover);
+      return Image.file(File(imageFile!.path), fit: BoxFit.cover, width: double.infinity, height: double.infinity);
     }
     if (existingImageUrl != null && existingImageUrl!.isNotEmpty) {
-      return Image.network(existingImageUrl!, fit: BoxFit.cover);
+      return Image.network(existingImageUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity);
     }
-    return const Column(
+    return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.add_a_photo_outlined, size: 40, color: Colors.grey),
-        SizedBox(height: 8),
-        Text('Añadir Imagen', style: TextStyle(color: Colors.grey)),
+        Icon(Icons.add_a_photo_outlined, size: 48, color: iconColor),
+        const SizedBox(height: 12),
+        const Text('Añadir Imagen', style: TextStyle(color: Colors.white70)),
       ],
     );
   }
 }
-

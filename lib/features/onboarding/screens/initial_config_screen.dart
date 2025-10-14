@@ -1,5 +1,10 @@
-/// lib/features/onboarding/screens/initial_config_screen.dart
-library;
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to align with the "Cyber Glow" design philosophy.
+// It features custom-styled form fields and a clear, modern layout to
+// provide a cohesive final step in the onboarding process.
+// ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +15,6 @@ import '../../../core/services/firestore_service.dart';
 
 /// Pantalla final del onboarding para recoger los datos mínimos según el rol.
 class InitialConfigScreen extends StatefulWidget {
-  // CORRECCIÓN: Ahora esta pantalla ACEPTA el UserModel directamente en su constructor.
   final UserModel userModel;
   const InitialConfigScreen({super.key, required this.userModel});
 
@@ -28,8 +32,6 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
   @override
   void initState() {
     super.initState();
-    // CORRECCIÓN: Usamos el UserModel que nos pasaron a través del widget,
-    // en lugar de buscarlo en Provider. Esto elimina la race condition.
     _nameController.text = widget.userModel.displayName ?? '';
     _professionController.text = widget.userModel.personalization['profession'] as String? ?? '';
   }
@@ -55,7 +57,6 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
         return;
       }
 
-      // Usamos el modelo que ya tenemos (widget.userModel) para no perder datos.
       final updatedPersonalization = Map<String, dynamic>.from(widget.userModel.personalization);
       
       updatedPersonalization['businessName'] = _nameController.text.trim();
@@ -64,13 +65,14 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
       }
 
       final dataToUpdate = {
+        'displayName': _nameController.text.trim(), // Actualizamos el displayName principal
         'personalization': updatedPersonalization,
-        'isProfileComplete': true, // ¡La pieza clave que activa el AuthWrapper!
+        'isProfileComplete': true,
       };
 
       try {
         await firestoreService.updateUser(user.uid, dataToUpdate);
-        // No necesitamos navegar. El AuthWrapper se encargará de forma reactiva.
+        // El AuthWrapper se encargará de la navegación.
       } catch (e) {
         _showSnackbar('Error al finalizar el perfil: $e', isError: true);
         if (mounted) {
@@ -84,23 +86,26 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(
+        SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Theme.of(context).colorScheme.error : Colors.green.shade600,
+        backgroundColor: isError ? Colors.redAccent : Colors.green.shade600,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    const backgroundColor = Color(0xFF1A1A2E);
+    const accentColor = Color(0xFF00BFFF);
+    
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Configuración Inicial'),
         elevation: 0,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -115,16 +120,20 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
                   const SizedBox(height: 16),
                   Text(
                     'Último paso...',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Completa esta información para empezar.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    'Completa esta información para empezar a usar la aplicación.',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.white70
+                    ),
                   ),
                   const SizedBox(height: 40),
 
-                  // CORRECCIÓN: Ahora la decisión de qué formulario mostrar se basa en 'widget.userModel.role'.
                   if (widget.userModel.role == 'provider' || widget.userModel.role == 'both')
                     _buildProviderForm()
                   else
@@ -134,15 +143,17 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
 
                   SizedBox(
                     height: 50,
-                    child: ElevatedButton(
+                    child: FilledButton(
                       onPressed: _isLoading ? null : _saveAndFinish,
-                      style: ElevatedButton.styleFrom(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        foregroundColor: Colors.black,
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       child: _isLoading
                           ? const SizedBox(
                               height: 24, width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
+                              child: CircularProgressIndicator(strokeWidth: 3, color: Colors.black),
                             )
                           : const Text('Guardar y Finalizar'),
                     ),
@@ -157,13 +168,13 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
     );
   }
 
+  // --- WIDGETS DE FORMULARIO REDISEÑADOS ---
+
   Widget _buildClientForm() {
-    return TextFormField(
+    return _StyledTextFormField(
       controller: _nameController,
-      decoration: const InputDecoration(
-        labelText: 'Tu Nombre y Apellido',
-        prefixIcon: Icon(Icons.person_outline),
-      ),
+      labelText: 'Tu Nombre y Apellido',
+      prefixIcon: Icons.person_outline_rounded,
       textCapitalization: TextCapitalization.words,
       validator: (value) {
         if (value == null || value.trim().length < 3) {
@@ -177,12 +188,10 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
   Widget _buildProviderForm() {
     return Column(
       children: [
-        TextFormField(
+        _StyledTextFormField(
           controller: _nameController,
-          decoration: const InputDecoration(
-            labelText: 'Nombre de tu Negocio o Servicio',
-            prefixIcon: Icon(Icons.business_center_outlined),
-          ),
+          labelText: 'Nombre de tu Negocio o Servicio',
+          prefixIcon: Icons.business_center_outlined,
           textCapitalization: TextCapitalization.words,
           validator: (value) {
             if (value == null || value.trim().length < 3) {
@@ -192,12 +201,10 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
           },
         ),
         const SizedBox(height: 24),
-        TextFormField(
+        _StyledTextFormField(
           controller: _professionController,
-          decoration: const InputDecoration(
-            labelText: 'Profesión o Rubro Principal',
-            prefixIcon: Icon(Icons.work_outline),
-          ),
+          labelText: 'Profesión o Rubro Principal',
+          prefixIcon: Icons.work_outline_rounded,
           textCapitalization: TextCapitalization.sentences,
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
@@ -207,6 +214,52 @@ class _InitialConfigScreenState extends State<InitialConfigScreen> {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Un widget reutilizable para los campos de texto con el estilo "Cyber Glow".
+class _StyledTextFormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String labelText;
+  final IconData prefixIcon;
+  final FormFieldValidator<String>? validator;
+  final TextCapitalization textCapitalization;
+
+  const _StyledTextFormField({
+    required this.controller,
+    required this.labelText,
+    required this.prefixIcon,
+    this.validator,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
+    return TextFormField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: labelText,
+        prefixIcon: Icon(prefixIcon, color: accentColor),
+        filled: true,
+        fillColor: surfaceColor,
+        labelStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: accentColor, width: 2),
+        ),
+         errorStyle: TextStyle(color: Colors.redAccent.shade100),
+      ),
+      textCapitalization: textCapitalization,
+      validator: validator,
     );
   }
 }

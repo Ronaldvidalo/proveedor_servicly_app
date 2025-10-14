@@ -1,14 +1,15 @@
-// lib/features/onboarding/screens/select_role_screen.dart
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to align with the "Cyber Glow" design philosophy.
+// It uses a responsive Wrap layout for the role cards and features
+// custom-styled, interactive cards with an integrated loading state.
+// ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/firestore_service.dart';
-// import 'initial_config_screen.dart'; // Ya no es necesario importar esto aquí.
-
-// --- Placeholder para la siguiente pantalla (solo para que el proyecto compile si aún no la tienes) ---
-// Si ya tienes 'initial_config_screen.dart' creado, puedes borrar este placeholder.
-
 
 /// Pantalla donde el nuevo usuario elige su rol principal en la plataforma.
 class SelectRoleScreen extends StatefulWidget {
@@ -33,20 +34,20 @@ class _SelectRoleScreenState extends State<SelectRoleScreen> {
     final user = context.read<User?>();
 
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Sesión de usuario no válida.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Sesión de usuario no válida.')),
+        );
+      }
       setState(() => _loadingRole = null);
       return;
     }
 
     try {
-      // CORRECCIÓN: La única misión de esta función es actualizar el rol.
+      // La única misión de esta función es actualizar el rol.
       await firestoreService.updateUser(user.uid, {'role': role});
       
-      // Se elimina el Navigator.of(context).pushReplacement(...);
-      // El AuthWrapper detectará el cambio en el 'UserModel' y reconstruirá la UI
-      // mostrando la 'InitialConfigScreen' automáticamente.
+      // La navegación es manejada por el AuthWrapper al detectar el cambio en el UserModel.
       
     } catch (e) {
       if (mounted) {
@@ -62,7 +63,6 @@ class _SelectRoleScreenState extends State<SelectRoleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF00BFFF);
     const backgroundColor = Color(0xFF1A1A2E);
     const textColor = Colors.white;
 
@@ -158,12 +158,12 @@ class _RoleCard extends StatelessWidget {
         color: surfaceColor,
         borderRadius: BorderRadius.circular(16),
         elevation: 5,
-        shadowColor: primaryColor.withOpacity(0.3),
+        shadowColor: primaryColor.withAlpha(77), // 0.3 opacity
         child: InkWell(
           onTap: isLoading ? null : onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: primaryColor.withOpacity(0.2),
-          highlightColor: primaryColor.withOpacity(0.1),
+          splashColor: primaryColor.withAlpha(51), // 0.2 opacity
+          highlightColor: primaryColor.withAlpha(26), // 0.1 opacity
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -171,8 +171,8 @@ class _RoleCard extends StatelessWidget {
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: isLoading
-                      ? SizedBox(
-                          key: const ValueKey('loader'),
+                      ? const SizedBox(
+                          key: ValueKey('loader'),
                           height: 48,
                           width: 48,
                           child: CircularProgressIndicator(
@@ -207,3 +207,4 @@ class _RoleCard extends StatelessWidget {
     );
   }
 }
+

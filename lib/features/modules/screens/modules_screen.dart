@@ -1,4 +1,10 @@
-// lib/features/modules/screens/modules_screen.dart
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to align with the "Cyber Glow" design philosophy.
+// It features a responsive GridView layout, custom-designed interactive module cards,
+// and confirmation dialogs for a professional and user-friendly experience.
+// ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -244,7 +250,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   void _showSnackbar(String message, {bool isError = false}) {
-     if (!mounted) return;
+      if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
       backgroundColor: isError ? Colors.redAccent : const Color(0xFF00FF7F),
@@ -321,7 +327,8 @@ class _ModuleGridCard extends StatelessWidget {
             if (isLoading)
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
+                  color: Colors.black.withAlpha(128),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Center(child: CircularProgressIndicator(color: Colors.white)),
@@ -332,7 +339,7 @@ class _ModuleGridCard extends StatelessWidget {
                 right: 8,
                 child: Container(
                   padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: surfaceColor,
                     shape: BoxShape.circle,
                   ),

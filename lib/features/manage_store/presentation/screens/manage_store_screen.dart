@@ -5,6 +5,14 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'add_edit_product_screen.dart';
 
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to use a responsive GridView layout,
+// custom product cards, and an enhanced loading/empty state experience,
+// aligning with the "Cyber Glow" design philosophy.
+// ---------------------------------
+
 /// La pantalla principal para que un proveedor gestione los productos de su tienda.
 class ManageStoreScreen extends StatelessWidget {
   final UserModel user;
@@ -14,108 +22,58 @@ class ManageStoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final productService = context.read<ProductService>();
+    
+    // --- Paleta de colores "Cyber Glow" ---
+    const backgroundColor = Color(0xFF1A1A2E);
+    const accentColor = Color(0xFF00BFFF);
 
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text('Gestionar Mi Tienda'),
+        backgroundColor: backgroundColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: StreamBuilder<List<ProductModel>>(
         stream: productService.getProducts(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            // UX Improvement: Esqueleto de carga con efecto shimmer.
+            return const _LoadingSkeleton();
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error al cargar productos: ${snapshot.error}'));
+            return Center(child: Text('Error al cargar productos: ${snapshot.error}', style: const TextStyle(color: Colors.white70)));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Text(
-                  'Aún no has añadido productos.\n¡Toca el botón "+" para empezar!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-              ),
-            );
+            // UX Improvement: Estado vacío rediseñado.
+            return const _EmptyState();
           }
 
           final products = snapshot.data!;
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80), // Espacio para el botón flotante
+          // UI Polish: GridView responsivo para un look de catálogo.
+          return GridView.builder(
+            padding: const EdgeInsets.all(16.0),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 350, // Ancho máximo de cada tarjeta
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.85, // Proporción de la tarjeta (más alta que ancha)
+            ),
             itemCount: products.length,
             itemBuilder: (context, index) {
               final product = products[index];
-              final isExpired = product.isExpired;
-              final isExpiringSoon = product.isExpiringSoon;
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                elevation: 3,
-                shadowColor: Colors.black.withAlpha((255 * 0.1).round()),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: isExpired
-                        ? Colors.red.shade700
-                        : isExpiringSoon
-                            ? Colors.orange.shade700
-                            : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-                child: ListTile(
-                  // --- MODIFICACIÓN ---
-                  // Se añade un widget 'leading' para mostrar la imagen.
-                  leading: SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: product.imageUrl.isNotEmpty
-                          ? Image.network(
-                              product.imageUrl,
-                              fit: BoxFit.cover,
-                              // Muestra un indicador de carga mientras la imagen se descarga.
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                              },
-                              // Muestra un ícono de error si la imagen no se puede cargar.
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
-                            )
-                          : Container(
-                              color: Colors.grey.shade200,
-                              child: const Icon(Icons.shopping_bag_outlined, color: Colors.grey),
-                          ),
+              return _ProductCard(
+                product: product,
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AddEditProductScreen(
+                      user: user,
+                      productToEdit: product,
                     ),
-                  ),
-                  title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  subtitle: Text(
-                    'Precio: \$${product.price.toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                  trailing: Icon(
-                    Icons.circle,
-                    size: 12,
-                    color: isExpired
-                        ? Colors.red.shade700
-                        : isExpiringSoon
-                            ? Colors.orange.shade700
-                            : Colors.green.shade600,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AddEditProductScreen(
-                        user: user,
-                        productToEdit: product,
-                      ),
-                    ));
-                  },
-                ),
+                  ));
+                },
               );
             },
           );
@@ -129,8 +87,206 @@ class ManageStoreScreen extends StatelessWidget {
         },
         label: const Text('Añadir Producto'),
         icon: const Icon(Icons.add),
+        backgroundColor: accentColor,
+        foregroundColor: Colors.black,
       ),
     );
   }
 }
 
+// --- WIDGETS PERSONALIZADOS Y REDISEÑADOS ---
+
+/// Tarjeta de producto rediseñada con estilo "Cyber Glow".
+class _ProductCard extends StatelessWidget {
+  final ProductModel product;
+  final VoidCallback onTap;
+
+  const _ProductCard({required this.product, required this.onTap});
+  
+  Color _getBorderColor() {
+    if (product.isExpired) return Colors.redAccent;
+    if (product.isExpiringSoon) return Colors.orangeAccent;
+    return const Color(0xFF00BFFF).withAlpha(100);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    final borderColor = _getBorderColor();
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: borderColor.withAlpha(80),
+              blurRadius: 12,
+              spreadRadius: 1,
+            )
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- Imagen del Producto ---
+              Expanded(
+                flex: 3,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    product.imageUrl.isNotEmpty
+                        ? Image.network(
+                            product.imageUrl,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) =>
+                                progress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            errorBuilder: (context, error, stack) =>
+                                const Icon(Icons.image_not_supported_outlined, color: Colors.white38, size: 40),
+                          )
+                        : Container(
+                            // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
+                            color: Colors.black.withAlpha(51),
+                            child: const Icon(Icons.shopping_bag_outlined, color: Colors.white38, size: 40),
+                          ),
+                    // --- Indicador de Estado (Vencido / Vence Pronto) ---
+                    if (product.isExpired || product.isExpiringSoon)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: _StatusTag(
+                          isExpired: product.isExpired, 
+                          isExpiringSoon: product.isExpiringSoon
+                        ),
+                      )
+                  ],
+                ),
+              ),
+              // --- Información del Producto ---
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        product.name,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '\$${product.price.toStringAsFixed(2)}',
+                        style: const TextStyle(color: Color(0xFF00BFFF), fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Etiqueta visual para el estado de vencimiento del producto.
+class _StatusTag extends StatelessWidget {
+  final bool isExpired;
+  final bool isExpiringSoon;
+
+  const _StatusTag({required this.isExpired, required this.isExpiringSoon});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isExpired && !isExpiringSoon) return const SizedBox.shrink();
+
+    final color = isExpired ? Colors.redAccent : Colors.orangeAccent;
+    final text = isExpired ? 'VENCIDO' : 'VENCE PRONTO';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
+          BoxShadow(color: color.withAlpha(128), blurRadius: 8)
+        ]
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+/// Widget para mostrar cuando la lista de productos está vacía.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.store_mall_directory_outlined, size: 80, color: Colors.white24),
+            const SizedBox(height: 24),
+            Text(
+              'Tu tienda está vacía',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Toca el botón "+" para añadir tu primer producto y empezar a vender.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.white60),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Esqueleto de carga que imita el layout final para una mejor UX.
+class _LoadingSkeleton extends StatelessWidget {
+  const _LoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16.0),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 350,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: 6, // Muestra 6 placeholders
+      itemBuilder: (context, index) {
+        return Container(
+          decoration: BoxDecoration(
+            // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
+            color: const Color(0xFF2D2D5A).withAlpha(128),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        );
+      },
+    );
+  }
+}

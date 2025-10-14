@@ -1,3 +1,11 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow
+// This screen was refactored to align with the "Cyber Glow" design philosophy,
+// featuring a dynamic PageView, custom-styled indicators, a prominent
+// FloatingActionButton, and a skip option for an improved user experience.
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 
 /// Modelo simple para contener los datos de cada página del onboarding.
@@ -151,7 +159,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     elevation: 5,
                     child: Icon(
                       isLastPage ? Icons.check_rounded : Icons.arrow_forward_ios_rounded,
-                      color: textColor,
+                      color: Colors.black, // Color corregido para contraste
                     ),
                   ),
                 ],
@@ -215,7 +223,8 @@ class _OnboardingPageWidget extends StatelessWidget {
               color: surfaceColor,
               boxShadow: [
                 BoxShadow(
-                  color: primaryColor.withOpacity(0.3),
+                  // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
+                  color: primaryColor.withAlpha(77), // 0.3 opacity
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -250,3 +259,4 @@ class _OnboardingPageWidget extends StatelessWidget {
     );
   }
 }
+
