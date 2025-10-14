@@ -37,8 +37,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
-  DateTime? _expiryDate;
+  // --- NUEVOS CONTROLADORES ---
+  late final TextEditingController _promoPriceController;
+  late final TextEditingController _promoTextController;
 
+  DateTime? _expiryDate;
   XFile? _imageFile;
   bool _isUploading = false;
 
@@ -47,12 +50,14 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.productToEdit?.name);
-    _descriptionController =
-        TextEditingController(text: widget.productToEdit?.description);
-    _priceController =
-        TextEditingController(text: widget.productToEdit?.price.toString());
-    _expiryDate = widget.productToEdit?.expiryDate?.toDate();
+    final product = widget.productToEdit;
+    _nameController = TextEditingController(text: product?.name);
+    _descriptionController = TextEditingController(text: product?.description);
+    _priceController = TextEditingController(text: product?.price.toString());
+    // Inicializamos los nuevos controladores
+    _promoPriceController = TextEditingController(text: product?.promoPrice?.toString() ?? '');
+    _promoTextController = TextEditingController(text: product?.promoText ?? '');
+    _expiryDate = product?.expiryDate?.toDate();
   }
 
   @override
@@ -60,6 +65,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
+    _promoPriceController.dispose();
+    _promoTextController.dispose();
     super.dispose();
   }
   
@@ -95,6 +102,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         );
       }
 
+      // --- MODIFICACIÓN ---
+      // Se añaden los campos de promoción al crear el objeto ProductModel.
       final product = ProductModel(
         id: widget.productToEdit?.id ?? '',
         name: _nameController.text.trim(),
@@ -103,6 +112,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         expiryDate: _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
         createdAt: widget.productToEdit?.createdAt ?? Timestamp.now(),
         imageUrl: imageUrl,
+        promoPrice: double.tryParse(_promoPriceController.text),
+        promoText: _promoTextController.text.trim().isNotEmpty ? _promoTextController.text.trim() : null,
       );
 
       if (_isEditing) {
@@ -176,7 +187,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
     
-    // UI Polish: Definición de un estilo de InputDecoration reutilizable.
     final inputDecoration = InputDecoration(
       filled: true,
       fillColor: surfaceColor,
@@ -209,7 +219,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             ),
         ],
       ),
-      // UX Improvement: El formulario se centra y limita en ancho para web.
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
@@ -242,7 +251,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                 TextFormField(
                   controller: _priceController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: inputDecoration.copyWith(labelText: 'Precio', prefixText: '\$ '),
+                  decoration: inputDecoration.copyWith(labelText: 'Precio Original', prefixText: '\$ '),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   validator: (value) {
@@ -252,6 +261,30 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
+
+                // --- NUEVOS CAMPOS PARA PROMOCIONES ---
+                Text('Promoción (Opcional)', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _promoPriceController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: inputDecoration.copyWith(labelText: 'Precio de Promoción', prefixText: '\$ '),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (v) {
+                    if (v != null && v.isNotEmpty && double.tryParse(v) == null) {
+                      return 'Si se añade, debe ser un número válido';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _promoTextController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: inputDecoration.copyWith(labelText: 'Texto de Promoción (ej: ¡Oferta!, 20% OFF)'),
+                ),
+                const SizedBox(height: 24),
+                
                 InputDecorator(
                   decoration: inputDecoration.copyWith(labelText: 'Fecha de Vencimiento (Opcional)'),
                   child: Row(
@@ -367,3 +400,4 @@ class _ImagePickerWidget extends StatelessWidget {
     );
   }
 }
+

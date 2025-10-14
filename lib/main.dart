@@ -9,8 +9,9 @@ import 'core/services/auth_service.dart';
 import 'core/services/firestore_service.dart';
 import 'core/services/provider_service.dart';
 import 'core/services/product_service.dart';
-// --- NUEVA IMPORTACIÓN ---
 import 'core/services/storage_service.dart';
+// --- NUEVA IMPORTACIÓN ---
+import 'core/viewmodels/cart_provider.dart';
 import 'features/auth/widgets/auth_wrapper.dart';
 
 void main() async {
@@ -40,14 +41,18 @@ class MyApp extends StatelessWidget {
         Provider<ProductService>(
           create: (_) => ProductService(),
         ),
-        // --- NUEVO PROVIDER ---
-        // Registramos el StorageService para que esté disponible en la app.
         Provider<StorageService>(
           create: (_) => StorageService(),
         ),
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
+        ),
+        // --- MODIFICACIÓN CLAVE ---
+        // Registramos el CartProvider como un ChangeNotifierProvider para que la UI
+        // pueda escuchar sus cambios y reconstruirse automáticamente.
+        ChangeNotifierProvider<CartProvider>(
+          create: (_) => CartProvider(),
         ),
       ],
       child: MaterialApp(

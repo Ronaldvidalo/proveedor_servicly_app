@@ -8,10 +8,11 @@ class ProductModel {
   final double price;
   final Timestamp createdAt;
   final Timestamp? expiryDate;
-
-  // --- NUEVO CAMPO ---
-  /// La URL pública de la imagen del producto almacenada en Firebase Storage.
   final String imageUrl;
+
+  // --- NUEVOS CAMPOS PARA PROMOCIONES ---
+  final double? promoPrice;
+  final String? promoText;
 
   ProductModel({
     required this.id,
@@ -20,7 +21,9 @@ class ProductModel {
     required this.price,
     required this.createdAt,
     this.expiryDate,
-    this.imageUrl = '', // Valor por defecto para productos sin imagen.
+    this.imageUrl = '',
+    this.promoPrice,
+    this.promoText,
   });
 
   /// Convierte un documento de Firestore a una instancia de [ProductModel].
@@ -33,8 +36,9 @@ class ProductModel {
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
       expiryDate: data['expiryDate'] as Timestamp?,
-      // Leemos el nuevo campo de la base de datos.
       imageUrl: data['imageUrl'] as String? ?? '',
+      promoPrice: (data['promoPrice'] as num?)?.toDouble(),
+      promoText: data['promoText'] as String?,
     );
   }
 
@@ -46,17 +50,17 @@ class ProductModel {
       'price': price,
       'createdAt': createdAt,
       'expiryDate': expiryDate,
-      // Añadimos el nuevo campo para que se guarde en la base de datos.
       'imageUrl': imageUrl,
+      'promoPrice': promoPrice,
+      'promoText': promoText,
     };
   }
 
-  // --- GETTERS DE CONVENIENCIA ---
-  /// Verdadero si la fecha de vencimiento ya pasó.
+  // --- GETTER DE CONVENIENCIA ---
+  bool get isOnSale => promoPrice != null && promoPrice! > 0;
+  
   bool get isExpired =>
       expiryDate != null && expiryDate!.toDate().isBefore(DateTime.now());
-
-  /// Verdadero si el producto está a 7 días o menos de vencer.
   bool get isExpiringSoon =>
       expiryDate != null &&
       !isExpired &&
