@@ -9,10 +9,12 @@ class ProductModel {
   final Timestamp createdAt;
   final Timestamp? expiryDate;
   final String imageUrl;
-
-  // --- NUEVOS CAMPOS PARA PROMOCIONES ---
   final double? promoPrice;
   final String? promoText;
+  
+  // --- NUEVO CAMPO ---
+  /// El ID de la categoría a la que pertenece este producto.
+  final String? categoryId;
 
   ProductModel({
     required this.id,
@@ -24,6 +26,7 @@ class ProductModel {
     this.imageUrl = '',
     this.promoPrice,
     this.promoText,
+    this.categoryId,
   });
 
   /// Convierte un documento de Firestore a una instancia de [ProductModel].
@@ -39,6 +42,7 @@ class ProductModel {
       imageUrl: data['imageUrl'] as String? ?? '',
       promoPrice: (data['promoPrice'] as num?)?.toDouble(),
       promoText: data['promoText'] as String?,
+      categoryId: data['categoryId'] as String?,
     );
   }
 
@@ -53,10 +57,11 @@ class ProductModel {
       'imageUrl': imageUrl,
       'promoPrice': promoPrice,
       'promoText': promoText,
+      'categoryId': categoryId,
     };
   }
 
-  // --- GETTER DE CONVENIENCIA ---
+  // --- GETTERS DE CONVENIENCIA ---
   bool get isOnSale => promoPrice != null && promoPrice! > 0;
   
   bool get isExpired =>

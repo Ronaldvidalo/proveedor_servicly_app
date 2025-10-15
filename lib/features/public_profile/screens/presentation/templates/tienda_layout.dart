@@ -10,15 +10,18 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
+import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/cart/screens/cart_screen.dart';
 
 
 /// Un widget de layout que muestra el perfil de un proveedor con un estilo de "tienda".
-class TiendaLayout extends StatelessWidget {
+/// Ahora con capacidad de filtrar productos por categoría.
+class TiendaLayout extends StatefulWidget {
   final String providerId;
   final ProviderProfileModel profile;
 
@@ -29,9 +32,17 @@ class TiendaLayout extends StatelessWidget {
   });
 
   @override
+  State<TiendaLayout> createState() => _TiendaLayoutState();
+}
+
+class _TiendaLayoutState extends State<TiendaLayout> {
+  // Estado para mantener la categoría seleccionada. `null` significa "todos".
+  String? _selectedCategoryId;
+
+  @override
   Widget build(BuildContext context) {
     final productService = context.read<ProductService>();
-    final brandColor = profile.brandColor;
+    final brandColor = widget.profile.brandColor;
     
     const backgroundColor = Color(0xFF1A1A2E);
 
@@ -39,11 +50,11 @@ class TiendaLayout extends StatelessWidget {
       backgroundColor: backgroundColor,
       body: CustomScrollView(
         slivers: [
-          _buildSliverAppBar(context, profile, brandColor),
+          _buildSliverAppBar(context, widget.profile, brandColor),
           
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
               child: Text(
                 'Nuestros Productos y Servicios',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -54,8 +65,21 @@ class TiendaLayout extends StatelessWidget {
             ),
           ),
           
+          // --- NUEVO WIDGET: Barra de selección de categorías ---
+          _CategorySelector(
+            providerId: widget.providerId,
+            selectedCategoryId: _selectedCategoryId,
+            brandColor: brandColor,
+            onCategorySelected: (categoryId) {
+              setState(() {
+                _selectedCategoryId = categoryId;
+              });
+            },
+          ),
+          
           StreamBuilder<List<ProductModel>>(
-            stream: productService.getProducts(providerId),
+            // El stream ahora se filtra por la categoría seleccionada.
+            stream: productService.getProducts(widget.providerId, categoryId: _selectedCategoryId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const _LoadingState();
@@ -152,6 +176,81 @@ class TiendaLayout extends StatelessWidget {
 
 /// --- WIDGETS ---
 
+class _CategorySelector extends StatelessWidget {
+  final String providerId;
+  final String? selectedCategoryId;
+  final Color brandColor;
+  final ValueChanged<String?> onCategorySelected;
+
+  const _CategorySelector({
+    required this.providerId,
+    required this.selectedCategoryId,
+    required this.brandColor,
+    required this.onCategorySelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final categoryService = context.read<CategoryService>();
+
+    return StreamBuilder<List<CategoryModel>>(
+      stream: categoryService.getCategories(providerId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          // Si no hay categorías, no mostramos nada.
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
+
+        final categories = snapshot.data!;
+
+        return SliverToBoxAdapter(
+          child: SizedBox(
+            height: 60,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              scrollDirection: Axis.horizontal,
+              itemCount: categories.length + 1, // +1 para el chip "Todos"
+              itemBuilder: (context, index) {
+                // El primer chip siempre es "Todos"
+                if (index == 0) {
+                  final isSelected = selectedCategoryId == null;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ChoiceChip(
+                      label: const Text('Ver Todos'),
+                      selected: isSelected,
+                      onSelected: (selected) => onCategorySelected(null),
+                      selectedColor: brandColor,
+                      labelStyle: TextStyle(color: isSelected ? (ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark ? Colors.white : Colors.black) : Colors.white),
+                      backgroundColor: const Color(0xFF2D2D5A),
+                      shape: StadiumBorder(side: BorderSide(color: isSelected ? brandColor : Colors.white38)),
+                    ),
+                  );
+                }
+
+                final category = categories[index - 1];
+                final isSelected = selectedCategoryId == category.id;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ChoiceChip(
+                    label: Text(category.name),
+                    selected: isSelected,
+                    onSelected: (selected) => onCategorySelected(category.id),
+                    selectedColor: brandColor,
+                    labelStyle: TextStyle(color: isSelected ? (ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark ? Colors.white : Colors.black) : Colors.white),
+                    backgroundColor: const Color(0xFF2D2D5A),
+                    shape: StadiumBorder(side: BorderSide(color: isSelected ? brandColor : Colors.white38)),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _ProductCard extends StatelessWidget {
   final ProductModel product;
   final Color brandColor;
@@ -173,12 +272,9 @@ class _ProductCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         child: InkWell(
           onTap: () => _showProductDetailDialog(context, product, brandColor),
-          // --- CORRECCIÓN DE LEGIBILIDAD ---
-          // Se usa un Column para separar claramente la imagen del texto.
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Parte 1: La Imagen (ocupa el espacio expandido)
               Expanded(
                 child: Stack(
                   fit: StackFit.expand,
@@ -215,7 +311,6 @@ class _ProductCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Parte 2: El área de texto (con fondo sólido)
               Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(

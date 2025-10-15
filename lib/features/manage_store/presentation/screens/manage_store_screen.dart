@@ -4,6 +4,8 @@ import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'add_edit_product_screen.dart';
+// --- NUEVA IMPORTACIÓN ---
+import 'manage_categories_screen.dart';
 
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 14/10/2025
@@ -23,7 +25,6 @@ class ManageStoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final productService = context.read<ProductService>();
     
-    // --- Paleta de colores "Cyber Glow" ---
     const backgroundColor = Color(0xFF1A1A2E);
     const accentColor = Color(0xFF00BFFF);
 
@@ -34,32 +35,43 @@ class ManageStoreScreen extends StatelessWidget {
         backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        // --- MODIFICACIÓN CLAVE ---
+        // Se añade un botón de acción para navegar a la gestión de categorías.
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.category_outlined),
+            tooltip: 'Gestionar Categorías',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ManageCategoriesScreen(user: user),
+              ));
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: StreamBuilder<List<ProductModel>>(
         stream: productService.getProducts(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            // UX Improvement: Esqueleto de carga con efecto shimmer.
             return const _LoadingSkeleton();
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error al cargar productos: ${snapshot.error}', style: const TextStyle(color: Colors.white70)));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            // UX Improvement: Estado vacío rediseñado.
             return const _EmptyState();
           }
 
           final products = snapshot.data!;
 
-          // UI Polish: GridView responsivo para un look de catálogo.
           return GridView.builder(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), // Espacio para FAB
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 350, // Ancho máximo de cada tarjeta
+              maxCrossAxisExtent: 350,
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
-              childAspectRatio: 0.85, // Proporción de la tarjeta (más alta que ancha)
+              childAspectRatio: 0.85,
             ),
             itemCount: products.length,
             itemBuilder: (context, index) {
@@ -134,7 +146,6 @@ class _ProductCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- Imagen del Producto ---
               Expanded(
                 flex: 3,
                 child: Stack(
@@ -150,11 +161,9 @@ class _ProductCard extends StatelessWidget {
                                 const Icon(Icons.image_not_supported_outlined, color: Colors.white38, size: 40),
                           )
                         : Container(
-                            // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
                             color: Colors.black.withAlpha(51),
                             child: const Icon(Icons.shopping_bag_outlined, color: Colors.white38, size: 40),
                           ),
-                    // --- Indicador de Estado (Vencido / Vence Pronto) ---
                     if (product.isExpired || product.isExpiringSoon)
                       Positioned(
                         top: 8,
@@ -167,7 +176,6 @@ class _ProductCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // --- Información del Producto ---
               Expanded(
                 flex: 2,
                 child: Padding(
@@ -219,7 +227,6 @@ class _StatusTag extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(6),
         boxShadow: [
-          // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
           BoxShadow(color: color.withAlpha(128), blurRadius: 8)
         ]
       ),
@@ -277,11 +284,10 @@ class _LoadingSkeleton extends StatelessWidget {
         crossAxisSpacing: 16,
         childAspectRatio: 0.85,
       ),
-      itemCount: 6, // Muestra 6 placeholders
+      itemCount: 6,
       itemBuilder: (context, index) {
         return Container(
           decoration: BoxDecoration(
-            // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
             color: const Color(0xFF2D2D5A).withAlpha(128),
             borderRadius: BorderRadius.circular(16),
           ),
@@ -290,3 +296,4 @@ class _LoadingSkeleton extends StatelessWidget {
     );
   }
 }
+

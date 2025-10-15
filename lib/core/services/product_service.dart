@@ -16,11 +16,20 @@ class ProductService {
   }
 
   /// Obtiene un stream con la lista de productos de un proveedor.
-  Stream<List<ProductModel>> getProducts(String userId) {
-    return _productsCollection(userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
+  /// 
+  /// Si se proporciona un [categoryId], filtrará los productos para mostrar
+  /// solo los que pertenecen a esa categoría. Si [categoryId] es nulo o una
+  /// cadena vacía, mostrará todos los productos.
+  Stream<List<ProductModel>> getProducts(String userId, {String? categoryId}) {
+    Query<Map<String, dynamic>> query = _productsCollection(userId);
+
+    // Si se especifica una categoría, se aplica el filtro.
+    if (categoryId != null && categoryId.isNotEmpty) {
+      query = query.where('categoryId', isEqualTo: categoryId);
+    }
+    
+    // Siempre ordenamos por fecha de creación.
+    return query.orderBy('createdAt', descending: true).snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
     });
   }

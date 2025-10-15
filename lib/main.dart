@@ -10,8 +10,9 @@ import 'core/services/firestore_service.dart';
 import 'core/services/provider_service.dart';
 import 'core/services/product_service.dart';
 import 'core/services/storage_service.dart';
-// --- NUEVA IMPORTACIÓN ---
 import 'core/viewmodels/cart_provider.dart';
+// --- NUEVA IMPORTACIÓN ---
+import 'core/services/category_service.dart';
 import 'features/auth/widgets/auth_wrapper.dart';
 
 void main() async {
@@ -29,28 +30,25 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // --- PROVIDERS DE SERVICIOS ---
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider<AuthService>(
           create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
           ),
         ),
-        Provider<ProviderService>(
-          create: (_) => ProviderService(),
-        ),
-        Provider<ProductService>(
-          create: (_) => ProductService(),
-        ),
-        Provider<StorageService>(
-          create: (_) => StorageService(),
-        ),
+        Provider<ProviderService>(create: (_) => ProviderService()),
+        Provider<ProductService>(create: (_) => ProductService()),
+        Provider<StorageService>(create: (_) => StorageService()),
+        // --- MODIFICACIÓN CLAVE ---
+        // Registramos el CategoryService para que esté disponible en la app.
+        Provider<CategoryService>(create: (_) => CategoryService()),
+
+        // --- PROVIDERS DE ESTADO/VIEWMODELS ---
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
         ),
-        // --- MODIFICACIÓN CLAVE ---
-        // Registramos el CartProvider como un ChangeNotifierProvider para que la UI
-        // pueda escuchar sus cambios y reconstruirse automáticamente.
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
         ),

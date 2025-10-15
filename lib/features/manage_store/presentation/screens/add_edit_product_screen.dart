@@ -3,8 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 
@@ -37,13 +39,12 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
-  // --- NUEVOS CONTROLADORES ---
   late final TextEditingController _promoPriceController;
   late final TextEditingController _promoTextController;
-
   DateTime? _expiryDate;
   XFile? _imageFile;
   bool _isUploading = false;
+  String? _selectedCategoryId;
 
   bool get _isEditing => widget.productToEdit != null;
 
@@ -54,10 +55,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _nameController = TextEditingController(text: product?.name);
     _descriptionController = TextEditingController(text: product?.description);
     _priceController = TextEditingController(text: product?.price.toString());
-    // Inicializamos los nuevos controladores
     _promoPriceController = TextEditingController(text: product?.promoPrice?.toString() ?? '');
     _promoTextController = TextEditingController(text: product?.promoText ?? '');
     _expiryDate = product?.expiryDate?.toDate();
+    _selectedCategoryId = product?.categoryId;
   }
 
   @override
@@ -69,7 +70,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _promoTextController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
@@ -102,8 +103,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         );
       }
 
-      // --- MODIFICACIÓN ---
-      // Se añaden los campos de promoción al crear el objeto ProductModel.
       final product = ProductModel(
         id: widget.productToEdit?.id ?? '',
         name: _nameController.text.trim(),
@@ -114,6 +113,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         imageUrl: imageUrl,
         promoPrice: double.tryParse(_promoPriceController.text),
         promoText: _promoTextController.text.trim().isNotEmpty ? _promoTextController.text.trim() : null,
+        categoryId: _selectedCategoryId,
       );
 
       if (_isEditing) {
@@ -137,7 +137,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       }
     }
   }
-  
+
   Future<void> _deleteProduct() async {
     final productService = context.read<ProductService>();
     final navigator = Navigator.of(context);
@@ -241,6 +241,17 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                       value!.isEmpty ? 'Este campo es requerido' : null,
                 ),
                 const SizedBox(height: 16),
+                _CategorySelector(
+                  user: widget.user,
+                  initialCategoryId: _selectedCategoryId,
+                  onChanged: (newId) {
+                    setState(() {
+                      _selectedCategoryId = newId;
+                    });
+                  },
+                  inputDecoration: inputDecoration,
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _descriptionController,
                   style: const TextStyle(color: Colors.white),
@@ -262,7 +273,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // --- NUEVOS CAMPOS PARA PROMOCIONES ---
                 Text('Promoción (Opcional)', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -397,6 +407,71 @@ class _ImagePickerWidget extends StatelessWidget {
         const SizedBox(height: 12),
         const Text('Añadir Imagen', style: TextStyle(color: Colors.white70)),
       ],
+    );
+  }
+}
+
+/// Un widget que muestra un Dropdown para seleccionar una categoría de producto.
+class _CategorySelector extends StatelessWidget {
+  final UserModel user;
+  final String? initialCategoryId;
+  final ValueChanged<String?> onChanged;
+  final InputDecoration inputDecoration;
+
+  const _CategorySelector({
+    required this.user,
+    required this.initialCategoryId,
+    required this.onChanged,
+    required this.inputDecoration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final categoryService = context.read<CategoryService>();
+
+    return StreamBuilder<List<CategoryModel>>(
+      stream: categoryService.getCategories(user.uid),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          // Muestra un placeholder mientras cargan las categorías
+          return InputDecorator(
+            decoration: inputDecoration.copyWith(labelText: 'Categoría'),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Cargando categorías...', style: TextStyle(color: Colors.white70)),
+                SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              ],
+            ),
+          );
+        }
+
+        final categories = snapshot.data!;
+        
+        final validInitialValue = categories.any((c) => c.id == initialCategoryId)
+            ? initialCategoryId
+            : null;
+
+        return DropdownButtonFormField<String>(
+          value: validInitialValue,
+          onChanged: onChanged,
+          decoration: inputDecoration.copyWith(labelText: 'Categoría (Opcional)'),
+          style: const TextStyle(color: Colors.white),
+          dropdownColor: const Color(0xFF2D2D5A),
+          items: [
+            const DropdownMenuItem(
+              value: null,
+              child: Text('Sin Categoría', style: TextStyle(fontStyle: FontStyle.italic)),
+            ),
+            ...categories.map((category) {
+              return DropdownMenuItem(
+                value: category.id,
+                child: Text(category.name),
+              );
+            }).toList(),
+          ],
+        );
+      },
     );
   }
 }
