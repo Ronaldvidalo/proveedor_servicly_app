@@ -35,20 +35,9 @@ class ManageStoreScreen extends StatelessWidget {
         backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
         elevation: 0,
-        // --- MODIFICACIÓN CLAVE ---
-        // Se añade un botón de acción para navegar a la gestión de categorías.
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.category_outlined),
-            tooltip: 'Gestionar Categorías',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ManageCategoriesScreen(user: user),
-              ));
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
+        // --- MODIFICACIÓN ---
+        // Se elimina el botón de la AppBar para darle más prominencia en el cuerpo.
+        actions: const [],
       ),
       body: StreamBuilder<List<ProductModel>>(
         stream: productService.getProducts(user.uid),
@@ -60,34 +49,49 @@ class ManageStoreScreen extends StatelessWidget {
             return Center(child: Text('Error al cargar productos: ${snapshot.error}', style: const TextStyle(color: Colors.white70)));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const _EmptyState();
+            return Column(
+              children: [
+                _CategoryManagerCard(user: user),
+                const Expanded(child: _EmptyState()),
+              ],
+            );
           }
 
           final products = snapshot.data!;
-
-          return GridView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), // Espacio para FAB
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 350,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.85,
-            ),
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return _ProductCard(
-                product: product,
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => AddEditProductScreen(
-                      user: user,
-                      productToEdit: product,
-                    ),
-                  ));
-                },
-              );
-            },
+          
+          // Se usa un CustomScrollView para combinar la tarjeta de categorías con el Grid.
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _CategoryManagerCard(user: user)),
+              SliverPadding(
+                padding: const EdgeInsets.all(16.0),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 350,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.85,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final product = products[index];
+                      return _ProductCard(
+                        product: product,
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => AddEditProductScreen(
+                              user: user,
+                              productToEdit: product,
+                            ),
+                          ));
+                        },
+                      );
+                    },
+                    childCount: products.length,
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -101,6 +105,38 @@ class ManageStoreScreen extends StatelessWidget {
         icon: const Icon(Icons.add),
         backgroundColor: accentColor,
         foregroundColor: Colors.black,
+      ),
+    );
+  }
+}
+
+// --- NUEVO WIDGET ---
+/// Una tarjeta prominente para acceder a la gestión de categorías.
+class _CategoryManagerCard extends StatelessWidget {
+  final UserModel user;
+  const _CategoryManagerCard({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Card(
+        color: const Color(0xFF2D2D5A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFF00BFFF), width: 1)
+        ),
+        child: ListTile(
+          leading: const Icon(Icons.category_outlined, color: Color(0xFF00BFFF), size: 32),
+          title: const Text('Gestionar Categorías', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          subtitle: const Text('Crea y organiza las carpetas de tus productos.', style: TextStyle(color: Colors.white70)),
+          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38),
+          onTap: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ManageCategoriesScreen(user: user),
+            ));
+          },
+        ),
       ),
     );
   }

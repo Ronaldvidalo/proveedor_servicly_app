@@ -11,16 +11,8 @@ import 'package:proveedor_servicly_app/features/modules/screens/modules_screen.d
 import 'package:proveedor_servicly_app/features/profile/screens/create_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
-// --- NUEVA IMPORTACIÓN ---
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
-
-// --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 10/10/2025
-// Style: Cyber Glow
-// This screen was refactored to use a responsive GridView layout,
-// custom product cards, and an enhanced loading/empty state experience,
-// aligning with the "Cyber Glow" design philosophy.
-// ---------------------------------
+import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
 
 
 /// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
@@ -35,7 +27,6 @@ const Map<String, IconData> _iconMap = {
   'sync_alt_rounded': Icons.sync_alt_rounded,
   'help_outline': Icons.help_outline_rounded,
   'visibility_outlined': Icons.visibility_outlined,
-  // --- NUEVO ÍCONO ---
   'storefront_outlined': Icons.storefront_outlined,
 };
 
@@ -147,7 +138,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut)),
               child: _ModulesGrid(
                 activeModules: activeModules,
-                user: userModel, // Pasamos el usuario al grid
+                user: userModel,
                 onAddModule: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => ModulesScreen(
@@ -292,7 +283,7 @@ class _PublicProfileButton extends StatelessWidget {
     final String buttonText = isProfileCreated ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
     final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
     
-    void onPressedAction() {
+    final VoidCallback onPressedAction = () {
       if (isProfileCreated) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PublicProfileScreen(providerId: userModel.uid),
@@ -302,7 +293,7 @@ class _PublicProfileButton extends StatelessWidget {
           builder: (_) => SelectProfileTemplateScreen(user: userModel),
         ));
       }
-    }
+    };
 
     return OutlinedButton.icon(
       onPressed: onPressedAction,
@@ -337,10 +328,6 @@ class _ModulesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- REFACTORIZACIÓN PARA SOLUCIONAR EL ERROR DE TIPO ---
-    // Se construye la lista de widgets directamente dentro del GridView
-    // utilizando una sintaxis más moderna y segura (collection-if y spread operator).
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = (constraints.maxWidth / 180).floor().clamp(2, 5);
@@ -351,7 +338,6 @@ class _ModulesGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            // Se añade condicionalmente el módulo de gestión de la tienda
             if (user.publicProfileTemplate == 'tienda')
               _ModuleCard(
                 title: 'Gestionar Mi Tienda',
@@ -363,18 +349,21 @@ class _ModulesGrid extends StatelessWidget {
                 },
               ),
             
-            // Se expanden los módulos activos del usuario
             ...activeModules.map((module) {
               return _ModuleCard(
                 title: module.name,
                 icon: _iconMap[module.icon] ?? Icons.help_outline,
                 onTap: () {
-                  // TODO: Implementar navegación real al módulo
+                  if (module.moduleId == 'agenda') {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => AgendaScreen(user: user),
+                    ));
+                  }
+                  // Aquí se podrían añadir más 'if' para otros módulos.
                 },
               );
             }),
             
-            // Se añade la tarjeta para "Añadir Módulo" al final
             _AddModuleCard(onTap: onAddModule),
           ],
         );

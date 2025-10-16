@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'firebase_options.dart';
 import 'shared/theme/theme.dart';
@@ -11,12 +12,16 @@ import 'core/services/provider_service.dart';
 import 'core/services/product_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/viewmodels/cart_provider.dart';
-// --- NUEVA IMPORTACIÓN ---
 import 'core/services/category_service.dart';
+import 'core/services/agenda_service.dart';
 import 'features/auth/widgets/auth_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // --- MODIFICACIÓN CLAVE ---
+  // Inicializamos los datos de formato de fecha para el idioma español.
+  await initializeDateFormatting('es_ES', null);
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -40,9 +45,8 @@ class MyApp extends StatelessWidget {
         Provider<ProviderService>(create: (_) => ProviderService()),
         Provider<ProductService>(create: (_) => ProductService()),
         Provider<StorageService>(create: (_) => StorageService()),
-        // --- MODIFICACIÓN CLAVE ---
-        // Registramos el CategoryService para que esté disponible en la app.
         Provider<CategoryService>(create: (_) => CategoryService()),
+        Provider<AgendaService>(create: (_) => AgendaService()),
 
         // --- PROVIDERS DE ESTADO/VIEWMODELS ---
         StreamProvider<User?>(

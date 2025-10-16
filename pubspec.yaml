@@ -16,6 +16,10 @@ dependencies:
   google_fonts: ^6.2.1
   provider: ^6.1.2
 
+# ... tus otras dependencias
+  table_calendar: ^3.0.9
+  intl: ^0.18.1
+
   # Firebase (versiones compatibles y estables)
   firebase_core: ^2.31.0
   firebase_auth: ^4.19.4

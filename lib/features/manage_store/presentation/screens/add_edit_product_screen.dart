@@ -329,7 +329,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                   child: FilledButton.icon(
                     onPressed: _isUploading ? null : _saveProduct,
                     icon: _isUploading
-                        ? Container(
+                        ? SizedBox(
                             width: 20,
                             height: 20,
                             child: const CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
@@ -453,7 +453,7 @@ class _CategorySelector extends StatelessWidget {
             : null;
 
         return DropdownButtonFormField<String>(
-          value: validInitialValue,
+          initialValue: validInitialValue,
           onChanged: onChanged,
           decoration: inputDecoration.copyWith(labelText: 'Categoría (Opcional)'),
           style: const TextStyle(color: Colors.white),
@@ -468,7 +468,7 @@ class _CategorySelector extends StatelessWidget {
                 value: category.id,
                 child: Text(category.name),
               );
-            }).toList(),
+            }),
           ],
         );
       },

@@ -537,7 +537,7 @@ class _CartBadge extends StatelessWidget {
 
 // --- WIDGETS DE ESTADO ---
 class _LoadingState extends StatelessWidget {
-  const _LoadingState({super.key});
+  const _LoadingState();
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
@@ -564,7 +564,7 @@ class _LoadingState extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({super.key});
+  const _EmptyState();
   @override
   Widget build(BuildContext context) {
     return const SliverFillRemaining(
@@ -597,7 +597,7 @@ class _EmptyState extends StatelessWidget {
 
 class _ErrorState extends StatelessWidget {
   final String error;
-  const _ErrorState({super.key, required this.error});
+  const _ErrorState({required this.error});
   @override
   Widget build(BuildContext context) {
     return SliverFillRemaining(
