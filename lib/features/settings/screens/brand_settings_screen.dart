@@ -5,19 +5,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-
-// --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 14/10/2025
-// Style: Cyber Glow
-// This screen was refactored to align with the "Cyber Glow" design philosophy.
-// It features custom-styled form elements, interactive logo/color pickers,
-// and a card-based layout for better visual organization and user experience.
-// ---------------------------------
+import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
+import 'package:proveedor_servicly_app/core/models/country_model.dart';
+import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 
 class BrandSettingsScreen extends StatefulWidget {
   final UserModel user;
+  final String? initialTemplateId;
 
-  const BrandSettingsScreen({super.key, required this.user});
+  const BrandSettingsScreen({
+    super.key,
+    required this.user,
+    this.initialTemplateId,
+  });
 
   @override
   State<BrandSettingsScreen> createState() => _BrandSettingsScreenState();
@@ -30,8 +30,8 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _welcomeMessageController;
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
-  late TextEditingController _countryController;
-  String _selectedFormat = 'cv';
+  String? _selectedCountryCode;
+  late String _selectedFormat;
 
   bool _isLoading = false;
   XFile? _selectedImageFile;
@@ -55,7 +55,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController = TextEditingController();
     _addressController = TextEditingController();
     _contactEmailController = TextEditingController();
-    _countryController = TextEditingController();
   }
 
   @override
@@ -68,10 +67,9 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '';
       _addressController.text = personalization['address'] as String? ?? '';
       _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
-      _countryController.text = personalization['country'] as String? ?? '';
-      // --- CORRECCIÓN ---
-      // Se lee el campo 'publicProfileTemplate' para consistencia.
-      _selectedFormat = personalization['publicProfileTemplate'] as String? ?? 'cv';
+      _selectedCountryCode = personalization['country'] as String?;
+      
+      _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'cv';
       _existingLogoUrl = personalization['logoUrl'] as String?;
       
       final hexColor = personalization['primaryColor'] as String?;
@@ -87,7 +85,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController.dispose();
     _addressController.dispose();
     _contactEmailController.dispose();
-    _countryController.dispose();
     super.dispose();
   }
 
@@ -95,9 +92,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-      if (image != null) {
-        setState(() => _selectedImageFile = image);
-      }
+      if (image != null) setState(() => _selectedImageFile = image);
     } catch (e) {
       _showSnackbar('Error al seleccionar la imagen: $e', isError: true);
     }
@@ -125,19 +120,32 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       updatedPersonalization['welcomeMessage'] = _welcomeMessageController.text.trim();
       updatedPersonalization['address'] = _addressController.text.trim();
       updatedPersonalization['contactEmail'] = _contactEmailController.text.trim();
-      updatedPersonalization['country'] = _countryController.text.trim();
-      // --- CORRECCIÓN ---
-      // Se guarda el campo 'publicProfileTemplate' para consistencia.
-      updatedPersonalization['publicProfileTemplate'] = _selectedFormat;
+      updatedPersonalization['country'] = _selectedCountryCode;
       if (newLogoUrl != null) updatedPersonalization['logoUrl'] = newLogoUrl;
       if (_selectedColor != null) {
-        updatedPersonalization['primaryColor'] = '#${_selectedColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+        final color = _selectedColor!;
+        updatedPersonalization['primaryColor'] = '#${color.red.toRadixString(16).padLeft(2, '0')}${color.green.toRadixString(16).padLeft(2, '0')}${color.blue.toRadixString(16).padLeft(2, '0')}';
       }
       
-      await firestoreService.updateUser(userModel.uid, {'personalization': updatedPersonalization});
+      // --- CORRECCIÓN ARQUITECTÓNICA ---
+      // Se guardan los campos de perfil público en la raíz del documento para consistencia.
+      // Ya no se guarda 'publicProfileTemplate' dentro de 'personalization'.
+      await firestoreService.updateUser(userModel.uid, {
+        'personalization': updatedPersonalization,
+        'isProfileComplete': true,
+        'publicProfileCreated': true,
+        'publicProfileTemplate': _selectedFormat,
+      });
+
+      // TODO: Lógica para actualizar 'public_profiles'
 
       _showSnackbar('¡Perfil público guardado con éxito!');
-      if(mounted) Navigator.of(context).pop();
+      if(mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthWrapper()),
+          (route) => false,
+        );
+      }
 
     } catch (e) {
       _showSnackbar('Error al guardar la configuración: $e', isError: true);
@@ -204,8 +212,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       dropdownColor: surfaceColor,
                       style: const TextStyle(color: Colors.white),
                       items: const [
-                        // --- MODIFICACIÓN CLAVE ---
-                        // Se añade la nueva opción de plantilla.
                         DropdownMenuItem(value: 'catalog', child: Text('Catálogo de Servicios')),
                         DropdownMenuItem(value: 'store', child: Text('Tienda de Servicios')),
                         DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
@@ -233,10 +239,14 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _countryController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: inputDecoration.copyWith(labelText: 'País'),
+                    _CountrySelector(
+                      initialCountryCode: _selectedCountryCode,
+                      inputDecoration: inputDecoration,
+                      onChanged: (newCode) {
+                        setState(() {
+                          _selectedCountryCode = newCode;
+                        });
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -399,6 +409,70 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       return Color(int.parse('FF${hexCode.substring(0, 6)}', radix: 16));
     }
     return null;
+  }
+}
+
+/// Un widget para mostrar un Dropdown de países desde Firestore.
+class _CountrySelector extends StatelessWidget {
+  final String? initialCountryCode;
+  final ValueChanged<String?> onChanged;
+  final InputDecoration inputDecoration;
+
+  const _CountrySelector({
+    this.initialCountryCode,
+    required this.onChanged,
+    required this.inputDecoration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Provider<MarketplaceService>(
+      create: (_) => MarketplaceService(),
+      child: Consumer<MarketplaceService>(
+        builder: (context, marketplaceService, _) {
+          return StreamBuilder<List<CountryModel>>(
+            stream: marketplaceService.getCountries(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return InputDecorator(
+                  decoration: inputDecoration.copyWith(labelText: 'País'),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Cargando países...', style: TextStyle(color: Colors.white70)),
+                      SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    ],
+                  ),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                 return TextFormField(
+                    decoration: inputDecoration.copyWith(labelText: 'País (Error al cargar)'),
+                    enabled: false,
+                  );
+              }
+              final countries = snapshot.data!;
+              final validInitialValue = countries.any((c) => c.id == initialCountryCode) ? initialCountryCode : null;
+
+              return DropdownButtonFormField<String>(
+                value: validInitialValue,
+                onChanged: onChanged,
+                decoration: inputDecoration.copyWith(labelText: 'País'),
+                dropdownColor: const Color(0xFF2D2D5A),
+                style: const TextStyle(color: Colors.white),
+                items: countries.map((country) {
+                  return DropdownMenuItem(
+                    value: country.id,
+                    child: Text('${country.flag} ${country.name}'),
+                  );
+                }).toList(),
+                validator: (value) => value == null ? 'Debes seleccionar un país' : null,
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 }
 

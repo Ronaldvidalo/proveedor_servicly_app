@@ -1,15 +1,16 @@
-// lib/features/auth/widgets/auth_wrapper.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
 
 import '../../../core/models/user_model.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../onboarding/screens/select_role_screen.dart';
 import '../../onboarding/screens/initial_config_screen.dart';
 import '../../shell/provider_shell.dart';
-import 'unauthenticated_gate.dart';
+// --- MODIFICACIÓN ---
+// Se reemplaza el 'gate' por la pantalla de autenticación principal.
+import '../screens/auth_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -19,7 +20,9 @@ class AuthWrapper extends StatelessWidget {
     final firebaseUser = context.watch<User?>();
 
     if (firebaseUser == null) {
-      return const UnauthenticatedGate();
+      // --- MODIFICACIÓN ---
+      // Se apunta a la pantalla de autenticación principal.
+      return const AuthScreen();
     } else {
       return StreamBuilder<UserModel?>(
         stream: context.read<FirestoreService>().getUserStream(firebaseUser.uid),
@@ -29,21 +32,15 @@ class AuthWrapper extends StatelessWidget {
           }
 
           if (!snapshot.hasData || snapshot.data == null) {
-            // Esto es importante para el flujo de registro. Muestra la carga
-            // mientras se crea el documento en Firestore.
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
 
           final userModel = snapshot.data!;
           
-          // --- INICIO DE LA MODIFICACIÓN ---
-          // Una vez que tenemos el userModel, lo proveemos al resto del árbol de widgets
-          // que construiremos a continuación.
           return Provider<UserModel>.value(
             value: userModel,
             child: _buildScreenFromUserModel(userModel),
           );
-          // --- FIN DE LA MODIFICACIÓN ---
         },
       );
     }
@@ -63,10 +60,13 @@ class AuthWrapper extends StatelessWidget {
         case 'both':
           return const ProviderShell();
         case 'client':
-          return const Scaffold(body: Center(child: Text('Client Shell')));
+          // --- MODIFICACIÓN CLAVE ---
+          // Los clientes ahora son dirigidos a la HomeScreen (el marketplace).
+          return const HomeScreen();
         default:
           return const SelectRoleScreen();
       }
     }
   }
 }
+

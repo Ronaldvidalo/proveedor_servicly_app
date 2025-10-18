@@ -42,6 +42,8 @@ class AuthService {
   Future<UserCredential> createUserWithEmailAndPassword({
     required String email,
     required String password,
+    required String role,
+    String? countryCode, // Parámetro opcional para el país del proveedor
   }) async {
     try {
       final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
@@ -50,17 +52,17 @@ class AuthService {
       );
 
       if (userCredential.user != null) {
-        // Creamos el UserModel con los valores por defecto de la plataforma.
         final newUser = UserModel(
           uid: userCredential.user!.uid,
           email: userCredential.user!.email,
           createdAt: Timestamp.now(),
-          planType: 'free', // Todo usuario nuevo empieza como 'free'.
-          // Módulos básicos que todo usuario 'free' tendrá al registrarse.
+          planType: 'free',
           activeModules: ['clients', 'agenda'], 
-          role: null, // El rol se definirá en el onboarding.
-          isProfileComplete: false, // El perfil se completará en el onboarding.
-          personalization: {}, // La personalización se configura después.
+          role: role, 
+          isProfileComplete: false,
+          // --- MODIFICACIÓN ---
+          // Si es un proveedor, guardamos su país en el mapa de personalización.
+          personalization: role == 'provider' ? {'country': countryCode} : {},
         );
         await _firestoreService.createUser(newUser);
       }
@@ -86,16 +88,15 @@ class AuthService {
       final userCredential = await _firebaseAuth.signInWithCredential(credential);
 
       if (userCredential.additionalUserInfo?.isNewUser == true && userCredential.user != null) {
-        // Creamos el UserModel con los valores por defecto, aprovechando el nombre de Google.
         final newUser = UserModel(
           uid: userCredential.user!.uid,
           email: userCredential.user!.email,
           createdAt: Timestamp.now(),
           planType: 'free',
           activeModules: ['clients', 'agenda'],
-          role: null,
-          isProfileComplete: false,
-          // Guardamos el nombre de Google en el mapa de personalización.
+          // Los usuarios de Google son clientes por defecto, no necesitan país al inicio.
+          role: 'client', 
+          isProfileComplete: true,
           personalization: { 'businessName': userCredential.user!.displayName },
         );
         await _firestoreService.createUser(newUser);
@@ -103,13 +104,16 @@ class AuthService {
       
       return userCredential;
     } on PlatformException {
-      // Dejamos este print comentado para depuración futura si es necesario.
-      // print('--- ERROR DETALLADO DE PLATFORM EXCEPTION ---');
-      // print('Código de error: ${e.code}');
-      // print('Mensaje: ${e.message}');
-      // print('Detalles: ${e.details}');
-      // print('-------------------------------------------');
       rethrow;
+    } on FirebaseAuthException {
+      rethrow;
+    }
+  }
+
+  /// Envía un correo electrónico para restablecer la contraseña.
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException {
       rethrow;
     }

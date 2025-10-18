@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'edit_public_profile_screen.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
 
 /// Una pantalla donde los usuarios eligen una plantilla para su perfil público.
 class SelectProfileTemplateScreen extends StatelessWidget {
@@ -32,36 +33,36 @@ class SelectProfileTemplateScreen extends StatelessWidget {
             title: 'Perfil Profesional (CV)',
             description: 'Ideal para freelancers y consultores. Muestra tu experiencia y habilidades.',
             templateId: 'cv',
-            onTap: _navigateToEditPage,
+            onTap: (ctx, id) => _navigateToEditPage(ctx, id, user),
           ),
           _TemplateOptionCard(
             icon: Icons.store_outlined,
             title: 'Tienda de Servicios',
             description: 'Perfecto para quienes ofrecen servicios con precios definidos, como clases o reparaciones.',
-            templateId: 'tienda',
-            onTap: _navigateToEditPage,
+            templateId: 'store',
+            onTap: (ctx, id) => _navigateToEditPage(ctx, id, user),
           ),
           _TemplateOptionCard(
-            icon: Icons.palette_outlined,
-            title: 'Portafolio Visual',
-            description: 'La mejor opción para diseñadores, fotógrafos y artistas que necesitan mostrar su trabajo.',
-            templateId: 'portfolio',
-            onTap: _navigateToEditPage,
+            icon: Icons.collections_bookmark_outlined,
+            title: 'Catálogo de Servicios',
+            description: 'Ideal para profesionales. Muestra tus servicios y permite a los clientes agendar turnos.',
+            templateId: 'catalog',
+            onTap: (ctx, id) => _navigateToEditPage(ctx, id, user),
           ),
         ],
       ),
     );
   }
 
-  /// Navega a la página de edición de perfil, usando el [user] que se pasó al constructor.
-  void _navigateToEditPage(BuildContext context, String templateId) {
-    // Ya no es necesario leer del contexto, lo que soluciona el error.
-    Navigator.of(context).push(
+  /// Navega a la página de edición de perfil, pasando la plantilla seleccionada.
+  void _navigateToEditPage(BuildContext context, String templateId, UserModel user) {
+    // Al seleccionar una plantilla, llevamos al usuario a la pantalla de configuración
+    // y le pasamos el ID de la plantilla para que se preseleccione.
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        // Le pasamos tanto el templateId como el objeto de usuario.
-        builder: (_) => EditPublicProfileScreen(
-          templateId: templateId,
+        builder: (_) => BrandSettingsScreen(
           user: user,
+          initialTemplateId: templateId,
         ),
       ),
     );
