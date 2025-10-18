@@ -30,6 +30,36 @@ class AgendaEvent {
     this.isAllDay = false,
   });
 
+  // --- NUEVO MÉTODO ---
+  /// Crea una copia de esta instancia de evento con los campos proporcionados reemplazados.
+  AgendaEvent copyWith({
+    String? id,
+    String? title,
+    String? description,
+    DateTime? startTime,
+    DateTime? endTime,
+    EventType? eventType,
+    EventStatus? eventStatus,
+    String? providerId,
+    String? clientId,
+    String? relatedContractId,
+    bool? isAllDay,
+  }) {
+    return AgendaEvent(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      eventType: eventType ?? this.eventType,
+      eventStatus: eventStatus ?? this.eventStatus,
+      providerId: providerId ?? this.providerId,
+      clientId: clientId ?? this.clientId,
+      relatedContractId: relatedContractId ?? this.relatedContractId,
+      isAllDay: isAllDay ?? this.isAllDay,
+    );
+  }
+
   factory AgendaEvent.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return AgendaEvent(
@@ -38,8 +68,8 @@ class AgendaEvent {
       description: data['description'],
       startTime: (data['startTime'] as Timestamp).toDate(),
       endTime: (data['endTime'] as Timestamp).toDate(),
-      eventType: EventType.values.firstWhere((e) => e.toString() == 'EventType.${data['eventType']}', orElse: () => EventType.personal_reminder),
-      eventStatus: EventStatus.values.firstWhere((e) => e.toString() == 'EventStatus.${data['eventStatus']}', orElse: () => EventStatus.pending),
+      eventType: EventType.values.firstWhere((e) => e.name == data['eventType'], orElse: () => EventType.personal_reminder),
+      eventStatus: EventStatus.values.firstWhere((e) => e.name == data['eventStatus'], orElse: () => EventStatus.pending),
       providerId: data['providerId'],
       clientId: data['clientId'],
       relatedContractId: data['relatedContractId'],
@@ -62,3 +92,4 @@ class AgendaEvent {
     };
   }
 }
+

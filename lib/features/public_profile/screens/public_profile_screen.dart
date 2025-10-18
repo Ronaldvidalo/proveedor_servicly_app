@@ -4,6 +4,8 @@ import 'package:proveedor_servicly_app/core/services/provider_service.dart';
 import 'package:proveedor_servicly_app/core/models/public_profile_view_model.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/tienda_layout.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/cv_layout.dart';
+import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/catalog_layout.dart';
+
 
 
 /// La "mini-app" pública de un proveedor, visible para sus clientes.
@@ -40,8 +42,13 @@ class PublicProfileScreen extends StatelessWidget {
           final profile = viewModel.profile!;
 
           // --- EL CAMALEÓN: Elige qué layout construir ---
-          // Ahora el 'profile' tiene el campo 'publicProfileTemplate' y los errores desaparecerán.
+          // Esta es la lógica central que decide qué UI mostrar.
           switch (profile.publicProfileTemplate) {
+            // --- MODIFICACIÓN CLAVE ---
+            // Se añade el caso para la nueva plantilla de catálogo.
+            case 'catalog':
+              return CatalogLayout(providerId: providerId, profile: profile);
+            
             case 'tienda':
               return TiendaLayout(providerId: providerId, profile: profile);
             

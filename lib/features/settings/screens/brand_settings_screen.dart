@@ -30,7 +30,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _welcomeMessageController;
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
-  late TextEditingController _countryController; // CORRECCIÓN: Usar un controller
+  late TextEditingController _countryController;
   String _selectedFormat = 'cv';
 
   bool _isLoading = false;
@@ -55,7 +55,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController = TextEditingController();
     _addressController = TextEditingController();
     _contactEmailController = TextEditingController();
-    _countryController = TextEditingController(); // CORRECCIÓN: Inicializar controller
+    _countryController = TextEditingController();
   }
 
   @override
@@ -68,8 +68,10 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '';
       _addressController.text = personalization['address'] as String? ?? '';
       _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
-      _countryController.text = personalization['country'] as String? ?? ''; // CORRECCIÓN: Asignar al controller
-      _selectedFormat = personalization['publicProfileFormat'] as String? ?? 'cv';
+      _countryController.text = personalization['country'] as String? ?? '';
+      // --- CORRECCIÓN ---
+      // Se lee el campo 'publicProfileTemplate' para consistencia.
+      _selectedFormat = personalization['publicProfileTemplate'] as String? ?? 'cv';
       _existingLogoUrl = personalization['logoUrl'] as String?;
       
       final hexColor = personalization['primaryColor'] as String?;
@@ -85,7 +87,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController.dispose();
     _addressController.dispose();
     _contactEmailController.dispose();
-    _countryController.dispose(); // CORRECCIÓN: Disponer del controller
+    _countryController.dispose();
     super.dispose();
   }
 
@@ -123,11 +125,12 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       updatedPersonalization['welcomeMessage'] = _welcomeMessageController.text.trim();
       updatedPersonalization['address'] = _addressController.text.trim();
       updatedPersonalization['contactEmail'] = _contactEmailController.text.trim();
-      updatedPersonalization['country'] = _countryController.text.trim(); // CORRECCIÓN: Leer desde el controller
-      updatedPersonalization['publicProfileFormat'] = _selectedFormat;
+      updatedPersonalization['country'] = _countryController.text.trim();
+      // --- CORRECCIÓN ---
+      // Se guarda el campo 'publicProfileTemplate' para consistencia.
+      updatedPersonalization['publicProfileTemplate'] = _selectedFormat;
       if (newLogoUrl != null) updatedPersonalization['logoUrl'] = newLogoUrl;
       if (_selectedColor != null) {
-        // CORRECCIÓN: Se usa el valor del color de forma segura sin la propiedad obsoleta.
         updatedPersonalization['primaryColor'] = '#${_selectedColor!.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
       }
       
@@ -196,14 +199,16 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   subtitle: 'Elige cómo verán tus clientes tu página de presentación.',
                   children: [
                     DropdownButtonFormField<String>(
-                      initialValue: _selectedFormat,
+                      value: _selectedFormat,
                       decoration: inputDecoration.copyWith(labelText: 'Formato de Perfil'),
                       dropdownColor: surfaceColor,
                       style: const TextStyle(color: Colors.white),
                       items: const [
-                        DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
-                        DropdownMenuItem(value: 'portfolio', child: Text('Catálogo de Trabajos')),
+                        // --- MODIFICACIÓN CLAVE ---
+                        // Se añade la nueva opción de plantilla.
+                        DropdownMenuItem(value: 'catalog', child: Text('Catálogo de Servicios')),
                         DropdownMenuItem(value: 'store', child: Text('Tienda de Servicios')),
+                        DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
                       ],
                       onChanged: (value) {
                         if (value != null) setState(() => _selectedFormat = value);
@@ -228,7 +233,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
                     ),
                     const SizedBox(height: 16),
-                    // CORRECCIÓN: Se usa el controller en lugar de initialValue y onChanged.
                     TextFormField(
                       controller: _countryController,
                       style: const TextStyle(color: Colors.white),
@@ -268,7 +272,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     );
   }
 
-  /// UI Polish: Un contenedor reutilizable para cada sección del formulario.
   Widget _buildSectionCard({required String title, String? subtitle, required List<Widget> children}) {
     const surfaceColor = Color(0xFF2D2D5A);
     return Container(
@@ -354,7 +357,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
           spacing: 16,
           runSpacing: 16,
           children: _predefinedColors.map((color) {
-            // CORRECCIÓN: Se comparan los objetos Color directamente.
             bool isSelected = _selectedColor == color;
             return GestureDetector(
               onTap: () => setState(() => _selectedColor = color),
@@ -369,7 +371,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       ? Border.all(color: Colors.white, width: 3)
                       : null,
                   boxShadow: isSelected
-                      // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
                       ? [BoxShadow(color: color.withAlpha(178), blurRadius: 10)]
                       : [],
                 ),
@@ -400,3 +401,4 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     return null;
   }
 }
+

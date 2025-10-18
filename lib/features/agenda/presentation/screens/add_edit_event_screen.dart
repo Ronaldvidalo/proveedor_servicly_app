@@ -7,14 +7,14 @@ import '../../viewmodels/agenda_view_model.dart';
 
 class AddEditEventScreen extends StatefulWidget {
   final DateTime selectedDay;
-  // --- MODIFICACIÓN CLAVE ---
-  // Aceptamos el UserModel para que la pantalla sepa quién es el usuario.
   final UserModel user;
+  final AgendaEvent? eventToEdit;
 
   const AddEditEventScreen({
-    super.key, 
+    super.key,
     required this.selectedDay,
     required this.user,
+    this.eventToEdit,
   });
 
   @override
@@ -23,25 +23,41 @@ class AddEditEventScreen extends StatefulWidget {
 
 class _AddEditEventScreenState extends State<AddEditEventScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
 
-  EventType _selectedType = EventType.personal_reminder;
+  late EventType _selectedType;
   late DateTime _startTime;
   late DateTime _endTime;
+
+  bool get _isEditing => widget.eventToEdit != null;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    // La fecha es la que ya seleccionamos, solo ajustamos la hora.
-    _startTime = DateTime(
-      widget.selectedDay.year,
-      widget.selectedDay.month,
-      widget.selectedDay.day,
-      now.hour + 1, // Por defecto, la siguiente hora
-    );
-    _endTime = _startTime.add(const Duration(hours: 1));
+    final event = widget.eventToEdit;
+
+    if (_isEditing) {
+      // Si estamos editando, cargamos los datos del evento existente.
+      _titleController = TextEditingController(text: event!.title);
+      _descriptionController = TextEditingController(text: event.description);
+      _selectedType = event.eventType;
+      _startTime = event.startTime;
+      _endTime = event.endTime;
+    } else {
+      // Si estamos creando, establecemos valores por defecto.
+      _titleController = TextEditingController();
+      _descriptionController = TextEditingController();
+      _selectedType = EventType.personal_reminder;
+      final now = DateTime.now();
+      _startTime = DateTime(
+        widget.selectedDay.year,
+        widget.selectedDay.month,
+        widget.selectedDay.day,
+        now.hour + 1,
+      );
+      _endTime = _startTime.add(const Duration(hours: 1));
+    }
   }
 
   @override
@@ -51,7 +67,6 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
     super.dispose();
   }
 
-  /// Muestra un selector de hora y actualiza el estado.
   Future<void> _pickTime(bool isStartTime) async {
     final initialTime = TimeOfDay.fromDateTime(isStartTime ? _startTime : _endTime);
     final pickedTime = await showTimePicker(
@@ -61,18 +76,17 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
 
     if (pickedTime != null) {
       setState(() {
-        final selectedDate = widget.selectedDay;
+        final date = isStartTime ? _startTime : _endTime;
         final newDateTime = DateTime(
-          selectedDate.year,
-          selectedDate.month,
-          selectedDate.day,
+          date.year,
+          date.month,
+          date.day,
           pickedTime.hour,
           pickedTime.minute,
         );
 
         if (isStartTime) {
           _startTime = newDateTime;
-          // Si la nueva hora de inicio es después de la de fin, ajustamos la de fin.
           if (_endTime.isBefore(_startTime)) {
             _endTime = _startTime.add(const Duration(hours: 1));
           }
@@ -89,30 +103,39 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
     }
 
     final viewModel = context.read<AgendaViewModel>();
-    // --- MODIFICACIÓN CLAVE ---
-    // Usamos el usuario que recibimos por el constructor, eliminando la necesidad
-    // de buscarlo en el contexto y solucionando el error.
     final user = widget.user;
     final navigator = Navigator.of(context);
 
     if (_endTime.isBefore(_startTime)) {
-       ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error: La hora de fin no puede ser anterior a la de inicio.'), backgroundColor: Colors.redAccent),
       );
       return;
     }
 
-    final newEvent = AgendaEvent(
-      title: _titleController.text,
-      description: _descriptionController.text,
-      startTime: _startTime,
-      endTime: _endTime,
-      eventType: _selectedType,
-      providerId: user.uid,
-    );
-
     try {
-      await viewModel.addEvent(newEvent);
+      if (_isEditing) {
+        // --- LÓGICA DE EDICIÓN ---
+        final updatedEvent = widget.eventToEdit!.copyWith(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          startTime: _startTime,
+          endTime: _endTime,
+          eventType: _selectedType,
+        );
+        await viewModel.updateEvent(updatedEvent);
+      } else {
+        // --- LÓGICA DE CREACIÓN ---
+        final newEvent = AgendaEvent(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          startTime: _startTime,
+          endTime: _endTime,
+          eventType: _selectedType,
+          providerId: user.uid,
+        );
+        await viewModel.addEvent(newEvent);
+      }
       navigator.pop();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -129,7 +152,7 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Nuevo Evento'),
+        title: Text(_isEditing ? 'Editar Evento' : 'Nuevo Evento'),
         backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -180,14 +203,14 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Cliente',
-                    hintText: 'Buscar cliente...', // TODO: Implementar búsqueda de clientes
+                    hintText: 'Buscar cliente...',
                     prefixIcon: Icon(Icons.person_search_outlined),
                   ),
                 ),
               ),
 
             const SizedBox(height: 32),
-            Text('Horario para el día ${DateFormat('d MMMM yyyy', 'es_ES').format(widget.selectedDay)}', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('Horario para el día ${DateFormat('d MMMM yyyy', 'es_ES').format(_startTime)}', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -213,7 +236,7 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
             FilledButton.icon(
               onPressed: _saveEvent,
               icon: const Icon(Icons.save_alt_outlined),
-              label: const Text('Guardar Evento'),
+              label: Text(_isEditing ? 'Guardar Cambios' : 'Guardar Evento'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

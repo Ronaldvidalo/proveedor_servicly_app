@@ -41,7 +41,8 @@ class AgendaViewModel extends ChangeNotifier {
     return _eventsSource[DateTime.utc(day.year, day.month, day.day)] ?? [];
   }
 
-  // --- MÉTODOS PARA LA UI ---
+  // --- MÉTODOS ---
+
   void onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     if (!isSameDay(_selectedDay, selectedDay)) {
       _selectedDay = selectedDay;
@@ -78,10 +79,7 @@ class AgendaViewModel extends ChangeNotifier {
     });
   }
 
-  /// Añade un nuevo evento a la base de datos y actualiza la UI de forma optimista.
   Future<void> addEvent(AgendaEvent event) async {
-    // --- MODIFICACIÓN CLAVE: ACTUALIZACIÓN OPTIMISTA ---
-    // 1. Actualizamos el estado local inmediatamente.
     final day = DateTime.utc(event.startTime.year, event.startTime.month, event.startTime.day);
     _eventsSource.putIfAbsent(day, () => []).add(event);
     if (isSameDay(_selectedDay, day)) {
@@ -89,17 +87,86 @@ class AgendaViewModel extends ChangeNotifier {
     }
     notifyListeners();
 
-    // 2. Intentamos guardar en la base de datos.
     try {
       await _agendaService.addEvent(_userId, event);
     } catch (e) {
-      // 3. Si falla, revertimos el cambio local y notificamos al usuario.
       _eventsSource[day]?.remove(event);
       if (isSameDay(_selectedDay, day)) {
         selectedEvents.value = getEventsForDay(day);
       }
       notifyListeners();
-      // Propagamos el error para que la UI pueda mostrar un mensaje.
+      rethrow;
+    }
+  }
+
+  /// Actualiza un evento existente en la base de datos.
+  Future<void> updateEvent(AgendaEvent event) async {
+    final day = DateTime.utc(event.startTime.year, event.startTime.month, event.startTime.day);
+    final eventList = _eventsSource[day];
+    if (eventList != null) {
+      final index = eventList.indexWhere((e) => e.id == event.id);
+      if (index != -1) {
+        // Guardamos el evento original para poder revertir si falla la operación.
+        final originalEvent = eventList[index];
+        eventList[index] = event;
+        if (isSameDay(_selectedDay, day)) {
+          selectedEvents.value = List.from(eventList);
+        }
+        notifyListeners();
+        
+        try {
+          await _agendaService.updateEvent(_userId, event);
+        } catch (e) {
+          // Si falla, revertimos el cambio en la UI.
+          eventList[index] = originalEvent;
+           if (isSameDay(_selectedDay, day)) {
+            selectedEvents.value = List.from(eventList);
+          }
+          notifyListeners();
+          rethrow;
+        }
+      }
+    } else {
+      // Si el evento no está en la lista local, lo enviamos directamente.
+       try {
+        await _agendaService.updateEvent(_userId, event);
+      } catch (e) {
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> cancelEvent(AgendaEvent event) async {
+    if (event.id == null) return;
+    
+    final cancelledEvent = event.copyWith(eventStatus: EventStatus.cancelled);
+    final day = DateTime.utc(event.startTime.year, event.startTime.month, event.startTime.day);
+    
+    final eventList = _eventsSource[day];
+    if (eventList != null) {
+      final eventIndex = eventList.indexWhere((e) => e.id == event.id);
+      if (eventIndex != -1) {
+        eventList[eventIndex] = cancelledEvent;
+        if (isSameDay(_selectedDay, day)) {
+          selectedEvents.value = List.from(eventList);
+        }
+        notifyListeners();
+      }
+    }
+
+    try {
+      await _agendaService.updateEventStatus(_userId, event.id!, EventStatus.cancelled);
+    } catch (e) {
+      if (eventList != null) {
+        final eventIndex = eventList.indexWhere((e) => e.id == event.id);
+        if (eventIndex != -1) {
+          eventList[eventIndex] = event;
+           if (isSameDay(_selectedDay, day)) {
+            selectedEvents.value = List.from(eventList);
+          }
+          notifyListeners();
+        }
+      }
       rethrow;
     }
   }
