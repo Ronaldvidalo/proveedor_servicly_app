@@ -1,12 +1,10 @@
-// lib/features/auth/widgets/unauthenticated_gate.dart
-
 import 'package:flutter/material.dart';
 import '../screens/auth_screen.dart';
-import '../../onboarding/screens/onboarding_screen.dart';
+// --- CORRECCIÓN: Importar IntroScreen en lugar de OnboardingScreen ---
+import '../../onboarding/screens/intro_screen.dart'; // Corregido
 
 /// Este widget gestiona el flujo para un usuario NO autenticado.
-/// Decide si mostrar la pantalla de Onboarding (para la primera vez)
-/// o la pantalla de Autenticación.
+/// Muestra primero la Intro y luego la pantalla de Autenticación.
 class UnauthenticatedGate extends StatefulWidget {
   const UnauthenticatedGate({super.key});
 
@@ -15,26 +13,24 @@ class UnauthenticatedGate extends StatefulWidget {
 }
 
 class _UnauthenticatedGateState extends State<UnauthenticatedGate> {
-  // Por defecto, siempre mostramos el Onboarding al iniciar.
-  bool _showOnboarding = true;
+  // Ahora el estado controla si se debe mostrar la INTRO.
+  bool _showIntro = true; 
 
-  /// Esta función se llama cuando el usuario termina el Onboarding.
-  void _onOnboardingFinished() {
+  void _onIntroFinished() {
     setState(() {
-      // Cambiamos el estado para que ahora se muestre la pantalla de Auth.
-      _showOnboarding = false;
+      _showIntro = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_showOnboarding) {
-      // Si debemos mostrar el Onboarding, lo construimos y le pasamos la función
-      // que debe llamar cuando termine.
-      return OnboardingScreen(onFinished: _onOnboardingFinished);
+    if (_showIntro) {
+      // --- CORRECCIÓN: Llamar a IntroScreen con el callback correcto ---
+      return IntroScreen(onFinished: _onIntroFinished);
     } else {
-      // Si el Onboarding ya terminó, mostramos la pantalla de Autenticación.
+      // Una vez terminada la intro, se muestra la pantalla de autenticación.
       return const AuthScreen();
     }
   }
 }
+

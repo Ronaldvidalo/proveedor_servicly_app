@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
 
 /// Una pantalla donde los usuarios eligen una plantilla para su perfil público.

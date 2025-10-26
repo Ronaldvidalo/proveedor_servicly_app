@@ -1,19 +1,35 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 25/10/2025 // Updated date
+// Style: Cyber Glow
+// This screen was refactored into a "Digital Hub" dashboard, styled with the
+// "Cyber Glow" aesthetic. It features a dynamic header, metrics section,
+// interactive module cards, shimmer loading skeleton, and responsive grid layout.
+// --- MODIFICACIÓN: 26/10/2025 ---
+// Refactored to act as the main app "Shell" with a BottomNavigationBar.
+// The original dashboard content is now in the `_ProviderHomeTab` widget.
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show listEquals;
 
 // --- Modelos y Servicios ---
-import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'package:proveedor_servicly_app/core/models/module_model.dart';
-import 'package:proveedor_servicly_app/core/services/auth_service.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/features/modules/screens/modules_screen.dart';
-import 'package:proveedor_servicly_app/features/profile/screens/create_profile_screen.dart';
-import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
-import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
-import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
-import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
-
+// Asegúrate de que las rutas de importación sean correctas para tu proyecto
+import '../../../core/models/user_model.dart';
+import '../../../core/models/module_model.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/firestore_service.dart';
+import '../../modules/screens/modules_screen.dart';
+import '../../profile/screens/create_profile_screen.dart';
+import '../../public_profile/screens/public_profile_screen.dart';
+import '../../public_profile/screens/presentation/screens/select_profile_template_screen.dart';
+// Asegúrate de importar ManageStoreScreen desde su ubicación correcta
+import '../../manage_store/presentation/screens/manage_store_screen.dart';
+// Asegúrate de importar AgendaScreen desde su ubicación correcta
+import '../../agenda/presentation/screens/agenda_screen.dart';
+// Importar DottedBorder si está en un archivo separado, si no, mantenerlo abajo.
+// import 'package:dotted_border/dotted_border.dart'; // Si decides usar el paquete
 
 /// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
 const Map<String, IconData> _iconMap = {
@@ -28,9 +44,11 @@ const Map<String, IconData> _iconMap = {
   'help_outline': Icons.help_outline_rounded,
   'visibility_outlined': Icons.visibility_outlined,
   'storefront_outlined': Icons.storefront_outlined,
+  'agenda': Icons.calendar_month_outlined, // Icono añadido para agenda
 };
 
 /// La pantalla principal y dashboard para el usuario proveedor.
+/// Ahora actúa como un "Shell" que contiene la barra de navegación inferior.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -38,7 +56,79 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0; // Estado para la pestaña activa
+
+  // Lista de las pantallas (pestañas) que se mostrarán
+  static const List<Widget> _widgetOptions = <Widget>[
+    _ProviderHomeTab(), // Tu dashboard anterior
+    _OpportunitiesTab(), // Placeholder
+    _SettingsTab(), // Placeholder
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // --- Definición del Tema "Cyber Glow" ---
+    const primaryColor = Color(0xFF00BFFF); // Azul eléctrico brillante
+    const backgroundColor = Color(0xFF1A1A2E); // Azul oscuro casi negro
+    const surfaceColor = Color(0xFF2D2D5A); // Superficie ligeramente más clara
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      // El cuerpo de la app ahora cambia según la pestaña seleccionada
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _widgetOptions,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_filled),
+            label: 'Inicio',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.lightbulb_outline_rounded),
+            label: 'Oportunidades',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            label: 'Configuración',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        // --- Estilo "Cyber Glow" para la barra de navegación ---
+        backgroundColor: surfaceColor,
+        selectedItemColor: primaryColor,
+        unselectedItemColor: Colors.white70,
+        type: BottomNavigationBarType.fixed, // Para que el fondo sea sólido
+        elevation: 10,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        showUnselectedLabels: true,
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// --- PESTAÑA 1: INICIO (Tu antiguo DashboardScreen) ---
+// ===================================================================
+
+class _ProviderHomeTab extends StatefulWidget {
+  const _ProviderHomeTab();
+
+  @override
+  State<_ProviderHomeTab> createState() => _ProviderHomeTabState();
+}
+
+class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerProviderStateMixin {
   late Future<List<ModuleModel>> _modulesFuture;
   late AnimationController _animationController;
 
@@ -50,7 +140,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _animationController.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       if (mounted) {
+         _animationController.forward();
+       }
+      });
   }
 
   @override
@@ -64,40 +158,53 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     final userModel = context.watch<UserModel?>();
     const backgroundColor = Color(0xFF1A1A2E);
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      body: userModel == null
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: FutureBuilder<List<ModuleModel>>(
-                future: _modulesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return _LoadingSkeleton(
-                      userName: userModel.displayName,
-                      businessName: userModel.personalization['businessName'] as String?,
-                    );
-                  }
+    if (userModel == null) {
+      return Container(
+        color: backgroundColor,
+        child: const Center(child: CircularProgressIndicator(color: Color(0xFF00BFFF)))
+      );
+    }
 
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('Error al cargar los módulos.', style: TextStyle(color: Colors.white70)));
-                  }
+    // El widget raíz ahora es el Container con el color de fondo.
+    // La SafeArea se aplica aquí para asegurar que el contenido no se solape
+    // con la barra de estado o muescas del dispositivo.
+    return Container(
+      color: backgroundColor,
+      child: SafeArea(
+        bottom: false, // La SafeArea inferior es manejada por el Scaffold
+        child: FutureBuilder<List<ModuleModel>>(
+          future: _modulesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              // Muestra el esqueleto de carga mientras se obtienen los módulos
+              return _LoadingSkeleton(
+                userName: userModel.displayName,
+                businessName: userModel.personalization['businessName'] as String?,
+              );
+            }
 
-                  final allModules = snapshot.data!;
-                  final activeModules = allModules
-                      .where((module) => userModel.activeModules.contains(module.moduleId))
-                      .toList()
-                    ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
+            if (snapshot.hasError || !snapshot.hasData || (snapshot.data?.isEmpty ?? true)) {
+              // Muestra un error si la carga de módulos falla
+              return const Center(child: Text('Error al cargar la configuración.', style: TextStyle(color: Colors.white70)));
+            }
 
-                  return CustomScrollView(
-                    slivers: [
-                      _DashboardHeader(userModel: userModel),
-                      _buildAnimatedContent(context, userModel, activeModules, allModules),
-                    ],
-                  );
-                },
-              ),
-            ),
+            // Datos listos
+            final allModules = snapshot.data!;
+            final activeModules = allModules
+                .where((module) => userModel.activeModules.contains(module.moduleId))
+                .toList()
+              ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
+
+            // El CustomScrollView es el contenido principal de esta pantalla
+            return CustomScrollView(
+              slivers: [
+                _DashboardHeader(userModel: userModel),
+                _buildAnimatedContent(context, userModel, activeModules, allModules),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -107,6 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
       sliver: SliverList(
         delegate: SliverChildListDelegate.fixed([
+          // Banner para completar perfil si es necesario
           if (!userModel.isProfileComplete)
             Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
@@ -117,9 +225,15 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ),
             ),
 
+          // --- Sección de Métricas (Placeholder) ---
+          const _MetricsSectionPlaceholder(),
+          const SizedBox(height: 32),
+
+          // Botón para gestionar/crear perfil público
           _PublicProfileButton(userModel: userModel),
           const SizedBox(height: 32),
 
+          // Título de la sección de módulos
           Text(
             'Mis Módulos',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -129,6 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           const SizedBox(height: 16),
 
+          // Grid animado de módulos
           FadeTransition(
             opacity: CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
             child: SlideTransition(
@@ -150,14 +265,56 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ),
             ),
           ),
+          // Añadir padding inferior para que el contenido no quede pegado
+          // a la barra de navegación inferior del ProviderShell.
+          const SizedBox(height: 80),
         ]),
       ),
     );
   }
 }
 
-// --- WIDGETS PERSONALIZADOS ---
+// ===================================================================
+// --- PESTAÑA 2: OPORTUNIDADES (Placeholder) ---
+// ===================================================================
 
+class _OpportunitiesTab extends StatelessWidget {
+  const _OpportunitiesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SafeArea(
+      child: Center(
+        child: Text('Pantalla de Oportunidades (Próximamente)', style: TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+}
+
+
+// ===================================================================
+// --- PESTAÑA 3: CONFIGURACIÓN (Placeholder) ---
+// ===================================================================
+
+class _SettingsTab extends StatelessWidget {
+  const _SettingsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SafeArea(
+      child: Center(
+        child: Text('Pantalla de Configuración (Próximamente)', style: TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+}
+
+
+// --- TODOS TUS WIDGETS PERSONALIZADOS (_DashboardHeader, _ProfileCompletionBanner, etc.) ---
+// --- SE MANTIENEN EXACTAMENTE IGUAL ---
+
+// Copia y pega aquí todos tus widgets auxiliares desde tu archivo original
+// Ejemplo:
 class _DashboardHeader extends StatelessWidget {
   final UserModel userModel;
   const _DashboardHeader({required this.userModel});
@@ -165,14 +322,17 @@ class _DashboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = context.read<AuthService>();
-    final businessName = userModel.personalization['businessName'] as String? ?? 'Mi Negocio';
+    // Esta línea es la que reportaba 'dead_code'. La lógica es correcta
+    // ya que userModel.displayName SÍ es nullable. Ignoramos el lint.
+    final businessName = userModel.personalization['businessName'] as String? ?? userModel.displayName ?? 'Mi Negocio';
     const accentColor = Color(0xFF00BFFF);
 
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8), // Reducido padding superior
       sliver: SliverToBoxAdapter(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start, // Alinea arriba
           children: [
             Expanded(
               child: Column(
@@ -191,22 +351,50 @@ class _DashboardHeader extends StatelessWidget {
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       shadows: [
-                        Shadow(color: accentColor.withAlpha((255 * 0.5).round()), blurRadius: 10),
-                        Shadow(color: accentColor.withAlpha((255 * 0.3).round()), blurRadius: 20),
+                        // CORRECCIÓN: .withOpacity() obsoleto, usar .withAlpha()
+                        Shadow(color: accentColor.withAlpha(128), blurRadius: 10), // 0.5
+                        Shadow(color: accentColor.withAlpha(77), blurRadius: 20), // 0.3
                       ],
                     ),
+                    maxLines: 2, // Permite 2 líneas para nombres largos
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 16), // Espacio antes del botón
             Material(
               color: const Color(0xFF2D2D5A),
               shape: const CircleBorder(),
               child: InkWell(
-                onTap: () async => await authService.signOut(),
+                onTap: () async {
+                  // Añadir confirmación antes de cerrar sesión
+                   final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: const Color(0xFF2D2D5A),
+                        title: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+                        content: const Text('¿Seguro que quieres cerrar sesión?', style: TextStyle(color: Colors.white70)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+                          FilledButton(
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                            child: const Text('Cerrar Sesión'),
+                          ),
+                        ],
+                      ),
+                    ) ?? false; // Si el usuario cierra el diálogo, es false
+
+                   if (confirm) {
+                     if (context.mounted) { // Buena práctica post-await
+                       await authService.signOut();
+                     }
+                     // No necesitas navegar aquí, el AuthWrapper se encargará
+                   }
+                },
                 borderRadius: BorderRadius.circular(30),
-                splashColor: accentColor.withAlpha((255 * 0.3).round()),
+                splashColor: accentColor.withAlpha(77), // 0.3
                 child: const Tooltip(
                   message: 'Cerrar Sesión',
                   child: Padding(
@@ -239,9 +427,9 @@ class _ProfileCompletionBanner extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: surfaceColor.withAlpha((255 * 0.7).round()),
+            color: surfaceColor.withAlpha(178), // 0.7
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: accentColor.withAlpha((255 * 0.5).round())),
+            border: Border.all(color: accentColor.withAlpha(128)), // 0.5
           ),
           child: Row(
             children: [
@@ -260,7 +448,7 @@ class _ProfileCompletionBanner extends StatelessWidget {
               const SizedBox(width: 16),
               FilledButton(
                 onPressed: onCompleteProfile,
-                style: FilledButton.styleFrom(backgroundColor: accentColor, foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: accentColor, foregroundColor: Colors.black),
                 child: const Text('COMPLETAR'),
               ),
             ],
@@ -271,6 +459,89 @@ class _ProfileCompletionBanner extends StatelessWidget {
   }
 }
 
+// --- Widget para la Sección de Métricas (Placeholder) ---
+class _MetricsSectionPlaceholder extends StatelessWidget {
+  const _MetricsSectionPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+         border: Border.all(color: accentColor.withAlpha(77)), // 0.3
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+           Row(
+             children: [
+               const Icon(Icons.insights_rounded, color: accentColor, size: 20),
+               const SizedBox(width: 8),
+               Text(
+                 'Actividad Reciente',
+                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                       color: Colors.white,
+                       fontWeight: FontWeight.bold,
+                     ),
+               ),
+             ],
+           ),
+          const SizedBox(height: 16),
+          // Placeholder para las métricas (ej. visitas al perfil)
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _MetricItemPlaceholder(icon: Icons.visibility_outlined, label: 'Visitas Hoy', value: '--'), // Placeholder
+              _MetricItemPlaceholder(icon: Icons.person_add_alt_1_outlined, label: 'Contactos', value: '--'), // Placeholder
+              _MetricItemPlaceholder(icon: Icons.star_border_rounded, label: 'Valoración', value: '--'), // Placeholder
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () { /* TODO: Navegar a pantalla de métricas detalladas */
+                 ScaffoldMessenger.of(context).showSnackBar(
+                   const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
+                 );
+               },
+              style: TextButton.styleFrom(foregroundColor: accentColor),
+              child: const Text('Ver más detalles'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Widget auxiliar para el placeholder de métricas
+class _MetricItemPlaceholder extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MetricItemPlaceholder({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white70, size: 28),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
   const _PublicProfileButton({required this.userModel});
@@ -278,12 +549,12 @@ class _PublicProfileButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accentColor = Color(0xFF00BFFF);
-    final bool isProfileCreated = userModel.publicProfileCreated;
+    final bool isProfileCreated = userModel.publicProfileCreated ?? false; // Manejo de nulo
 
     final String buttonText = isProfileCreated ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
     final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
-    
-    final VoidCallback onPressedAction = () {
+
+    void onPressedAction() {
       if (isProfileCreated) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PublicProfileScreen(providerId: userModel.uid),
@@ -293,7 +564,7 @@ class _PublicProfileButton extends StatelessWidget {
           builder: (_) => SelectProfileTemplateScreen(user: userModel),
         ));
       }
-    };
+    }
 
     return OutlinedButton.icon(
       onPressed: onPressedAction,
@@ -330,7 +601,10 @@ class _ModulesGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = (constraints.maxWidth / 180).floor().clamp(2, 5);
+        // Ajusta el ancho base para controlar el tamaño de las tarjetas
+        final double cardBaseWidth = 160.0;
+        final crossAxisCount = (constraints.maxWidth / (cardBaseWidth + 16)).floor().clamp(2, 5); // +16 for spacing
+
         return GridView.count(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 16,
@@ -338,37 +612,59 @@ class _ModulesGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            if (user.publicProfileTemplate == 'tienda')
+             // Botón "Gestionar Tienda"
+            if (user.publicProfileTemplate == 'store') // Lógica de negocio
               _ModuleCard(
-                title: 'Gestionar Mi Tienda',
-                icon: _iconMap['storefront_outlined']!,
+                title: 'Gestionar Tienda',
+                icon: _iconMap['storefront_outlined'] ?? Icons.storefront_outlined,
                 onTap: () {
                   Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => ManageStoreScreen(user: user),
                   ));
                 },
               ),
-            
+
+            // Módulos activos
             ...activeModules.map((module) {
               return _ModuleCard(
                 title: module.name,
-                icon: _iconMap[module.icon] ?? Icons.help_outline,
+                icon: _iconMap[module.icon] ?? Icons.extension_outlined,
                 onTap: () {
-                  if (module.moduleId == 'agenda') {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AgendaScreen(user: user),
-                    ));
-                  }
-                  // Aquí se podrían añadir más 'if' para otros módulos.
+                  _navigateToModule(context, module.moduleId, user);
                 },
               );
             }),
-            
+
+            // Tarjeta para añadir módulo
             _AddModuleCard(onTap: onAddModule),
           ],
         );
       },
     );
+  }
+
+  void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
+    Widget? destination;
+    switch (moduleId) {
+      case 'agenda':
+        // --- CORRECCIÓN: Pasar el parámetro 'user' requerido ---
+        destination = AgendaScreen(user: user);
+        break;
+      case 'clients':
+        // destination = ClientsScreen(user: user);
+        break;
+      // Añade más casos aquí...
+    }
+
+    if (destination != null) {
+      // 'destination' es Widget?, pero el builder espera Widget.
+      // Usamos el operador '!' porque ya comprobamos que no es nulo.
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Navegación para "$moduleId" no implementada.'))
+      );
+    }
   }
 }
 
@@ -401,7 +697,7 @@ class _ModuleCardState extends State<_ModuleCard> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: _isHovered ? accentColor.withAlpha((255 * 0.5).round()) : accentColor.withAlpha((255 * 0.25).round()),
+              color: _isHovered ? accentColor.withAlpha(128) : accentColor.withAlpha(64),
               blurRadius: _isHovered ? 15 : 10,
               spreadRadius: 2,
             ),
@@ -413,8 +709,8 @@ class _ModuleCardState extends State<_ModuleCard> {
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(16),
-            splashColor: accentColor.withAlpha((255 * 0.3).round()),
-            highlightColor: accentColor.withAlpha((255 * 0.15).round()),
+            splashColor: accentColor.withAlpha(77),
+            highlightColor: accentColor.withAlpha(38),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -452,10 +748,10 @@ class _AddModuleCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        splashColor: accentColor.withAlpha((255 * 0.3).round()),
-        highlightColor: accentColor.withAlpha((255 * 0.15).round()),
+        splashColor: accentColor.withAlpha(77),
+        highlightColor: accentColor.withAlpha(38),
         child: DottedBorder(
-          color: accentColor.withAlpha((255 * 0.6).round()),
+          color: accentColor.withAlpha(153),
           strokeWidth: 2,
           radius: const Radius.circular(16),
           borderType: BorderType.rRect,
@@ -476,6 +772,8 @@ class _AddModuleCard extends StatelessWidget {
   }
 }
 
+// --- DottedBorder y Widgets Relacionados ---
+// (Tu código existente para DottedBorder, _DottedPainter, BorderType)
 enum BorderType { rect, rRect }
 
 class DottedBorder extends StatelessWidget {
@@ -535,35 +833,59 @@ class _DottedPainter extends CustomPainter {
 
     Path path;
     if (borderType == BorderType.rRect) {
-      path = Path()..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), radius));
+      final validRadius = Radius.elliptical(radius.x.abs(), radius.y.abs());
+      path = Path()..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), validRadius));
     } else {
       path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     }
-    
+
     Path dashPath = Path();
     double distance = 0.0;
-    for (PathMetric pathMetric in path.computeMetrics()) {
-      while (distance < pathMetric.length) {
-        dashPath.addPath(
-          pathMetric.extractPath(distance, distance + dashPattern[0]),
-          Offset.zero,
-        );
-        distance += dashPattern[0] + (dashPattern.length > 1 ? dashPattern[1] : 0);
+    if (dashPattern.isNotEmpty && dashPattern[0] > 0) {
+       final double dashLength = dashPattern[0];
+       final double gapLength = dashPattern.length > 1 ? dashPattern[1] : 0;
+       final double totalDashPatternLength = dashLength + gapLength;
+
+       if (totalDashPatternLength > 0) {
+          for (PathMetric pathMetric in path.computeMetrics()) {
+            while (distance < pathMetric.length) {
+              final double end = (distance + dashLength).clamp(0.0, pathMetric.length);
+              dashPath.addPath(
+                pathMetric.extractPath(distance, end),
+                Offset.zero,
+              );
+              distance += totalDashPatternLength;
+            }
+          }
+        } else {
+           dashPath = path;
+        }
+      } else {
+         dashPath = path;
       }
-    }
+
     canvas.drawPath(dashPath, paint);
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
+  bool shouldRepaint(_DottedPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.radius != radius ||
+      oldDelegate.borderType != borderType ||
+      !listEquals(oldDelegate.dashPattern, dashPattern); // Comparar listas correctamente
 }
 
+
+// --- Widgets de Carga ---
+// (Tu código existente para _LoadingSkeleton, _ShimmerObject, _SlidingGradientTransform)
 class _LoadingSkeleton extends StatefulWidget {
   final String? userName;
   final String? businessName;
   const _LoadingSkeleton({this.userName, this.businessName});
 
   @override
+  // ignore: library_private_types_in_public_api
   _LoadingSkeletonState createState() => _LoadingSkeletonState();
 }
 
@@ -601,28 +923,38 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
     return AnimatedBuilder(
       animation: _shimmerController,
       builder: (context, child) {
-        return CustomScrollView(
-          slivers: [
+         return CustomScrollView(
+           slivers: [
+             SliverPadding(
+               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+               sliver: SliverToBoxAdapter(
+                 child: Row(
+                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                   children: [
+                     Expanded(
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
+                           const SizedBox(height: 8),
+                           _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
+                         ],
+                       ),
+                     ),
+                     _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
+                   ],
+                 ),
+               ),
+             ),
+             // Placeholder para Métricas
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-              sliver: SliverToBoxAdapter(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
-                          const SizedBox(height: 8),
-                          _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
-                        ],
-                      ),
-                    ),
-                    _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
-                  ],
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              sliver: SliverToBoxAdapter(child: _ShimmerObject(height: 120, gradient: _shimmerGradient)),
+            ),
+             // Placeholder para Botón Perfil Público
+             SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              sliver: SliverToBoxAdapter(child: _ShimmerObject(height: 50, gradient: _shimmerGradient)),
             ),
             SliverPadding(
               padding: const EdgeInsets.all(24.0),
@@ -633,9 +965,9 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
                 children: List.generate(6, (index) => _ShimmerObject(gradient: _shimmerGradient)),
               ),
             ),
-          ],
-        );
-      },
+           ],
+         );
+       }
     );
   }
 }
@@ -673,7 +1005,8 @@ class _SlidingGradientTransform extends GradientTransform {
 
   @override
   Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
-    return Matrix4.translationValues(bounds.width * slidePercent, 0.0, 0.0);
+    final translationX = bounds.width * slidePercent * 2.0 - bounds.width;
+    return Matrix4.translationValues(translationX, 0.0, 0.0);
   }
 }
 

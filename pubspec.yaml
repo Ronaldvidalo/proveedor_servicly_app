@@ -19,6 +19,7 @@ dependencies:
 # ... tus otras dependencias
   table_calendar: ^3.0.9
   intl: ^0.18.1
+  firebase_messaging: ^14.9.4
 
   # Firebase (versiones compatibles y estables)
   firebase_core: ^2.31.0
@@ -28,6 +29,7 @@ dependencies:
   rxdart: ^0.28.0
   image_picker: ^1.2.0
   firebase_storage: ^11.7.7
+  firebase_app_check: ^0.2.2+1
 
 dev_dependencies:
   flutter_test:

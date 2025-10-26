@@ -98,7 +98,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ));
         _switchAuthMode(AuthMode.login);
       }
-    } on FirebaseAuthException catch (error) {
+      } on FirebaseAuthException catch (error) {
       _showErrorSnackbar(_handleAuthException(error));
     } catch (error) {
       _showErrorSnackbar('Ocurrió un error inesperado. Inténtalo de nuevo.');
@@ -139,12 +139,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Future<void> _signInWithGoogle() async {
+ Future<void> _signInWithGoogle() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     final authService = context.read<AuthService>();
     try {
       await authService.signInWithGoogle();
+
+      // --- CORRECCIÓN: Se han eliminado las líneas de Navigator.popUntil ---
+
     } catch (error) {
       if (!mounted) return;
       _showErrorSnackbar('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
@@ -589,7 +592,7 @@ class _CountrySelector extends StatelessWidget {
               final validInitialValue = countries.any((c) => c.id == initialCountryCode) ? initialCountryCode : null;
 
               return DropdownButtonFormField<String>(
-                value: validInitialValue,
+                initialValue: validInitialValue,
                 onChanged: onChanged,
                 decoration: inputDecoration.copyWith(labelText: 'País del Proveedor'),
                 dropdownColor: const Color(0xFF2D2D5A),

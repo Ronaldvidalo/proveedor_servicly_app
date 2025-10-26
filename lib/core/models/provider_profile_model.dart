@@ -1,10 +1,11 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
 ///
 /// Este modelo es inmutable y contiene toda la información necesaria
-/// para construir la [PublicProfileScreen].
+/// para construir la [PublicProfileScreen] y las tarjetas del marketplace.
 class ProviderProfileModel {
   /// El identificador único del proveedor.
   final String providerId;
@@ -22,9 +23,10 @@ class ProviderProfileModel {
   final List<String> activeModules;
 
   // --- MODIFICACIÓN CLAVE ---
-  // Se renombra 'publicProfileFormat' a 'publicProfileTemplate' para consistencia.
-  /// La plantilla para el diseño del perfil público (ej: 'cv', 'tienda').
-  final String? publicProfileTemplate;
+  // Renombrado de 'publicProfileTemplate' a 'profileType' para alinearse
+  // con la lógica de filtrado del 'Hub de Descubrimiento' (HomeScreen).
+  // Este campo define el tipo de perfil (ej: 'store', 'booking', 'social').
+  final String profileType;
 
   /// Un mensaje de bienvenida para el perfil.
   final String welcomeMessage;
@@ -42,7 +44,7 @@ class ProviderProfileModel {
     required this.logoUrl,
     required this.brandColor,
     required this.activeModules,
-    this.publicProfileTemplate,
+    required this.profileType, // <-- Modificado
     required this.welcomeMessage,
     required this.contactEmail,
     this.address,
@@ -60,9 +62,10 @@ class ProviderProfileModel {
       brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
       
-      // --- LECTURA CORREGIDA ---
-      // Leemos el template directamente del documento principal.
-      publicProfileTemplate: data['publicProfileTemplate'] as String?,
+      // --- LECTURA MODIFICADA ---
+      // Leemos 'profileType' y asignamos un valor por defecto ('social')
+      // si no existe. Esto asegura que el campo nunca sea nulo.
+      profileType: data['profileType'] as String? ?? 'social',
 
       welcomeMessage: personalization['welcomeMessage'] as String? ?? 'Bienvenido a mi perfil.',
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
@@ -80,4 +83,3 @@ Color? _colorFromHex(String? hexColor) {
   }
   return null;
 }
-

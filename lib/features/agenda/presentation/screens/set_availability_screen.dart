@@ -180,7 +180,7 @@ class _DayAvailabilityCard extends StatelessWidget {
                     dayAvailability.isEnabled = value;
                     onChanged(dayAvailability);
                   },
-                  activeColor: accentColor,
+                  activeThumbColor: accentColor,
                 ),
               ],
             ),
@@ -196,7 +196,7 @@ class _DayAvailabilityCard extends StatelessWidget {
                   onEndTimeChanged: (newTime) => _updateSlot(index, TimeSlot(start: slot.start, end: newTime)),
                   onDelete: () => _removeSlot(index),
                 );
-              }).toList(),
+              }),
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: _addSlot,

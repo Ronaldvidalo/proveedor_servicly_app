@@ -43,7 +43,7 @@ class PublicProfileScreen extends StatelessWidget {
 
           // --- EL CAMALEÓN: Elige qué layout construir ---
           // Esta es la lógica central que decide qué UI mostrar.
-          switch (profile.publicProfileTemplate) {
+          switch (profile.profileType) {
             // --- MODIFICACIÓN CLAVE ---
             // Se añade el caso para la nueva plantilla de catálogo.
             case 'catalog':

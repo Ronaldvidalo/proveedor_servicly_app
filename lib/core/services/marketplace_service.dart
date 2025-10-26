@@ -29,8 +29,17 @@ class MarketplaceService {
   }
   
   /// Obtiene un stream con la lista de perfiles públicos de proveedores.
-  Stream<List<ProviderProfileModel>> getProviders({String? categoryName, String? countryCode}) {
+  ///
+  /// Permite filtrar por tipo de perfil, categoría y/o país.
+  Stream<List<ProviderProfileModel>> getProviders({
+    String? categoryName, 
+    String? countryCode,
+    String? profileType, // <-- PARÁMETRO AÑADIDO
+  }) {
     Query<Map<String, dynamic>> query = _publicProfilesCollection;
+
+    // NOTA: Para que estos filtros funcionen, el documento en 'public_profiles'
+    // debe tener los campos 'country', 'mainCategory' y 'profileType'.
 
     if (countryCode != null && countryCode.isNotEmpty) {
       query = query.where('country', isEqualTo: countryCode);
@@ -39,13 +48,22 @@ class MarketplaceService {
       query = query.where('mainCategory', isEqualTo: categoryName);
     }
     
-    // NOTA TÉCNICA: Esta consulta compuesta requerirá un índice en Firestore.
-    // La primera vez que se ejecute, Firebase dará un error en la consola
-    // con un enlace para crear el índice automáticamente.
+    // --- LÓGICA AÑADIDA ---
+    // Si se proporciona un 'profileType' (y no es 'all', que vendrá como null),
+    // filtramos la consulta por ese tipo.
+    if (profileType != null && profileType.isNotEmpty) {
+      query = query.where('profileType', isEqualTo: profileType);
+    }
+    // --- FIN DE LA LÓGICA ---
+    
+    // NOTA TÉCNICA: Esta consulta compuesta (con múltiples 'where')
+    // requerirá un índice en Firestore. La primera vez que se ejecute,
+    // Firebase dará un error en la consola con un enlace para
+    // crear el índice automáticamente.
+    // (Ej: un índice para [profileType, mainCategory])
 
     return query.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => ProviderProfileModel.fromFirestore(doc)).toList();
     });
   }
 }
-

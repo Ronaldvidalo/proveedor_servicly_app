@@ -5,8 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
-import 'package:proveedor_servicly_app/core/models/country_model.dart';
+// import 'package:proveedor_servicly_app/core/services/marketplace_service.dart'; // No se usa directamente aquí
+// import 'package:proveedor_servicly_app/core/models/country_model.dart'; // No se usa directamente aquí
+// --- CORRECCIÓN: Importación correcta de AuthWrapper ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 
 class BrandSettingsScreen extends StatefulWidget {
@@ -25,12 +26,14 @@ class BrandSettingsScreen extends StatefulWidget {
 
 class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   late TextEditingController _businessNameController;
   late TextEditingController _welcomeMessageController;
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
-  String? _selectedCountryCode;
+  // Usaremos un TextEditingController también para el país por consistencia,
+  // aunque el valor se seleccione de un Dropdown o widget similar.
+  late TextEditingController _countryController;
   late String _selectedFormat;
 
   bool _isLoading = false;
@@ -55,6 +58,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController = TextEditingController();
     _addressController = TextEditingController();
     _contactEmailController = TextEditingController();
+    _countryController = TextEditingController(); // Inicializar controller
   }
 
   @override
@@ -62,16 +66,17 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     super.didChangeDependencies();
     if (!_isInitialized) {
       final personalization = widget.user.personalization;
-      
+
       _businessNameController.text = personalization['businessName'] as String? ?? '';
       _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '';
       _addressController.text = personalization['address'] as String? ?? '';
       _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
-      _selectedCountryCode = personalization['country'] as String?;
-      
+      _countryController.text = personalization['country'] as String? ?? ''; // Asignar al controller
+
+      // Mantenemos _selectedFormat ya que viene de un Dropdown
       _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'cv';
       _existingLogoUrl = personalization['logoUrl'] as String?;
-      
+
       final hexColor = personalization['primaryColor'] as String?;
       _selectedColor = _colorFromHex(hexColor) ?? const Color(0xFF00BFFF);
 
@@ -85,6 +90,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController.dispose();
     _addressController.dispose();
     _contactEmailController.dispose();
+    _countryController.dispose(); // Disponer del controller
     super.dispose();
   }
 
@@ -120,31 +126,35 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       updatedPersonalization['welcomeMessage'] = _welcomeMessageController.text.trim();
       updatedPersonalization['address'] = _addressController.text.trim();
       updatedPersonalization['contactEmail'] = _contactEmailController.text.trim();
-      updatedPersonalization['country'] = _selectedCountryCode;
+      updatedPersonalization['country'] = _countryController.text.trim(); // Leer desde el controller
       if (newLogoUrl != null) updatedPersonalization['logoUrl'] = newLogoUrl;
       if (_selectedColor != null) {
+        // --- CORRECCIÓN: Uso de componentes RGB para generar el Hex ---
         final color = _selectedColor!;
-        updatedPersonalization['primaryColor'] = '#${color.red.toRadixString(16).padLeft(2, '0')}${color.green.toRadixString(16).padLeft(2, '0')}${color.blue.toRadixString(16).padLeft(2, '0')}';
+        final hex = '#${color.red.toRadixString(16).padLeft(2, '0')}'
+                    '${color.green.toRadixString(16).padLeft(2, '0')}'
+                    '${color.blue.toRadixString(16).padLeft(2, '0')}';
+        updatedPersonalization['primaryColor'] = hex.toUpperCase();
       }
-      
-      // --- CORRECCIÓN ARQUITECTÓNICA ---
-      // Se guardan los campos de perfil público en la raíz del documento para consistencia.
-      // Ya no se guarda 'publicProfileTemplate' dentro de 'personalization'.
+
       await firestoreService.updateUser(userModel.uid, {
         'personalization': updatedPersonalization,
-        'isProfileComplete': true,
-        'publicProfileCreated': true,
+        'isProfileComplete': true, // Marcar como completo al guardar estos ajustes
+        'publicProfileCreated': true, // Marcar como creado
         'publicProfileTemplate': _selectedFormat,
       });
 
-      // TODO: Lógica para actualizar 'public_profiles'
+      // TODO: Lógica para actualizar 'public_profiles' (Probablemente en un Cloud Function para seguridad)
 
       _showSnackbar('¡Perfil público guardado con éxito!');
       if(mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AuthWrapper()),
-          (route) => false,
-        );
+        // Regresa a la pantalla anterior (presumiblemente HomeScreen o SettingsScreen)
+        Navigator.of(context).pop();
+        // Si quieres ir específicamente al AuthWrapper (raro desde aquí):
+        // Navigator.of(context).pushAndRemoveUntil(
+        //   MaterialPageRoute(builder: (context) => const AuthWrapper()),
+        //   (route) => false,
+        // );
       }
 
     } catch (e) {
@@ -159,7 +169,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     const backgroundColor = Color(0xFF1A1A2E);
     const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
-    
+
     final inputDecoration = InputDecoration(
       filled: true,
       fillColor: surfaceColor,
@@ -207,6 +217,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   subtitle: 'Elige cómo verán tus clientes tu página de presentación.',
                   children: [
                     DropdownButtonFormField<String>(
+                      // No usar initialValue aquí, ya que el estado se maneja en _selectedFormat
                       value: _selectedFormat,
                       decoration: inputDecoration.copyWith(labelText: 'Formato de Perfil'),
                       dropdownColor: surfaceColor,
@@ -219,6 +230,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       onChanged: (value) {
                         if (value != null) setState(() => _selectedFormat = value);
                       },
+                      validator: (value) => value == null ? 'Selecciona un formato' : null,
                     ),
                   ]
                 ),
@@ -231,6 +243,8 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: inputDecoration.copyWith(labelText: 'Mensaje de Bienvenida o Eslogan'),
                       maxLength: 150,
+                      maxLines: 3, // Permitir múltiples líneas
+                      minLines: 1,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -239,14 +253,13 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
                     ),
                     const SizedBox(height: 16),
-                    _CountrySelector(
-                      initialCountryCode: _selectedCountryCode,
-                      inputDecoration: inputDecoration,
-                      onChanged: (newCode) {
-                        setState(() {
-                          _selectedCountryCode = newCode;
-                        });
-                      },
+                     // Reemplazado por un TextFormField simple por ahora
+                     // Para un selector real, necesitarías un widget como _CountrySelector
+                    TextFormField(
+                      controller: _countryController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(labelText: 'País'),
+                      // Podrías añadir validación si es necesario
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -255,7 +268,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       decoration: inputDecoration.copyWith(labelText: 'Email de Contacto Público'),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value != null && value.isNotEmpty && !value.contains('@')) {
+                        if (value != null && value.isNotEmpty && (!value.contains('@') || !value.contains('.'))) {
                           return 'Por favor, introduce un email válido.';
                         }
                         return null;
@@ -269,7 +282,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   child: FilledButton(
                     onPressed: _isLoading ? null : _saveSettings,
                     style: FilledButton.styleFrom(backgroundColor: accentColor, foregroundColor: Colors.black),
-                    child: _isLoading 
+                    child: _isLoading
                         ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3))
                         : const Text('Guardar Cambios', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
@@ -282,6 +295,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     );
   }
 
+  /// UI Polish: Un contenedor reutilizable para cada sección del formulario.
   Widget _buildSectionCard({required String title, String? subtitle, required List<Widget> children}) {
     const surfaceColor = Color(0xFF2D2D5A);
     return Container(
@@ -312,34 +326,39 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     } else if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
       image = NetworkImage(_existingLogoUrl!);
     }
-    
+
     return Row(
       children: [
         SizedBox(
           width: 80,
           height: 80,
           child: Stack(
+            clipBehavior: Clip.none, // Permitir que el botón sobresalga
             children: [
               Container(
+                 width: 80, height: 80, // Asegurar tamaño
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   image: image != null ? DecorationImage(image: image, fit: BoxFit.cover) : null,
                   border: Border.all(color: const Color(0xFF00BFFF), width: 2),
+                   color: image == null ? Colors.white.withAlpha(20) : Colors.transparent, // Fondo si no hay imagen
                 ),
+                // Mostrar icono solo si no hay imagen
                 child: image == null ? const Center(child: Icon(Icons.business_rounded, size: 40, color: Colors.white70)) : null,
               ),
               Positioned(
-                bottom: 0,
-                right: 0,
+                bottom: -4, // Ajustar posición para mejor estética
+                right: -4,
                 child: GestureDetector(
                   onTap: _pickImage,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(6), // Aumentar padding
                     decoration: const BoxDecoration(
                       color: Color(0xFF00BFFF),
                       shape: BoxShape.circle,
+                       border: Border.fromBorderSide(BorderSide(color: Color(0xFF1A1A2E), width: 2)), // Borde para separar
                     ),
-                    child: const Icon(Icons.edit, size: 16, color: Colors.black),
+                    child: const Icon(Icons.edit, size: 18, color: Colors.black), // Icono un poco más grande
                   ),
                 ),
               ),
@@ -356,7 +375,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       ],
     );
   }
-  
+
   Widget _buildColorSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,7 +396,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
-                  border: isSelected 
+                  border: isSelected
                       ? Border.all(color: Colors.white, width: 3)
                       : null,
                   boxShadow: isSelected
@@ -399,6 +418,8 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
       content: Text(message),
       backgroundColor: isError ? Colors.redAccent : Colors.green,
       behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.all(16),
     ));
   }
 
@@ -406,73 +427,23 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     if (hexColor == null || hexColor.isEmpty) return null;
     final hexCode = hexColor.replaceAll('#', '');
     if (hexCode.length >= 6) {
-      return Color(int.parse('FF${hexCode.substring(0, 6)}', radix: 16));
+      // Asegurarse de que siempre tenga 8 caracteres para el canal alfa FF
+      final validHexCode = hexCode.length == 6 ? 'FF$hexCode' : (hexCode.length == 8 ? hexCode : null);
+       if (validHexCode != null) {
+         try {
+           return Color(int.parse(validHexCode, radix: 16));
+         } catch (e) {
+           // Manejar posible error de formato
+           return null;
+         }
+       }
     }
     return null;
   }
 }
 
-/// Un widget para mostrar un Dropdown de países desde Firestore.
-class _CountrySelector extends StatelessWidget {
-  final String? initialCountryCode;
-  final ValueChanged<String?> onChanged;
-  final InputDecoration inputDecoration;
-
-  const _CountrySelector({
-    this.initialCountryCode,
-    required this.onChanged,
-    required this.inputDecoration,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Provider<MarketplaceService>(
-      create: (_) => MarketplaceService(),
-      child: Consumer<MarketplaceService>(
-        builder: (context, marketplaceService, _) {
-          return StreamBuilder<List<CountryModel>>(
-            stream: marketplaceService.getCountries(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return InputDecorator(
-                  decoration: inputDecoration.copyWith(labelText: 'País'),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Cargando países...', style: TextStyle(color: Colors.white70)),
-                      SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                    ],
-                  ),
-                );
-              }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                 return TextFormField(
-                    decoration: inputDecoration.copyWith(labelText: 'País (Error al cargar)'),
-                    enabled: false,
-                  );
-              }
-              final countries = snapshot.data!;
-              final validInitialValue = countries.any((c) => c.id == initialCountryCode) ? initialCountryCode : null;
-
-              return DropdownButtonFormField<String>(
-                value: validInitialValue,
-                onChanged: onChanged,
-                decoration: inputDecoration.copyWith(labelText: 'País'),
-                dropdownColor: const Color(0xFF2D2D5A),
-                style: const TextStyle(color: Colors.white),
-                items: countries.map((country) {
-                  return DropdownMenuItem(
-                    value: country.id,
-                    child: Text('${country.flag} ${country.name}'),
-                  );
-                }).toList(),
-                validator: (value) => value == null ? 'Debes seleccionar un país' : null,
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
+// --- CORRECCIÓN: Se elimina el widget _CountrySelector duplicado ---
+// El código para _CountrySelector debe estar en un archivo separado o
+// definido una sola vez si se usa en múltiples lugares.
+// Se asume que el TextFormField simple para país es suficiente por ahora.
 
