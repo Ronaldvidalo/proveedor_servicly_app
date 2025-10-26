@@ -65,7 +65,7 @@ class ProviderProfileModel {
       // --- LECTURA MODIFICADA ---
       // Leemos 'profileType' y asignamos un valor por defecto ('social')
       // si no existe. Esto asegura que el campo nunca sea nulo.
-      profileType: data['profileType'] as String? ?? 'social',
+      profileType: data['publicProfileTemplate'] as String? ?? 'social',
 
       welcomeMessage: personalization['welcomeMessage'] as String? ?? 'Bienvenido a mi perfil.',
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',

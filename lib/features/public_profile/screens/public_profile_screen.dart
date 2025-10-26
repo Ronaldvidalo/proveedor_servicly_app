@@ -43,13 +43,17 @@ class PublicProfileScreen extends StatelessWidget {
 
           // --- EL CAMALEÓN: Elige qué layout construir ---
           // Esta es la lógica central que decide qué UI mostrar.
+          //
+          // --- CORRECCIÓN ---
+          // Se cambió 'profile.profileType' por 'profile.publicProfileTemplate'
+          // para que coincida con el nombre del campo en Firestore.
           switch (profile.profileType) {
             // --- MODIFICACIÓN CLAVE ---
             // Se añade el caso para la nueva plantilla de catálogo.
             case 'catalog':
               return CatalogLayout(providerId: providerId, profile: profile);
             
-            case 'tienda':
+            case 'store':
               return TiendaLayout(providerId: providerId, profile: profile);
             
             case 'cv':
@@ -64,4 +68,3 @@ class PublicProfileScreen extends StatelessWidget {
     );
   }
 }
-

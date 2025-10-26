@@ -28,6 +28,7 @@ import '../../public_profile/screens/presentation/screens/select_profile_templat
 import '../../manage_store/presentation/screens/manage_store_screen.dart';
 // Asegúrate de importar AgendaScreen desde su ubicación correcta
 import '../../agenda/presentation/screens/agenda_screen.dart';
+import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
 // Importar DottedBorder si está en un archivo separado, si no, mantenerlo abajo.
 // import 'package:dotted_border/dotted_border.dart'; // Si decides usar el paquete
 
@@ -63,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const List<Widget> _widgetOptions = <Widget>[
     _ProviderHomeTab(), // Tu dashboard anterior
     _OpportunitiesTab(), // Placeholder
-    _SettingsTab(), // Placeholder
+    SettingsScreen(), // Placeholder
   ];
 
   void _onItemTapped(int index) {
