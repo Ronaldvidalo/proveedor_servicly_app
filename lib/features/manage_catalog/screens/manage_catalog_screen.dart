@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'catalog_preview_screen.dart'; // Import for preview
+// --- IMPORT NUEVA PANTALLA ---
+import 'package:proveedor_servicly_app/features/manage_catalog/screens/manage_portfolio_screen.dart'; // Asegúrate que la ruta sea correcta
 
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
@@ -42,7 +44,6 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
   late TextEditingController _whatsappController;
   late bool _showPortfolioModule;
   late bool _showReviewsModule;
-  // --- NUEVO ESTADO ---
   late bool _showPromotionsModule;
   late bool _showGiftCardModule;
 
@@ -79,10 +80,11 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     final reviewsModule = _personalizationData['reviewsModule'] as Map<String, dynamic>? ?? {};
     _showReviewsModule = reviewsModule['show'] as bool? ?? true;
 
-    // --- INIT NUEVOS MÓDULOS ---
+    // Init Promotions
     final promotionsModule = _personalizationData['promotionsModule'] as Map<String, dynamic>? ?? {};
     _showPromotionsModule = promotionsModule['show'] as bool? ?? true;
 
+    // Init GiftCards
     final giftCardModule = _personalizationData['giftCardModule'] as Map<String, dynamic>? ?? {};
     _showGiftCardModule = giftCardModule['show'] as bool? ?? true;
   }
@@ -101,7 +103,6 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
   }
 
   // _pickAndUploadVideo remains the same
-
     Future<void> _pickAndUploadVideo() async {
     final ImagePicker picker = ImagePicker();
     final XFile? videoFile = await picker.pickVideo(source: ImageSource.gallery);
@@ -156,6 +157,7 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
   }
 
 
+  // _saveChanges updated to include new module visibility
   Future<void> _saveChanges() async {
     setState(() => _isLoading = true);
 
@@ -211,9 +213,9 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     }
   }
 
-  // _buildPreviewModel remains mostly the same, just add new fields
+  // _buildPreviewModel updated to include new fields
   ProviderProfileModel _buildPreviewModel() {
-      Color colorFromHex(String? hexColor) { /* ... */
+      Color colorFromHex(String? hexColor) {
       if (hexColor == null) return Colors.deepPurple;
       final hexCode = hexColor.replaceAll('#', '');
       if (hexCode.length == 6) {
@@ -228,7 +230,6 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     final welcomeModule = personalization['welcomeModule'] as Map<String, dynamic>? ?? {};
     final portfolioModule = personalization['portfolioModule'] as Map<String, dynamic>? ?? {};
     final reviewsModule = personalization['reviewsModule'] as Map<String, dynamic>? ?? {};
-    // --- NUEVO ---
     final promotionsModule = personalization['promotionsModule'] as Map<String, dynamic>? ?? {};
     final giftCardModule = personalization['giftCardModule'] as Map<String, dynamic>? ?? {};
 
@@ -255,7 +256,6 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
       welcomeVideoSourceType: welcomeModule['video_source_type'] as String?,
       showPortfolioModule: portfolioModule['show'] as bool? ?? true,
       showReviewsModule: reviewsModule['show'] as bool? ?? true,
-      // --- NUEVO ---
       showPromotionsModule: promotionsModule['show'] as bool? ?? true,
       showGiftCardModule: giftCardModule['show'] as bool? ?? true,
     );
@@ -276,7 +276,6 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
       // Visibilidad Módulos
       showPortfolioModule: _showPortfolioModule,
       showReviewsModule: _showReviewsModule,
-      // --- NUEVO ---
       showPromotionsModule: _showPromotionsModule,
       showGiftCardModule: _showGiftCardModule,
     );
@@ -284,7 +283,7 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     return previewProfile;
   }
 
-  // --- onPreview function remains the same (uses _buildPreviewModel) ---
+  // onPreview function remains the same
     void _onPreview() {
        final previewProfile = _buildPreviewModel();
        Navigator.of(context).push(
@@ -303,7 +302,6 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     final bool canUseVideo = permissions.canUseWelcomeVideo;
     final bool canUsePortfolio = permissions.canUsePortfolioModule;
     final bool canUseReviews = permissions.canUseReviewsModule;
-    // --- NUEVOS PERMISOS ---
     final bool canUsePromotions = permissions.canUsePromotionsModule;
     final bool canUseGiftCards = permissions.canUseGiftCardModule;
 
@@ -363,8 +361,10 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
   // --- Widgets for Edit Cards ---
   // _buildWelcomeModuleCard, _buildVideoUploadTab, _buildInfoContactModuleCard
   // remain exactly the same as before.
+  // We just need to add the new card widgets.
 
     Widget _buildWelcomeModuleCard(BuildContext context, bool canUseVideo) {
+    // ... (Código sin cambios) ...
     return Card(
       elevation: 2,
       child: Padding(
@@ -482,7 +482,8 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
   }
 
   Widget _buildVideoUploadTab() {
-    return Column(
+    // ... (Código sin cambios) ...
+        return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         OutlinedButton.icon(
@@ -546,7 +547,8 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
   }
 
   Widget _buildInfoContactModuleCard(BuildContext context) {
-    return Card(
+    // ... (Código sin cambios) ...
+        return Card(
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -607,42 +609,48 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     );
   }
 
+  // --- WIDGET DE PORTAFOLIO ACTUALIZADO ---
   Widget _buildPortfolioModuleCard(BuildContext context, bool canUsePortfolio) {
      return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Aumentar padding vertical
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, // Alinear contenido
           children: [
+            // El Switch sigue igual
             SwitchListTile(
               title: const Text('Módulo de Portafolio', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Mostrar una galería con tus trabajos.'),
               value: _showPortfolioModule,
+              contentPadding: EdgeInsets.zero, // Quitar padding para alinear
               onChanged: !canUsePortfolio ? null : (value) {
                 setState(() => _showPortfolioModule = value);
               },
             ),
-             if (canUsePortfolio && _showPortfolioModule)
-               Padding(
-                 padding: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
-                 child: OutlinedButton.icon(
-                   icon: const Icon(Icons.photo_library_outlined),
-                   label: const Text('Gestionar Galería'),
-                   onPressed: () {
-                     // TODO: Navegar a una pantalla dedicada para subir/ordenar fotos del portafolio
-                     ScaffoldMessenger.of(context).showSnackBar(
-                       const SnackBar(content: Text('Pantalla de gestión de portafolio (Próximamente).'))
-                     );
-                   },
-                   // Style button to make it more visible if needed
-                   style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 40) // Make it wider
-                   ),
-                 ),
-               ),
+            // Separador
+            if (canUsePortfolio && _showPortfolioModule) const Divider(height: 24),
+
+            // Botón de Gestión
+            if (canUsePortfolio && _showPortfolioModule)
+              Center( // Centrar botón
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Gestionar Mi Portafolio'),
+                   style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManagePortfolioScreen(user: widget.user),
+                    ));
+                  },
+                ),
+              ),
+            // Mensaje de bloqueo
             if (!canUsePortfolio)
               Padding(
-                 padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   'El módulo de portafolio requiere un plan Optimiza o superior.',
                   style: TextStyle(color: Theme.of(context).disabledColor),
@@ -659,37 +667,40 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
      return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
               title: const Text('Módulo de Promociones', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Destacar ofertas y descuentos especiales.'),
               value: _showPromotionsModule,
+               contentPadding: EdgeInsets.zero,
               onChanged: !canUsePromotions ? null : (value) {
                 setState(() => _showPromotionsModule = value);
               },
             ),
+             if (canUsePromotions && _showPromotionsModule) const Divider(height: 24),
+
              if (canUsePromotions && _showPromotionsModule)
-               Padding(
-                 padding: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
-                 child: OutlinedButton.icon(
+                Center(
+                  child: FilledButton.icon( // Cambiado a FilledButton
                    icon: const Icon(Icons.local_offer_outlined),
                    label: const Text('Gestionar Promociones'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
                    onPressed: () {
                      // TODO: Navigate to promotions management screen
                      ScaffoldMessenger.of(context).showSnackBar(
                        const SnackBar(content: Text('Pantalla de gestión de promociones (Próximamente).'))
                      );
                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 40)
-                   ),
                  ),
                ),
             if (!canUsePromotions)
               Padding(
-                 padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   'El módulo de promociones requiere un plan Optimiza o superior.',
                    style: TextStyle(color: Theme.of(context).disabledColor),
@@ -706,37 +717,40 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
      return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
               title: const Text('Módulo de Gift Cards', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Ofrecer tarjetas de regalo a tus clientes.'),
               value: _showGiftCardModule,
+               contentPadding: EdgeInsets.zero,
               onChanged: !canUseGiftCards ? null : (value) {
                 setState(() => _showGiftCardModule = value);
               },
             ),
+             if (canUseGiftCards && _showGiftCardModule) const Divider(height: 24),
+
              if (canUseGiftCards && _showGiftCardModule)
-               Padding(
-                 padding: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
-                 child: OutlinedButton.icon(
+                Center(
+                  child: FilledButton.icon( // Cambiado a FilledButton
                    icon: const Icon(Icons.card_giftcard_outlined),
                    label: const Text('Gestionar Gift Cards'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
                    onPressed: () {
                      // TODO: Navigate to gift card management screen
                      ScaffoldMessenger.of(context).showSnackBar(
                        const SnackBar(content: Text('Pantalla de gestión de gift cards (Próximamente).'))
                      );
                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 40)
-                   ),
                  ),
                ),
             if (!canUseGiftCards)
               Padding(
-                 padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   'El módulo de gift cards requiere un plan Expande o superior.',
                    style: TextStyle(color: Theme.of(context).disabledColor),
@@ -748,26 +762,28 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
     );
   }
 
-
+  // _buildReviewsModuleCard remains the same
   Widget _buildReviewsModuleCard(BuildContext context, bool canUseReviews) {
-      return Card(
+      // ... (Código sin cambios) ...
+       return Card(
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
               title: const Text('Módulo de Reseñas', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Mostrar valoraciones de tus clientes.'),
+               contentPadding: EdgeInsets.zero,
               value: _showReviewsModule,
                onChanged: !canUseReviews ? null : (value) {
-                 // Update preview
                 setState(() => _showReviewsModule = value);
               },
             ),
-             if (!canUseReviews) // Just in case
+             if (!canUseReviews)
               Padding(
-                 padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   'El módulo de reseñas no está disponible en tu plan actual.',
                    style: TextStyle(color: Theme.of(context).disabledColor),
@@ -778,4 +794,20 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
       ),
     );
   }
+
 } // End of State class
+
+// --- PLACEHOLDER PARA LA PANTALLA DE GESTIÓN DE PORTAFOLIO ---
+// (Colócalo al final del archivo o en su propio archivo e importa)
+ class ManagePortfolioScreen extends StatelessWidget {
+    final UserModel user;
+    const ManagePortfolioScreen({super.key, required this.user});
+
+    @override
+    Widget build(BuildContext context) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Gestionar Portafolio')),
+        body: const Center(child: Text('Aquí se gestionarán las categorías y los ítems (fotos/videos).')),
+      );
+    }
+  }

@@ -31,34 +31,24 @@ class ProviderProfileModel {
   final String? address;
 
   // --- Campos Adicionales (Basados en el Mockup) ---
-  /// Eslogan o especialidad del negocio.
   final String? slogan;
-  /// Puntuación promedio (ej: 4.8).
   final double? averageRating;
-  /// Número total de reseñas.
   final int? reviewCount;
-  /// Horario de atención (como texto).
   final String? openingHours;
-  /// Número de teléfono principal.
   final String? phone;
-  /// Número de WhatsApp (puede ser el mismo que el teléfono).
   final String? whatsapp;
 
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
   final String welcomeModuleType; // 'text' o 'video'
-  final String welcomeMessage; // Contenido de texto (leído desde welcomeModule o campo antiguo)
+  final String welcomeMessage;
   final String? welcomeVideoUrl;
   final String? welcomeVideoSourceType; // 'url' o 'upload'
 
   // --- Campos: Control de Visibilidad de Módulos ---
-  /// Controla si se muestra el módulo de Portafolio.
   final bool showPortfolioModule;
-  /// Controla si se muestra el módulo de Reseñas.
   final bool showReviewsModule;
-  /// Controla si se muestra el módulo de Promociones.
   final bool showPromotionsModule;
-  /// Controla si se muestra el módulo de Gift Cards.
   final bool showGiftCardModule;
 
 

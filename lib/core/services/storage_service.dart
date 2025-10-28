@@ -1,73 +1,87 @@
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart'; // Para debugPrint
 
-/// Un servicio para manejar las operaciones de subida de archivos a Firebase Storage.
+/// Un servicio para manejar las operaciones de subida y borrado de archivos a Firebase Storage.
 class StorageService {
   final FirebaseStorage _storage;
 
   StorageService({FirebaseStorage? storage})
       : _storage = storage ?? FirebaseStorage.instance;
 
-  // --- NUEVO MÉTODO GENÉRICO CON PROGRESO ---
   /// Sube un archivo a Firebase Storage y reporta el progreso.
-  ///
-  /// [file] El archivo a subir.
-  /// [path] La ruta completa en Storage (ej: 'users/uid/videos/video.mp4').
-  /// [onProgress] Un callback que recibe el progreso de 0.0 a 1.0.
   Future<String> uploadFileWithProgress(
     File file,
     String path,
     Function(double) onProgress,
   ) async {
-    try {
+    // ... (Código existente sin cambios) ...
+        try {
       final ref = _storage.ref(path);
-      // Sube el archivo y escucha los eventos
       final uploadTask = ref.putFile(file);
 
-      // Escuchar los eventos de estado para el progreso
       uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
         final double progress = snapshot.bytesTransferred / snapshot.totalBytes;
         onProgress(progress);
       });
 
-      // Esperar a que la tarea se complete
       final taskSnapshot = await uploadTask;
-      
-      // Obtener la URL de descarga
       final downloadUrl = await taskSnapshot.ref.getDownloadURL();
       return downloadUrl;
 
     } catch (e) {
-      print('Error al subir archivo con progreso: $e');
+      if (kDebugMode) debugPrint('[StorageService] Error al subir archivo con progreso: $e');
       rethrow;
     }
   }
-  // ------------------------------------------
 
   /// Sube la imagen de un producto a Firebase Storage.
-  /// (Este es tu método antiguo, lo mantenemos por compatibilidad)
   Future<String> uploadProductImage(
       {required XFile imageFile, required String userId}) async {
-    try {
-      // Crea un nombre de archivo único usando la fecha y hora actual.
+    // ... (Código existente sin cambios) ...
+        try {
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${imageFile.name}';
-      
-      // Define la ruta en Firebase Storage.
       final path = 'users/$userId/products/$fileName';
-
-      // Sube el archivo.
       final ref = _storage.ref(path);
       final uploadTask = await ref.putFile(File(imageFile.path));
-
-      // Obtiene la URL de descarga.
       final downloadUrl = await uploadTask.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      // En una app real, aquí se registraría el error.
-      print('Error al subir la imagen del producto: $e');
+      if (kDebugMode) debugPrint('[StorageService] Error al subir la imagen del producto: $e');
       rethrow;
+    }
+  }
+
+  // --- ¡NUEVO MÉTODO AÑADIDO! ---
+  /// Elimina un archivo de Firebase Storage usando su URL de descarga.
+  Future<void> deleteFileByUrl(String fileUrl) async {
+    // Evita intentar borrar si la URL está vacía
+    if (fileUrl.isEmpty) {
+       if (kDebugMode) debugPrint("[StorageService] deleteFileByUrl: URL vacía, no se intenta borrar.");
+      return;
+    }
+    try {
+      // Obtiene la referencia al archivo a partir de su URL
+      final Reference ref = _storage.refFromURL(fileUrl);
+      // Intenta eliminar el archivo
+      await ref.delete();
+       if (kDebugMode) debugPrint("[StorageService] Archivo eliminado exitosamente: $fileUrl");
+    } on FirebaseException catch (e) {
+      // Manejar errores comunes como 'object-not-found' (el archivo ya no existe)
+      if (e.code == 'object-not-found') {
+         if (kDebugMode) debugPrint("[StorageService] deleteFileByUrl: Archivo no encontrado (puede que ya estuviera borrado): $fileUrl");
+      } else {
+        // Otros errores (permisos, etc.)
+         if (kDebugMode) debugPrint("[StorageService] !! ERROR al eliminar archivo por URL $fileUrl: $e");
+         // Decide si quieres relanzar el error o solo registrarlo
+         // rethrow;
+      }
+    } catch (e) {
+        // Captura cualquier otro error inesperado
+       if (kDebugMode) debugPrint("[StorageService] !! ERROR inesperado al eliminar archivo por URL $fileUrl: $e");
+       // rethrow;
     }
   }
 }

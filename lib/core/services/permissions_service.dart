@@ -21,27 +21,41 @@ class PermissionsService {
   /// ¿Puede usar el módulo de Video de Bienvenida?
   /// Solo disponible para planes de pago (o fundador).
   bool get canUseWelcomeVideo {
-    return planType == _planOptimiza || 
-           planType == _planExpande || 
+    return planType == _planOptimiza ||
+           planType == _planExpande ||
            planType == _planFundador;
   }
 
   /// ¿Puede mostrar el módulo de Portafolio (Galería)?
   /// Solo disponible para planes de pago (o fundador).
   bool get canUsePortfolioModule {
-    return planType == _planOptimiza || 
-           planType == _planExpande || 
+    return planType == _planOptimiza ||
+           planType == _planExpande ||
            planType == _planFundador;
   }
-  
+
   /// ¿Puede mostrar el módulo de Reseñas de Clientes?
   /// Disponible para todos, pero lo definimos aquí por si cambia.
   bool get canUseReviewsModule {
-    return true; 
+    return true;
+  }
+
+  /// ¿Puede usar el módulo de Promociones?
+  /// (Ej: Disponible desde Optimiza)
+  bool get canUsePromotionsModule {
+    return planType == _planOptimiza ||
+           planType == _planExpande ||
+           planType == _planFundador;
+  }
+
+  /// ¿Puede usar el módulo de Gift Cards?
+  /// (Ej: Solo para Expande/Fundador)
+  bool get canUseGiftCardModule {
+    return planType == _planExpande ||
+           planType == _planFundador;
   }
 
   // --- LÍMITES DE LA TIENDA/CATÁLOGO ---
-  // Aquí implementamos tu idea de límites
 
   /// Límite de categorías de servicios/productos.
   int get maxCategories {
@@ -52,7 +66,7 @@ class PermissionsService {
         return 15; // Límite para Plan Optimiza
       case _planExpande:
       case _planFundador:
-        return 999; // Ilimitado
+        return 999; // "Ilimitado"
       default:
         return 5;
     }
@@ -67,7 +81,7 @@ class PermissionsService {
         return 200; // Límite para Plan Optimiza
       case _planExpande:
       case _planFundador:
-        return 9999; // Ilimitado
+        return 9999; // "Ilimitado"
       default:
         return 50;
     }
@@ -77,23 +91,9 @@ class PermissionsService {
   bool canAddProduct(int currentProductCount) {
     return currentProductCount < maxProducts;
   }
-  
+
   /// Método de ayuda para verificar si se puede añadir una nueva categoría.
   bool canAddCategory(int currentCategoryCount) {
     return currentCategoryCount < maxCategories;
-  }
-  /// ¿Puede usar el módulo de Promociones?
-  /// (Ej: Disponible desde Optimiza)
-  bool get canUsePromotionsModule {
-    return planType == _planOptimiza ||
-           planType == _planExpande ||
-           planType == _planFundador;
-  }
-
-  /// ¿Puede usar el módulo de Gift Cards?
-  /// (Ej: Solo para Expande/Fundador)
-  bool get canUseGiftCardModule {
-    return planType == _planExpande ||
-           planType == _planFundador;
   }
 }
