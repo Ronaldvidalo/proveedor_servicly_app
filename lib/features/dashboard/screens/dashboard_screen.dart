@@ -29,6 +29,7 @@ import '../../manage_store/presentation/screens/manage_store_screen.dart';
 // Asegúrate de importar AgendaScreen desde su ubicación correcta
 import '../../agenda/presentation/screens/agenda_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
+import 'package:proveedor_servicly_app/features/manage_catalog/screens/manage_catalog_screen.dart';
 // Importar DottedBorder si está en un archivo separado, si no, mantenerlo abajo.
 // import 'package:dotted_border/dotted_border.dart'; // Si decides usar el paquete
 
@@ -624,6 +625,19 @@ class _ModulesGrid extends StatelessWidget {
                   ));
                 },
               ),
+              // Botón "Gestionar Catálogo"
+          if (user.publicProfileTemplate == 'catalog') // Lógica de negocio
+            _ModuleCard(
+              title: 'Gestionar Catálogo',
+              // (Asegúrate de añadir 'auto_stories_outlined' a tu _iconMap o usa un ícono directamente)
+              icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined, 
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  // Navegamos a la nueva pantalla de gestión
+                  builder: (_) => ManageCatalogScreen(user: user), 
+                ));
+              },
+            ),
 
             // Módulos activos
             ...activeModules.map((module) {

@@ -39,7 +39,7 @@ class UserModel {
     this.createdAt,
     this.isProfileComplete = false,
     this.role,
-    this.planType = 'free',
+    this.planType = 'conecta',
     this.activeModules = const [],
     this.personalization = const {},
     // --- MODIFICACIÓN: Se añaden los nuevos campos al constructor ---
@@ -71,13 +71,56 @@ class UserModel {
       createdAt: json['createdAt'] as Timestamp?,
       isProfileComplete: json['isProfileComplete'] as bool? ?? false,
       role: json['role'] as String?,
-      planType: json['planType'] as String? ?? 'free',
+      planType: json['planType'] as String? ?? 'conecta',
       activeModules: List<String>.from(json['activeModules'] ?? []),
       personalization: Map<String, dynamic>.from(json['personalization'] ?? {}),
       // --- MODIFICACIÓN: Se leen los nuevos campos de forma segura ---
       publicProfileCreated: json['publicProfileCreated'] as bool? ?? false,
       publicProfileTemplate: json['publicProfileTemplate'] as String?,
     );
+    
+  }
+  factory UserModel.empty() {
+    return UserModel(
+      uid: '',
+      email: '',
+      // 'displayName' se elimina porque es un getter.
+      role: '', // O el rol por defecto que uses
+      isProfileComplete: false,
+      activeModules: [],
+      personalization: {}, // Mapa vacío
+      planType: 'conecta', // Default al plan conecta (coincide con PermissionsService)
+      publicProfileCreated: false, 
+      publicProfileTemplate: null, // Opcional: ser explícito
+      createdAt: null, // Opcional: ser explícito
+    );
+  }
+
+  // --- ¡NUEVO MÉTODO 'copyWith' AÑADIDO! ---
+  /// Crea una copia de este modelo con los campos proporcionados sobrescritos.
+  UserModel copyWith({
+    String? uid,
+    String? email,
+    Timestamp? createdAt,
+    bool? isProfileComplete,
+    String? role,
+    String? planType,
+    List<String>? activeModules,
+    bool? publicProfileCreated,
+    String? publicProfileTemplate,
+    Map<String, dynamic>? personalization,
+  }) {
+    return UserModel(
+      uid: uid ?? this.uid,
+      email: email ?? this.email,
+      createdAt: createdAt ?? this.createdAt,
+      isProfileComplete: isProfileComplete ?? this.isProfileComplete,
+      role: role ?? this.role,
+      planType: planType ?? this.planType,
+      activeModules: activeModules ?? this.activeModules,
+      personalization: personalization ?? this.personalization,
+      publicProfileCreated: publicProfileCreated ?? this.publicProfileCreated,
+      publicProfileTemplate: publicProfileTemplate ?? this.publicProfileTemplate,
+    );
   }
 }
-

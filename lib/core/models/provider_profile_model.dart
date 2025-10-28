@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -22,20 +21,46 @@ class ProviderProfileModel {
   /// Una lista de los IDs de los módulos que están activos para este proveedor.
   final List<String> activeModules;
 
-  // --- MODIFICACIÓN CLAVE ---
-  // Renombrado de 'publicProfileTemplate' a 'profileType' para alinearse
-  // con la lógica de filtrado del 'Hub de Descubrimiento' (HomeScreen).
-  // Este campo define el tipo de perfil (ej: 'store', 'booking', 'social').
+  /// Este campo define el tipo de perfil (ej: 'store', 'booking', 'social').
   final String profileType;
-
-  /// Un mensaje de bienvenida para el perfil.
-  final String welcomeMessage;
 
   /// El email de contacto público.
   final String contactEmail;
 
   /// La dirección física del negocio, si se ha proporcionado.
   final String? address;
+
+  // --- Campos Adicionales (Basados en el Mockup) ---
+  /// Eslogan o especialidad del negocio.
+  final String? slogan;
+  /// Puntuación promedio (ej: 4.8).
+  final double? averageRating;
+  /// Número total de reseñas.
+  final int? reviewCount;
+  /// Horario de atención (como texto).
+  final String? openingHours;
+  /// Número de teléfono principal.
+  final String? phone;
+  /// Número de WhatsApp (puede ser el mismo que el teléfono).
+  final String? whatsapp;
+
+  // --- Campos del Módulo de Bienvenida ---
+  final bool showWelcomeModule;
+  final String welcomeModuleType; // 'text' o 'video'
+  final String welcomeMessage; // Contenido de texto (leído desde welcomeModule o campo antiguo)
+  final String? welcomeVideoUrl;
+  final String? welcomeVideoSourceType; // 'url' o 'upload'
+
+  // --- Campos: Control de Visibilidad de Módulos ---
+  /// Controla si se muestra el módulo de Portafolio.
+  final bool showPortfolioModule;
+  /// Controla si se muestra el módulo de Reseñas.
+  final bool showReviewsModule;
+  /// Controla si se muestra el módulo de Promociones.
+  final bool showPromotionsModule;
+  /// Controla si se muestra el módulo de Gift Cards.
+  final bool showGiftCardModule;
+
 
   /// Crea una instancia de [ProviderProfileModel].
   const ProviderProfileModel({
@@ -44,10 +69,27 @@ class ProviderProfileModel {
     required this.logoUrl,
     required this.brandColor,
     required this.activeModules,
-    required this.profileType, // <-- Modificado
-    required this.welcomeMessage,
+    required this.profileType,
     required this.contactEmail,
     this.address,
+    // Nuevos campos
+    this.slogan,
+    this.averageRating,
+    this.reviewCount,
+    this.openingHours,
+    this.phone,
+    this.whatsapp,
+    // Welcome module fields
+    required this.welcomeMessage,
+    this.showWelcomeModule = true,
+    this.welcomeModuleType = 'text',
+    this.welcomeVideoUrl,
+    this.welcomeVideoSourceType,
+    // Module visibility controls
+    this.showPortfolioModule = true,
+    this.showReviewsModule = true,
+    this.showPromotionsModule = true, // Default true
+    this.showGiftCardModule = true,   // Default true
   });
 
   /// Constructor factory para crear un [ProviderProfileModel] desde un documento de Firestore.
@@ -55,21 +97,104 @@ class ProviderProfileModel {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final personalization = data['personalization'] as Map<String, dynamic>? ?? {};
 
+    // Leer mapas de configuración de módulos
+    final welcomeModule = personalization['welcomeModule'] as Map<String, dynamic>? ?? {};
+    final portfolioModule = personalization['portfolioModule'] as Map<String, dynamic>? ?? {};
+    final reviewsModule = personalization['reviewsModule'] as Map<String, dynamic>? ?? {};
+    final promotionsModule = personalization['promotionsModule'] as Map<String, dynamic>? ?? {};
+    final giftCardModule = personalization['giftCardModule'] as Map<String, dynamic>? ?? {};
+
     return ProviderProfileModel(
       providerId: doc.id,
       businessName: personalization['businessName'] as String? ?? 'Nombre del Negocio',
       logoUrl: personalization['logoUrl'] as String? ?? '',
       brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
-      
-      // --- LECTURA MODIFICADA ---
-      // Leemos 'profileType' y asignamos un valor por defecto ('social')
-      // si no existe. Esto asegura que el campo nunca sea nulo.
+
       profileType: data['publicProfileTemplate'] as String? ?? 'social',
 
-      welcomeMessage: personalization['welcomeMessage'] as String? ?? 'Bienvenido a mi perfil.',
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
       address: personalization['address'] as String?,
+
+      // Leer campos adicionales desde 'personalization'
+      slogan: personalization['slogan'] as String?,
+      averageRating: (personalization['averageRating'] as num?)?.toDouble(),
+      reviewCount: personalization['reviewCount'] as int?,
+      openingHours: personalization['openingHours'] as String?,
+      phone: personalization['phone'] as String?,
+      whatsapp: personalization['whatsapp'] as String?,
+
+      // Leer campos del módulo de bienvenida
+      showWelcomeModule: welcomeModule['show'] as bool? ?? true,
+      welcomeModuleType: welcomeModule['type'] as String? ?? 'text',
+      welcomeMessage: welcomeModule['text_content'] as String? ?? personalization['welcomeMessage'] as String? ?? 'Bienvenido a mi perfil.',
+      welcomeVideoUrl: welcomeModule['video_url'] as String?,
+      welcomeVideoSourceType: welcomeModule['video_source_type'] as String?,
+
+      // Leer visibilidad de otros módulos
+      showPortfolioModule: portfolioModule['show'] as bool? ?? true,
+      showReviewsModule: reviewsModule['show'] as bool? ?? true,
+      showPromotionsModule: promotionsModule['show'] as bool? ?? true,
+      showGiftCardModule: giftCardModule['show'] as bool? ?? true,
+    );
+  }
+
+  /// Crea una copia de este modelo con los campos proporcionados sobrescritos.
+  ProviderProfileModel copyWith({
+    String? providerId,
+    String? businessName,
+    String? logoUrl,
+    Color? brandColor,
+    List<String>? activeModules,
+    String? profileType,
+    String? contactEmail,
+    String? address,
+    // Nuevos campos
+    String? slogan,
+    double? averageRating,
+    int? reviewCount,
+    String? openingHours,
+    String? phone,
+    String? whatsapp,
+    // Welcome module
+    String? welcomeMessage,
+    bool? showWelcomeModule,
+    String? welcomeModuleType,
+    String? welcomeVideoUrl,
+    String? welcomeVideoSourceType,
+    // Module visibility
+    bool? showPortfolioModule,
+    bool? showReviewsModule,
+    bool? showPromotionsModule,
+    bool? showGiftCardModule,
+  }) {
+    return ProviderProfileModel(
+      providerId: providerId ?? this.providerId,
+      businessName: businessName ?? this.businessName,
+      logoUrl: logoUrl ?? this.logoUrl,
+      brandColor: brandColor ?? this.brandColor,
+      activeModules: activeModules ?? this.activeModules,
+      profileType: profileType ?? this.profileType,
+      contactEmail: contactEmail ?? this.contactEmail,
+      address: address ?? this.address,
+      // Usar nuevos valores o los existentes
+      slogan: slogan ?? this.slogan,
+      averageRating: averageRating ?? this.averageRating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      openingHours: openingHours ?? this.openingHours,
+      phone: phone ?? this.phone,
+      whatsapp: whatsapp ?? this.whatsapp,
+      // Welcome module
+      welcomeMessage: welcomeMessage ?? this.welcomeMessage,
+      showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
+      welcomeModuleType: welcomeModuleType ?? this.welcomeModuleType,
+      welcomeVideoUrl: welcomeVideoUrl ?? this.welcomeVideoUrl,
+      welcomeVideoSourceType: welcomeVideoSourceType ?? this.welcomeVideoSourceType,
+      // Module visibility
+      showPortfolioModule: showPortfolioModule ?? this.showPortfolioModule,
+      showReviewsModule: showReviewsModule ?? this.showReviewsModule,
+      showPromotionsModule: showPromotionsModule ?? this.showPromotionsModule,
+      showGiftCardModule: showGiftCardModule ?? this.showGiftCardModule,
     );
   }
 }
@@ -79,7 +204,12 @@ Color? _colorFromHex(String? hexColor) {
   if (hexColor == null) return null;
   final hexCode = hexColor.replaceAll('#', '');
   if (hexCode.length == 6) {
-    return Color(int.parse('FF$hexCode', radix: 16));
+    try {
+      return Color(int.parse('FF$hexCode', radix: 16));
+    } catch (e) {
+      print("Error parsing color: $hexColor");
+      return null;
+    }
   }
   return null;
 }

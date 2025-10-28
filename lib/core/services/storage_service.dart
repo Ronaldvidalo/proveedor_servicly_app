@@ -9,12 +9,44 @@ class StorageService {
   StorageService({FirebaseStorage? storage})
       : _storage = storage ?? FirebaseStorage.instance;
 
+  // --- NUEVO MÉTODO GENÉRICO CON PROGRESO ---
+  /// Sube un archivo a Firebase Storage y reporta el progreso.
+  ///
+  /// [file] El archivo a subir.
+  /// [path] La ruta completa en Storage (ej: 'users/uid/videos/video.mp4').
+  /// [onProgress] Un callback que recibe el progreso de 0.0 a 1.0.
+  Future<String> uploadFileWithProgress(
+    File file,
+    String path,
+    Function(double) onProgress,
+  ) async {
+    try {
+      final ref = _storage.ref(path);
+      // Sube el archivo y escucha los eventos
+      final uploadTask = ref.putFile(file);
+
+      // Escuchar los eventos de estado para el progreso
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        final double progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        onProgress(progress);
+      });
+
+      // Esperar a que la tarea se complete
+      final taskSnapshot = await uploadTask;
+      
+      // Obtener la URL de descarga
+      final downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      return downloadUrl;
+
+    } catch (e) {
+      print('Error al subir archivo con progreso: $e');
+      rethrow;
+    }
+  }
+  // ------------------------------------------
+
   /// Sube la imagen de un producto a Firebase Storage.
-  ///
-  /// La imagen se guarda en una ruta específica para cada usuario y producto,
-  /// asegurando que no haya colisiones de nombres.
-  ///
-  /// Devuelve la URL de descarga de la imagen subida.
+  /// (Este es tu método antiguo, lo mantenemos por compatibilidad)
   Future<String> uploadProductImage(
       {required XFile imageFile, required String userId}) async {
     try {

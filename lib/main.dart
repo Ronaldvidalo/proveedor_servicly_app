@@ -6,22 +6,30 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart'; // Importante para kDebugMode
-import 'package:cloud_firestore/cloud_firestore.dart'; // Necesario para Timestamp
+// import 'package:cloud_firestore/cloud_firestore.dart'; // No se usa en este archivo
 
-// --- NUEVA IMPORTACIÓN ---
+// --- Importaciones de Firebase ---
 import 'package:firebase_messaging/firebase_messaging.dart';
-
 import 'firebase_options.dart';
+
+// --- Tema de la App ---
 import 'shared/theme/theme.dart';
+
+// --- Servicios Core ---
 import 'core/services/auth_service.dart';
 import 'core/services/firestore_service.dart';
 import 'core/services/provider_service.dart';
 import 'core/services/product_service.dart';
 import 'core/services/storage_service.dart';
-import 'core/viewmodels/cart_provider.dart';
 import 'core/services/category_service.dart';
 import 'core/services/agenda_service.dart';
+import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
+
+// --- Modelos y ViewModels ---
 import 'core/models/user_model.dart';
+import 'core/viewmodels/cart_provider.dart';
+
+// --- UI ---
 import 'features/auth/widgets/auth_wrapper.dart';
 
 void main() async {
@@ -39,11 +47,9 @@ void main() async {
   );
   // -----------------------------
 
-  // --- NUEVA LÓGICA: SOLICITAR PERMISOS DE NOTIFICACIÓN ---
-  // (Esto no obtiene el token, solo pide permiso al usuario)
+  // --- LÓGICA: SOLICITAR PERMISOS DE NOTIFICACIÓN ---
   try {
     final messaging = FirebaseMessaging.instance;
-    // Solicitar permisos de notificación al usuario
     await messaging.requestPermission(
       alert: true,
       announcement: false,
@@ -70,13 +76,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // --- PROVEEDORES DE SERVICIOS ---
+        // --- PROVEEDORES DE SERVICIOS (Singletons) ---
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider<AuthService>(
           create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
-            // --- NUEVA INYECCIÓN DE DEPENDENCIA ---
-            // Se pasa la instancia de FirebaseMessaging al AuthService
             firebaseMessaging: FirebaseMessaging.instance,
           ),
         ),
@@ -86,7 +90,7 @@ class MyApp extends StatelessWidget {
         Provider<CategoryService>(create: (_) => CategoryService()),
         Provider<AgendaService>(create: (_) => AgendaService()),
 
-        // --- PROVIDERS DE ESTADO/VIEWMODELS ---
+        // --- PROVIDERS DE ESTADO (Streams Globales) ---
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
@@ -103,27 +107,42 @@ class MyApp extends StatelessWidget {
 
             return authService.authStateChanges.switchMap((firebaseUser) {
               if (kDebugMode) {
-                print("[StreamProvider<UserModel>] AuthState cambió. FirebaseUser UID: ${firebaseUser?.uid ?? 'null'}");
+                print(
+                    "[StreamProvider<UserModel>] AuthState cambió. FirebaseUser UID: ${firebaseUser?.uid ?? 'null'}");
               }
               if (firebaseUser == null) {
                 if (kDebugMode) {
-                  print("[StreamProvider<UserModel>] Emitiendo Stream.value(null) porque firebaseUser es null.");
+                  print(
+                      "[StreamProvider<UserModel>] Emitiendo Stream.value(null) porque firebaseUser es null.");
                 }
                 return Stream.value(null);
               } else {
                 if (kDebugMode) {
-                  print("[StreamProvider<UserModel>] Cambiando a firestoreService.getUserStream para UID: ${firebaseUser.uid}");
+                  print(
+                      "[StreamProvider<UserModel>] Cambiando a firestoreService.getUserStream para UID: ${firebaseUser.uid}");
                 }
-                // (Se eliminan los logs de .listen() para limpiar la salida)
                 return firestoreService.getUserStream(firebaseUser.uid);
               }
             });
           },
         ),
+
+        // --- ¡NUEVO SERVICIO DE PERMISOS! ---
+        // Se reconstruye cada vez que el UserModel cambia.
+        ProxyProvider<UserModel?, PermissionsService>(
+          update: (context, user, previousPermissions) {
+            // Si user es null, pasamos un UserModel vacío
+            // (Ver Error Faltante abajo)
+            return PermissionsService(user ?? UserModel.empty());
+          },
+        ),
+
+        // --- VIEWMODELS ADICIONALES ---
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
         ),
       ],
+      // --- El child de MultiProvider es tu MaterialApp ---
       child: MaterialApp(
         title: 'Servicly',
         debugShowCheckedModeBanner: false,
@@ -135,4 +154,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
