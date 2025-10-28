@@ -614,26 +614,27 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
      return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Aumentar padding vertical
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, // Alinear contenido
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // El Switch sigue igual
             SwitchListTile(
               title: const Text('Módulo de Portafolio', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Mostrar una galería con tus trabajos.'),
               value: _showPortfolioModule,
-              contentPadding: EdgeInsets.zero, // Quitar padding para alinear
-              onChanged: !canUsePortfolio ? null : (value) {
+              contentPadding: EdgeInsets.zero,
+              // El switch se habilita para todos (porque canUsePortfolio ahora es true)
+              onChanged: (value) {
                 setState(() => _showPortfolioModule = value);
               },
             ),
-            // Separador
-            if (canUsePortfolio && _showPortfolioModule) const Divider(height: 24),
-
-            // Botón de Gestión
-            if (canUsePortfolio && _showPortfolioModule)
-              Center( // Centrar botón
+            
+            // --- LÓGICA DE BOTÓN ACTUALIZADA ---
+            // Mostrar el botón de gestionar si el módulo está encendido
+            // (El permiso 'canUsePortfolio' ya no es necesario aquí porque es 'true')
+            if (_showPortfolioModule) ...[
+              const Divider(height: 24),
+              Center(
                 child: FilledButton.icon(
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('Gestionar Mi Portafolio'),
@@ -647,15 +648,8 @@ class _ManageCatalogScreenState extends State<ManageCatalogScreen>
                   },
                 ),
               ),
-            // Mensaje de bloqueo
-            if (!canUsePortfolio)
-              Padding(
-                 padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  'El módulo de portafolio requiere un plan Optimiza o superior.',
-                  style: TextStyle(color: Theme.of(context).disabledColor),
-                ),
-              ),
+            ]
+            // Ya no se necesita el mensaje de bloqueo "requiere plan Optimiza"
           ],
         ),
       ),

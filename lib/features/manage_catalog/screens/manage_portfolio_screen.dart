@@ -64,16 +64,18 @@ class _ManagePortfolioScreenState extends State<ManagePortfolioScreen> {
                             widget.user.uid, categoryToEdit!.id, name);
                       } else {
                         final stream = _firestoreService.getPortfolioCategoriesStream(widget.user.uid);
-                        // Usar 'await for' o 'first' para obtener los datos actuales del stream
                         final currentCategories = await stream.first;
 
-                        if (!permissions.canAddCategory(currentCategories.length)) {
+                        // --- CORRECCIÓN AQUÍ ---
+                        // Usar el método correcto para categorías de PORTAFOLIO
+                        if (!permissions.canAddPortfolioCategory(currentCategories.length)) {
                            if (!context.mounted) return;
                            Navigator.of(context).pop();
                            ScaffoldMessenger.of(context).showSnackBar(
                              SnackBar(
                                content: Text(
-                                   'Alcanzaste el límite de ${permissions.maxCategories} categorías para tu plan.'),
+                                   // --- CORRECCIÓN AQUÍ ---
+                                   'Alcanzaste el límite de ${permissions.maxPortfolioCategories} categorías para tu plan.'),
                                backgroundColor: Colors.orange,
                              ),
                            );
@@ -276,11 +278,13 @@ class _ManagePortfolioScreenState extends State<ManagePortfolioScreen> {
         stream: _firestoreService.getPortfolioCategoriesStream(widget.user.uid),
         builder: (context, snapshot) {
           final currentCount = snapshot.data?.length ?? 0;
-          final bool canAdd = permissions.canAddCategory(currentCount);
+          // --- CORRECCIÓN AQUÍ ---
+          final bool canAdd = permissions.canAddPortfolioCategory(currentCount);
 
           return FloatingActionButton(
             onPressed: canAdd ? () => _showCategoryDialog() : null,
-            tooltip: canAdd ? 'Añadir Categoría' : 'Límite de categorías alcanzado (${permissions.maxCategories})',
+            // --- CORRECCIÓN AQUÍ ---
+            tooltip: canAdd ? 'Añadir Categoría' : 'Límite de categorías alcanzado (${permissions.maxPortfolioCategories})',
             backgroundColor: canAdd ? Theme.of(context).colorScheme.primary : Colors.grey,
             foregroundColor: canAdd ? Theme.of(context).colorScheme.onPrimary: Colors.white70,
             child: const Icon(Icons.add),

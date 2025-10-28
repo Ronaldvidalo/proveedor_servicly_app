@@ -21,79 +21,134 @@ class PermissionsService {
   /// ¿Puede usar el módulo de Video de Bienvenida?
   /// Solo disponible para planes de pago (o fundador).
   bool get canUseWelcomeVideo {
-    return planType == _planOptimiza ||
-           planType == _planExpande ||
+    return planType == _planOptimiza || 
+           planType == _planExpande || 
            planType == _planFundador;
   }
 
-  /// ¿Puede mostrar el módulo de Portafolio (Galería)?
-  /// Solo disponible para planes de pago (o fundador).
+  /// ¿Puede MOSTRAR el módulo de Portafolio (Galería)?
+  /// CORRECCIÓN: Todos los planes pueden mostrarlo. Los límites se aplican al AÑADIR.
   bool get canUsePortfolioModule {
-    return planType == _planOptimiza ||
-           planType == _planExpande ||
+    return true; 
+  }
+  
+  /// ¿Puede MOSTRAR el módulo de Promociones?
+  /// CORRECCIÓN: Todos los planes pueden mostrarlo (o al menos el "conecta").
+  bool get canUsePromotionsModule {
+     // Decidamos: ¿El plan "conecta" puede gestionar promociones?
+     // Por ahora, sigamos tu mockup: requiere Optimiza.
+     // Si "conecta" SÍ puede, cambia esto a 'return true;'
+     return planType == _planOptimiza || 
+           planType == _planExpande || 
+           planType == _planFundador;
+  }
+
+  /// ¿Puede MOSTRAR el módulo de Gift Cards?
+  /// (Esto sí parece solo para planes altos)
+  bool get canUseGiftCardModule {
+    return planType == _planExpande || 
            planType == _planFundador;
   }
 
   /// ¿Puede mostrar el módulo de Reseñas de Clientes?
-  /// Disponible para todos, pero lo definimos aquí por si cambia.
+  /// Disponible para todos.
   bool get canUseReviewsModule {
-    return true;
-  }
-
-  /// ¿Puede usar el módulo de Promociones?
-  /// (Ej: Disponible desde Optimiza)
-  bool get canUsePromotionsModule {
-    return planType == _planOptimiza ||
-           planType == _planExpande ||
-           planType == _planFundador;
-  }
-
-  /// ¿Puede usar el módulo de Gift Cards?
-  /// (Ej: Solo para Expande/Fundador)
-  bool get canUseGiftCardModule {
-    return planType == _planExpande ||
-           planType == _planFundador;
+    return true; 
   }
 
   // --- LÍMITES DE LA TIENDA/CATÁLOGO ---
 
-  /// Límite de categorías de servicios/productos.
-  int get maxCategories {
+  /// Límite de categorías de PRODUCTOS (Servicios).
+  int get maxProductCategories {
     switch (planType) {
       case _planConecta:
-        return 5; // Límite para Plan Conecta (Free)
+        return 5;
       case _planOptimiza:
-        return 15; // Límite para Plan Optimiza
+        return 15;
       case _planExpande:
       case _planFundador:
-        return 999; // "Ilimitado"
+        return 999; // Ilimitado
       default:
         return 5;
     }
   }
-
-  /// Límite de productos/servicios en total.
+  
+  /// Límite de PRODUCTOS (Servicios) en total.
   int get maxProducts {
      switch (planType) {
       case _planConecta:
-        return 50; // Límite para Plan Conecta (Free)
+        return 50;
       case _planOptimiza:
-        return 200; // Límite para Plan Optimiza
+        return 200;
       case _planExpande:
       case _planFundador:
-        return 9999; // "Ilimitado"
+        return 9999; // Ilimitado
       default:
         return 50;
     }
   }
 
-  /// Método de ayuda para verificar si se puede añadir un nuevo producto.
+  // --- LÍMITES DEL PORTAFOLIO (Tu nueva lógica) ---
+
+  /// Límite de categorías de PORTAFOLIO (Carpetas).
+  int get maxPortfolioCategories {
+     switch (planType) {
+      case _planConecta:
+        return 5; // Límite para Plan Conecta (Free)
+      case _planOptimiza:
+        return 20;
+      case _planExpande:
+      case _planFundador:
+        return 999; // Ilimitado
+      default:
+        return 5;
+    }
+  }
+
+  /// Límite de ÍTEMS (fotos/videos) del portafolio en total.
+  int get maxPortfolioItems {
+     switch (planType) {
+      case _planConecta:
+        return 25; // Ej: 5 carpetas * 5 ítems = 25
+      case _planOptimiza:
+        return 100;
+      case _planExpande:
+      case _planFundador:
+        return 9999; // Ilimitado
+      default:
+        return 25;
+    }
+  }
+  
+  // --- MÉTODOS DE AYUDA (CHECKS) ---
+
   bool canAddProduct(int currentProductCount) {
     return currentProductCount < maxProducts;
   }
+  
+  bool canAddProductCategory(int currentCategoryCount) {
+    return currentCategoryCount < maxProductCategories;
+  }
 
-  /// Método de ayuda para verificar si se puede añadir una nueva categoría.
-  bool canAddCategory(int currentCategoryCount) {
-    return currentCategoryCount < maxCategories;
+  bool canAddPortfolioCategory(int currentCategoryCount) {
+    return currentCategoryCount < maxPortfolioCategories;
+  }
+  
+  bool canAddPortfolioItem(int currentItemCount) {
+    return currentItemCount < maxPortfolioItems;
+  }
+
+  // Límite de 1 minuto por video (requerirá lógica en la app, no aquí)
+  Duration get maxVideoDuration {
+     switch (planType) {
+      case _planConecta:
+        return const Duration(minutes: 1);
+      case _planOptimiza:
+      case _planExpande:
+      case _planFundador:
+        return const Duration(minutes: 5); // O sin límite
+      default:
+        return const Duration(minutes: 1);
+    }
   }
 }

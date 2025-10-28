@@ -7,15 +7,15 @@ import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/category_service.dart'; // Para servicios
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
-// --- NUEVOS IMPORTS ---
+// Imports para Portafolio
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart'; // Para portafolio
 import 'package:proveedor_servicly_app/core/models/portfolio_category_model.dart'; // Para portafolio
 import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart'; // Para portafolio
-
-import 'package:proveedor_servicly_app/features/booking/screens/booking_screen.dart'; // Para botón Agendar
-
-// TODO: Importar 'package:url_launcher/url_launcher.dart' para botones de contacto
-// import 'package:url_launcher/url_launcher.dart';
+// Pantalla de Booking
+import 'package:proveedor_servicly_app/features/booking/screens/booking_screen.dart';
+// --- NUEVO IMPORT ---
+import 'package:url_launcher/url_launcher.dart'; // Para botones de contacto
+import 'package:video_player/video_player.dart';
 
 
 /// Layout "Landing Page" de un proveedor.
@@ -41,11 +41,38 @@ class _CatalogLayoutState extends State<CatalogLayout> {
   // Estado para el filtro de PORTAFOLIO
   String? _selectedPortfolioCategoryId;
 
+  // --- NUEVA FUNCIÓN ASÍNCRONA para lanzar URLs ---
+  Future<void> _launchUrlHelper(Uri url, BuildContext context, String errorMessage) async {
+    // Verificar si se puede lanzar la URL antes de intentar
+    if (await canLaunchUrl(url)) {
+      try {
+        await launchUrl(
+          url,
+          // Para WhatsApp, intentar abrir en la app externa si es posible
+          mode: url.scheme == 'https' && url.host.contains('wa.me')
+              ? LaunchMode.externalApplication
+              : LaunchMode.platformDefault,
+        );
+      } catch (e) {
+         // Asegurarse que el widget todavía está montado antes de usar context
+         if (context.mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error inesperado al abrir: $e')));
+         }
+      }
+    } else {
+       // Asegurarse que el widget todavía está montado antes de usar context
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     const backgroundColor = Color(0xFF1A1A2E);
 
-    // Determinar si algún módulo debe ocultarse
+    // Determinar visibilidad de módulos
     final showWelcome = widget.profile.showWelcomeModule;
     final showPortfolio = widget.profile.showPortfolioModule;
     final showReviews = widget.profile.showReviewsModule;
@@ -124,7 +151,8 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 // Placeholder mientras carga o si hay error
                 loadingBuilder: (context, child, loadingProgress) {
                    if (loadingProgress == null) return child;
-                   return Container(color: brandColor.withOpacity(0.5)); // Color base mientras carga
+                   // --- CORRECCIÓN: Deprecated withOpacity ---
+                   return Container(color: brandColor.withAlpha((255 * 0.5).round())); // Color base mientras carga
                  },
                 errorBuilder: (_, __, ___) => Container(color: brandColor), // Color base si falla
               )
@@ -140,8 +168,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withOpacity(0.3), // Menos opaco arriba
-                      Colors.black.withOpacity(0.7), // Más opaco abajo para el título
+                      // --- CORRECCIÓN: Deprecated withOpacity ---
+                      Colors.black.withAlpha((255 * 0.3).round()), // Menos opaco arriba
+                      Colors.black.withAlpha((255 * 0.7).round()), // Más opaco abajo para el título
                     ],
                     stops: const [0.0, 0.8], // Controlar dónde empieza el gradiente más oscuro
                   ),
@@ -158,7 +187,8 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                   profile.slogan!,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    // --- CORRECCIÓN: Deprecated withOpacity ---
+                    color: Colors.white.withAlpha((255 * 0.9).round()),
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
                     shadows: const [Shadow(color: Colors.black87, blurRadius: 6)],
@@ -175,13 +205,13 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
   // --- MÓDULO 1.5: CTA Principal ---
   Widget _buildPrimaryCtaModule(BuildContext context, ProviderProfileModel profile) {
-    // Formatear el ranking y número de reseñas
-    final String ratingText = profile.averageRating != null
-        ? profile.averageRating!.toStringAsFixed(1)
-        : '-.-';
-    final String reviewCountText = profile.reviewCount != null
+     final String ratingText = profile.averageRating != null
+        ? profile.averageRating!.toStringAsFixed(1) // Muestra 1 decimal
+        : '-.-'; // Placeholder si no hay rating
+        final String reviewCountText = profile.reviewCount != null && profile.reviewCount! > 0
         ? '(${profile.reviewCount} Reseñas)'
         : '(Sin Reseñas)';
+    // --- FIN DEL CAMBIO ---
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -233,7 +263,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
     );
   }
 
-  // --- MÓDULO 2: Información y Contacto ---
+  // --- MÓDULO 2: Información y Contacto (ACTUALIZADO CON URL_LAUNCHER) ---
   Widget _buildInfoModule(BuildContext context, ProviderProfileModel profile, bool showWelcome) {
     return SliverToBoxAdapter(
       child: Padding(
@@ -272,52 +302,62 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 icon: Icons.location_on_outlined,
                 text: profile.address!,
                 // TODO: Hacer que al tocar abra el mapa?
+                // onTap: () { /* Lógica para abrir mapas */ },
               ),
               const SizedBox(height: 24),
             ],
 
-            // Botones de Contacto (Teléfono, WhatsApp)
+            // Botones de Contacto (AHORA FUNCIONALES)
             Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
+                // Botón Teléfono
                 if (profile.phone != null && profile.phone!.isNotEmpty) ...[
                   IconButton.filled(
-                    onPressed: () async {
+                    onPressed: () {
                       final Uri launchUri = Uri(scheme: 'tel', path: profile.phone!);
-                      // TODO: Importar url_launcher y descomentar
-                      // if (await canLaunchUrl(launchUri)) {
-                      //   await launchUrl(launchUri);
-                      // } else {
-                      //   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo llamar a ${profile.phone}')));
-                      // }
+                      _launchUrlHelper(launchUri, context, 'No se pudo iniciar la llamada');
                     },
                     icon: const Icon(Icons.phone_outlined),
                     style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
-                    tooltip: 'Llamar',
+                    tooltip: 'Llamar a ${profile.phone}', // Tooltip útil
                   ),
                   const SizedBox(width: 16),
                 ],
+                // Botón WhatsApp
                 if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty) ...[
                   IconButton.filled(
-                    onPressed: () async {
-                      // Crear URL de WhatsApp (simple, sin mensaje predefinido)
-                      // Asume que el número incluye código de país y está bien formateado
-                      final Uri launchUri = Uri.parse('https://wa.me/${profile.whatsapp!.replaceAll('+', '')}');
-                       // TODO: Importar url_launcher y descomentar
-                      // if (await canLaunchUrl(launchUri)) {
-                      //   await launchUrl(launchUri, mode: LaunchMode.externalApplication); // Abrir en app externa
-                      // } else {
-                      //    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo abrir WhatsApp para ${profile.whatsapp}')));
-                      // }
+                    onPressed: () {
+                      // Formatear número quitando caracteres no numéricos y añadiendo '+' si falta
+                      final cleanNumber = profile.whatsapp!.replaceAll(RegExp(r'[^\d]'), '');
+                      // Asumimos que si no empieza con código de país, es local (ej. Argentina +54)
+                      // Esta lógica puede necesitar ajustes según tus datos
+                      final formattedNumber = cleanNumber.startsWith('54') ? '+$cleanNumber' : '+54$cleanNumber';
+                      final Uri launchUri = Uri.parse('https://wa.me/$formattedNumber');
+                      _launchUrlHelper(launchUri, context, 'No se pudo abrir WhatsApp');
                     },
-                    icon: const Icon(Icons.chat_bubble_outline), // TODO: Usar ícono de WhatsApp si se añade dependencia
+                    icon: const Icon(Icons.chat_bubble_outline), // TODO: Usar ícono de WhatsApp
                     style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
-                    tooltip: 'WhatsApp',
+                    tooltip: 'WhatsApp: ${profile.whatsapp}', // Tooltip útil
                   ),
-                  const SizedBox(width: 16), // Espacio por si se añaden más iconos
+                  const SizedBox(width: 16),
                 ],
-                 // Podrías añadir Email aquí si es relevante
-                 // if (profile.contactEmail.isNotEmpty) ...[ ... ],
+                 // Podrías añadir Email aquí
+                 if (profile.contactEmail.isNotEmpty) ...[
+                   IconButton.filled(
+                      onPressed: () {
+                        final Uri launchUri = Uri(
+                           scheme: 'mailto',
+                           path: profile.contactEmail,
+                           // queryParameters: { 'subject': 'Consulta desde Servicly' } // Opcional
+                        );
+                        _launchUrlHelper(launchUri, context, 'No se pudo abrir el cliente de correo');
+                      },
+                      icon: const Icon(Icons.email_outlined),
+                      style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
+                      tooltip: 'Email: ${profile.contactEmail}',
+                    ),
+                 ],
               ],
             ),
           ],
@@ -326,7 +366,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
     );
   }
 
-   /// Widget interno para mostrar el contenido del módulo de bienvenida (texto o video).
+  /// Widget interno para mostrar el contenido del módulo de bienvenida (texto o video).
   Widget _buildWelcomeContent(BuildContext context, ProviderProfileModel profile) {
     // --- Opción 1: Mostrar TEXTO ---
     if (profile.welcomeModuleType == 'text') {
@@ -339,32 +379,27 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
     // --- Opción 2: Mostrar VIDEO ---
     if (profile.welcomeModuleType == 'video' && profile.welcomeVideoUrl != null && profile.welcomeVideoUrl!.isNotEmpty) {
-      // *** PLACEHOLDER ***
-      // Aquí iría la lógica para inicializar y mostrar el VideoPlayer
-      // o el YouTubePlayer, dependiendo de si es 'upload' o 'url'.
-      return AspectRatio( // Mantener proporción del video
-        aspectRatio: 16 / 9,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black, // Fondo negro para videos
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.play_circle_fill_outlined, size: 50, color: Colors.white54),
-                SizedBox(height: 8),
-                Text("Reproductor de Video (Próximamente)", style: TextStyle(color: Colors.white54)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+     // Distinguir entre URL externa (YouTube/Vimeo) y subida
+     bool isExternalUrl = profile.welcomeVideoUrl!.startsWith('http'); // Simplificación
+     bool isUploadedVideo = profile.welcomeVideoSourceType == 'upload';
 
-    // No mostrar nada si el tipo es video pero no hay URL
+     if (isUploadedVideo && isExternalUrl) {
+       // Si es 'upload' pero la URL parece externa, usar el reproductor
+       return _WelcomeVideoPlayer(videoUrl: profile.welcomeVideoUrl!);
+     } else if (!isUploadedVideo && isExternalUrl) {
+       // Si es URL externa (YouTube/Vimeo) - Placeholder por ahora
+       return AspectRatio(
+         aspectRatio: 16 / 9,
+         child: Container(
+           decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)),
+           child: Center(child: Text('Reproductor de YouTube/Vimeo (Próximamente)\n${profile.welcomeVideoUrl}', textAlign: TextAlign.center, style: TextStyle(color: Colors.white54))),
+         ),
+       );
+     } else {
+       // Si no es URL válida o no coincide el tipo, no mostrar nada o un error
+       return const SizedBox.shrink();
+     }
+    }
     return const SizedBox.shrink();
   }
 
@@ -404,12 +439,13 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
   // --- MÓDULO 4: Portafolio (Implementado) ---
   Widget _buildPortfolioModule(BuildContext context, ProviderProfileModel profile) {
-     final firestoreService = context.read<FirestoreService>();
+     final firestoreService = context.read<FirestoreService>(); // Necesitamos el servicio
 
+    // Usaremos un SliverList que contiene el título, el selector y la cuadrícula
     return SliverList(
       delegate: SliverChildListDelegate([
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0), // Espaciado superior
           child: Text(
             'Portafolio',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -433,10 +469,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
         // --- Cuadrícula de Ítems del Portafolio ---
         StreamBuilder<List<PortfolioItemModel>>(
+          // Usar el stream de ítems, filtrando por la categoría seleccionada
           stream: firestoreService.getPortfolioItemsStream(
               profile.providerId,
-              // Si _selectedPortfolioCategoryId es null, pasamos un string vacío
-              // El servicio debería manejar esto (o podríamos ajustar la consulta aquí)
               _selectedPortfolioCategoryId ?? ''),
           builder: (context, snapshot) {
              // Mostrar loading solo si hay una categoría seleccionada (no para "Todos")
@@ -463,8 +498,6 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                      );
                    }
                    // Si no hay categorías, este módulo no debería mostrar nada (ni el selector)
-                   // La lógica en el builder principal (_buildPortfolioModule) debería manejar esto.
-                   // Pero por si acaso, devolvemos vacío aquí.
                    return const SizedBox.shrink();
                  }
               );
@@ -545,7 +578,6 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 ),
           ),
         ),
-        // Usa la variable de estado correcta aquí
         _ServiceCategorySelector( // Renombrado
           providerId: profile.providerId,
           selectedCategoryId: _selectedServiceCategoryId, // Variable correcta
@@ -557,11 +589,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
           },
         ),
         StreamBuilder<List<ProductModel>>(
-          // Usa la variable de estado correcta aquí
           stream: productService.getProducts(profile.providerId,
               categoryId: _selectedServiceCategoryId), // Variable correcta
           builder: (context, snapshot) {
-            // ... (resto del builder sin cambios) ...
                  if (snapshot.connectionState == ConnectionState.waiting) {
               return const _LoadingState();
             }
@@ -630,8 +660,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 color: const Color(0xFF2D2D5A),
                 borderRadius: BorderRadius.circular(12),
               ),
+              // --- CORRECCIÓN: sort_child_properties_last ---
               child: const Center(
-                child: Text('Reseñas Destacadas (Próximamente)', style: TextStyle(color: Colors.white70)),
+                 child: Text('Reseñas Destacadas (Próximamente)', style: TextStyle(color: Colors.white70)),
               ),
             )
           ],
@@ -642,37 +673,36 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
 } // Fin _CatalogLayoutState
 
+
 // --- WIDGETS AUXILIARES ---
 
 // Widget para fila de información (Icono + Texto)
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String text;
-  // final VoidCallback? onTap; // Opcional para hacerlo interactivo
+  // --- CORRECCIÓN: Parámetro 'onTap' no usado eliminado ---
+  // final VoidCallback? onTap;
 
   const _InfoRow({required this.icon, required this.text /*, this.onTap */});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell( // Hacer la fila "tocable" si hay onTap
-       // onTap: onTap,
-       child: Padding( // Añadir padding interno para mejor toque
-         padding: const EdgeInsets.symmetric(vertical: 4.0),
-         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: Colors.white70, size: 20),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
+    return Padding( // --- CORRECCIÓN: Quitado InkWell ---
+       padding: const EdgeInsets.symmetric(vertical: 4.0),
+       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.white70, size: 20),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
-          ],
-               ),
-       ),
-    );
+          ),
+        ],
+             ),
+     );
   }
 }
 
@@ -689,7 +719,6 @@ class _ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ... (Código sin cambios) ...
         return Card(
       color: const Color(0xFF2D2D5A),
       margin: const EdgeInsets.only(bottom: 16),
@@ -709,7 +738,7 @@ class _ServiceCard extends StatelessWidget {
                 width: double.infinity,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
+                   if (loadingProgress == null) return child;
                    return Container( height: 150, color: Colors.white10, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
                  },
                 errorBuilder: (context, error, stack) => const SizedBox(
@@ -799,7 +828,6 @@ class _ServiceCategorySelector extends StatelessWidget {
     return StreamBuilder<List<CategoryModel>>(
       stream: categoryService.getCategories(providerId), // Llama al método correcto
       builder: (context, snapshot) {
-         // ... (resto del código del selector de categorías de servicio sin cambios) ...
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox(height: 60); // Ocupar espacio aunque esté vacío
         }
@@ -812,7 +840,7 @@ class _ServiceCategorySelector extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: categories.length + 1,
             itemBuilder: (context, index) {
-              if (index == 0) { /* ... Botón "Ver Todos" ... */
+              if (index == 0) { // Botón "Ver Todos"
                    final isSelected = selectedCategoryId == null;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
@@ -836,9 +864,9 @@ class _ServiceCategorySelector extends StatelessWidget {
                   ),
                 );
               }
-              final category = categories[index - 1];
+              final category = categories[index - 1]; // Botón de categoría
               final isSelected = selectedCategoryId == category.id;
-              return Padding( /* ... Botón de categoría ... */
+              return Padding(
                    padding: const EdgeInsets.only(right: 8.0),
                 child: ChoiceChip(
                   label: Text(category.name),
@@ -871,7 +899,7 @@ class _ServiceCategorySelector extends StatelessWidget {
 // --- NUEVO WIDGET: Selector de Categorías del Portafolio ---
 class _PortfolioCategorySelector extends StatelessWidget {
   final String providerId;
-  final String? selectedPortfolioCategoryId;
+  final String? selectedPortfolioCategoryId; // Nombre de variable específico
   final Color brandColor;
   final ValueChanged<String?> onCategorySelected;
 
@@ -884,10 +912,11 @@ class _PortfolioCategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Usar FirestoreService para categorías de PORTAFOLIO
     final firestoreService = context.read<FirestoreService>();
 
     return StreamBuilder<List<PortfolioCategoryModel>>(
-      stream: firestoreService.getPortfolioCategoriesStream(providerId),
+      stream: firestoreService.getPortfolioCategoriesStream(providerId), // Llama al método correcto
       builder: (context, snapshot) {
         // Si no hay categorías, no mostrar nada (ni siquiera el espacio)
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -903,14 +932,14 @@ class _PortfolioCategorySelector extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: categories.length + 1, // +1 para "Ver Todos"
             itemBuilder: (context, index) {
-              if (index == 0) { /* ... Botón "Ver Todos" ... */
+              if (index == 0) { // Botón "Ver Todos"
                  final isSelected = selectedPortfolioCategoryId == null;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ChoiceChip(
                     label: const Text('Ver Todos'),
                     selected: isSelected,
-                    onSelected: (selected) => onCategorySelected(null),
+                    onSelected: (selected) => onCategorySelected(null), // Pasar null
                     selectedColor: brandColor,
                      labelStyle: TextStyle(color: isSelected ? (ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark ? Colors.white : Colors.black) : Colors.white),
                     backgroundColor: const Color(0xFF2D2D5A),
@@ -918,14 +947,14 @@ class _PortfolioCategorySelector extends StatelessWidget {
                   ),
                 );
               }
-              final category = categories[index - 1];
+              final category = categories[index - 1]; // Botón de categoría
               final isSelected = selectedPortfolioCategoryId == category.id;
-              return Padding( /* ... Botón de categoría ... */
+              return Padding(
                    padding: const EdgeInsets.only(right: 8.0),
                 child: ChoiceChip(
                   label: Text(category.name),
                   selected: isSelected,
-                  onSelected: (selected) => onCategorySelected(category.id),
+                  onSelected: (selected) => onCategorySelected(category.id), // Pasar el ID
                   selectedColor: brandColor,
                    labelStyle: TextStyle(color: isSelected ? (ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark ? Colors.white : Colors.black) : Colors.white),
                   backgroundColor: const Color(0xFF2D2D5A),
@@ -940,74 +969,21 @@ class _PortfolioCategorySelector extends StatelessWidget {
   }
 }
 
-// --- NUEVO WIDGET: Tarjeta para un Ítem del Portafolio en la Cuadrícula ---
-class _PortfolioItemCard extends StatelessWidget {
-  final PortfolioItemModel item;
-
-  const _PortfolioItemCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector( // Hacerlo "tocable"
-       onTap: () {
-         // TODO: Implementar visualización fullscreen (ej: showDialog con la imagen/video)
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Vista fullscreen próximamente para ${item.type == PortfolioItemType.image ? "imagen" : "video"}'), duration: Duration(seconds: 1)),
-         );
-       },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: const Color(0xFF2D2D5A),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: item.type == PortfolioItemType.image
-              ? Image.network(
-                  item.url,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    // Indicador de carga más sutil
-                    return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24));
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.broken_image_outlined, color: Colors.white38);
-                  },
-                )
-              // Placeholder para video con icono de play
-              : Stack( // Usar Stack para superponer el icono
-                  fit: StackFit.expand,
-                  alignment: Alignment.center,
-                  children: [
-                    // Podríamos intentar cargar un thumbnail si la URL lo permite
-                    // o simplemente fondo negro
-                    Container(color: Colors.black),
-                    const Icon(Icons.play_circle_fill_outlined, color: Colors.white54, size: 40),
-                    // Aquí iría la lógica del thumbnail o VideoPlayer en el futuro
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-
-// _LoadingState, _EmptyState, _ErrorState (Sin Cambios)
+// --- WIDGETS DE ESTADO (Loading, Empty, Error) ---
 class _LoadingState extends StatelessWidget {
  const _LoadingState();
  @override
  Widget build(BuildContext context) {
-   return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Colors.white54,)));
+   // Usar el color primario o un color blanco/gris para el indicador
+   return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary.withAlpha((255*0.7).round()))));
  }
 }
 class _EmptyState extends StatelessWidget {
  const _EmptyState();
  @override
  Widget build(BuildContext context) {
-   return const Padding( // Usar Padding en lugar de Center para controlar el espacio
-     padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 48.0),
+   return Padding( // Usar Padding en lugar de Center para controlar el espacio
+     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 48.0),
      child: Center(
        child: Column(
          mainAxisAlignment: MainAxisAlignment.center,
@@ -1040,4 +1016,158 @@ class _ErrorState extends StatelessWidget {
      child: Center(child: Text('Error al cargar servicios:\n$error', textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent))),
    );
  }
+}
+
+// --- WIDGET STATEFUL para el Video de Bienvenida ---
+class _WelcomeVideoPlayer extends StatefulWidget {
+  final String videoUrl;
+  const _WelcomeVideoPlayer({required this.videoUrl});
+
+  @override
+  State<_WelcomeVideoPlayer> createState() => _WelcomeVideoPlayerState();
+}
+
+class _WelcomeVideoPlayerState extends State<_WelcomeVideoPlayer> {
+  late VideoPlayerController _controller;
+  bool _isPlaying = false;
+  bool _showControls = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final videoUri = Uri.tryParse(widget.videoUrl);
+    if (videoUri != null) {
+      _controller = VideoPlayerController.networkUrl(videoUri)
+        ..initialize().then((_) { if (mounted) setState(() {}); }).catchError((error) { debugPrint("Error init welcome video: $error"); })
+        ..setLooping(true);
+      _controller.addListener(() { if (mounted && _isPlaying != _controller.value.isPlaying) { setState(() { _isPlaying = _controller.value.isPlaying; }); }});
+    } else {
+       _controller = VideoPlayerController.networkUrl(Uri.parse('invalid-url'));
+       debugPrint("Invalid welcome video URL: ${widget.videoUrl}");
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _togglePlayPause() { setState(() { if (_controller.value.isPlaying) { _controller.pause(); } else { _controller.play(); } }); }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_controller.value.isInitialized) {
+      return AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container( decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)), child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))),
+      );
+    }
+    return AspectRatio(
+      aspectRatio: _controller.value.aspectRatio,
+      child: MouseRegion(
+         onHover: (_) => setState(() => _showControls = true),
+         onExit: (_) => setState(() => _showControls = false),
+         child: GestureDetector(
+           onTap: () => setState(() => _showControls = !_showControls),
+           child: Stack(
+             alignment: Alignment.center,
+             children: <Widget>[
+               VideoPlayer(_controller),
+               AnimatedOpacity(
+                 opacity: _showControls ? 1.0 : 0.0,
+                 duration: const Duration(milliseconds: 300),
+                 child: Container(
+                   decoration: BoxDecoration( color: Colors.black.withAlpha((255 * 0.4).round()), borderRadius: BorderRadius.circular(8)),
+                   child: Center(
+                     child: IconButton(
+                       // --- CORRECTION: Icono necesita un argumento IconData ---
+                       icon: Icon(
+                         _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                         color: Colors.white,
+                         size: 60.0,
+                       ),
+                       onPressed: _togglePlayPause,
+                     ),
+                   ),
+                 ),
+               ),
+             ],
+           ),
+         ),
+      ),
+    );
+  }
+}
+
+// --- WIDGET STATEFUL para Tarjeta de Ítem del Portafolio ---
+class _PortfolioItemCard extends StatefulWidget {
+  final PortfolioItemModel item;
+  const _PortfolioItemCard({required this.item});
+
+  @override
+  State<_PortfolioItemCard> createState() => _PortfolioItemCardState();
+}
+
+class _PortfolioItemCardState extends State<_PortfolioItemCard> {
+  VideoPlayerController? _videoController;
+  bool _isVideoInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.item.type == PortfolioItemType.video) {
+      final videoUri = Uri.tryParse(widget.item.url);
+      if (videoUri != null) {
+         _videoController = VideoPlayerController.networkUrl(videoUri)
+          ..initialize().then((_) { if (mounted) setState(() { _isVideoInitialized = true; }); _videoController?.pause(); })
+          .catchError((error){ debugPrint("Error init portfolio video (${widget.item.id}): $error"); if (mounted) setState(() { _isVideoInitialized = false; }); });
+      } else { debugPrint("Invalid portfolio video URL: ${widget.item.url}"); }
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+       onTap: () { /* ... Lógica fullscreen ... */ },
+      child: Container(
+        decoration: BoxDecoration( borderRadius: BorderRadius.circular(8), color: const Color(0xFF2D2D5A)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: widget.item.type == PortfolioItemType.image
+              ? Image.network(
+                  widget.item.url,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24));
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(Icons.broken_image_outlined, color: Colors.white38);
+                  },
+                 )
+              : (_isVideoInitialized && _videoController != null)
+                  ? Stack(
+                      fit: StackFit.expand,
+                      alignment: Alignment.center,
+                      children: [
+                        AspectRatio( aspectRatio: _videoController!.value.aspectRatio, child: VideoPlayer(_videoController!) ),
+                        Container(
+                           color: Colors.black.withAlpha((255 * 0.3).round()),
+                           // --- CORRECTION: Color e Icono ---
+                           child: const Icon(Icons.play_circle_fill_outlined, color: Colors.white70, size: 40), // Usar white70
+                        ),
+                      ],
+                    )
+                  : Container( color: Colors.black, child: const Center( child: Icon(Icons.videocam_off_outlined, color: Colors.white38, size: 40))),
+        ),
+      ),
+    );
+  }
 }
