@@ -29,7 +29,11 @@ import '../../manage_store/presentation/screens/manage_store_screen.dart';
 // Asegúrate de importar AgendaScreen desde su ubicación correcta
 import '../../agenda/presentation/screens/agenda_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
-import 'package:proveedor_servicly_app/features/manage_catalog/screens/manage_catalog_screen.dart';
+
+// --- CAMBIO DE IMPORTACIÓN ---
+// Importamos la nueva pantalla con la ruta corregida
+import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
+
 // Importar DottedBorder si está en un archivo separado, si no, mantenerlo abajo.
 // import 'package:dotted_border/dotted_border.dart'; // Si decides usar el paquete
 
@@ -47,6 +51,8 @@ const Map<String, IconData> _iconMap = {
   'visibility_outlined': Icons.visibility_outlined,
   'storefront_outlined': Icons.storefront_outlined,
   'agenda': Icons.calendar_month_outlined, // Icono añadido para agenda
+  // AÑADIDO: Icono para el catálogo
+  'auto_stories_outlined': Icons.auto_stories_outlined,
 };
 
 /// La pantalla principal y dashboard para el usuario proveedor.
@@ -143,10 +149,10 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
       duration: const Duration(milliseconds: 800),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       if (mounted) {
-         _animationController.forward();
-       }
-      });
+      if (mounted) {
+        _animationController.forward();
+      }
+    });
   }
 
   @override
@@ -163,7 +169,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     if (userModel == null) {
       return Container(
         color: backgroundColor,
-        child: const Center(child: CircularProgressIndicator(color: Color(0xFF00BFFF)))
+        child: const Center(child: CircularProgressIndicator(color: Color(0xFF00BFFF))),
       );
     }
 
@@ -180,7 +186,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             if (snapshot.connectionState == ConnectionState.waiting) {
               // Muestra el esqueleto de carga mientras se obtienen los módulos
               return _LoadingSkeleton(
-                userName: userModel.displayName,
+                userName: userModel.displayName ?? 'Usuario',
                 businessName: userModel.personalization['businessName'] as String?,
               );
             }
@@ -293,30 +299,16 @@ class _OpportunitiesTab extends StatelessWidget {
   }
 }
 
-
 // ===================================================================
 // --- PESTAÑA 3: CONFIGURACIÓN (Placeholder) ---
 // ===================================================================
 
-class _SettingsTab extends StatelessWidget {
-  const _SettingsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text('Pantalla de Configuración (Próximamente)', style: TextStyle(color: Colors.white)),
-      ),
-    );
-  }
-}
-
+// ¡ELIMINADO! La clase _SettingsTab se eliminó porque era código
+// no utilizado (Error 4). El BottomNavBar usa SettingsScreen.
 
 // --- TODOS TUS WIDGETS PERSONALIZADOS (_DashboardHeader, _ProfileCompletionBanner, etc.) ---
 // --- SE MANTIENEN EXACTAMENTE IGUAL ---
 
-// Copia y pega aquí todos tus widgets auxiliares desde tu archivo original
-// Ejemplo:
 class _DashboardHeader extends StatelessWidget {
   final UserModel userModel;
   const _DashboardHeader({required this.userModel});
@@ -326,7 +318,8 @@ class _DashboardHeader extends StatelessWidget {
     final authService = context.read<AuthService>();
     // Esta línea es la que reportaba 'dead_code'. La lógica es correcta
     // ya que userModel.displayName SÍ es nullable. Ignoramos el lint.
-    final businessName = userModel.personalization['businessName'] as String? ?? userModel.displayName ?? 'Mi Negocio';
+
+    final businessName = userModel.personalization['businessName'] as String? ?? userModel.displayName;
     const accentColor = Color(0xFF00BFFF);
 
     return SliverPadding(
@@ -347,15 +340,15 @@ class _DashboardHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    businessName,
+                    businessName ?? '',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       shadows: [
-                        // CORRECCIÓN: .withOpacity() obsoleto, usar .withAlpha()
-                        Shadow(color: accentColor.withAlpha(128), blurRadius: 10), // 0.5
-                        Shadow(color: accentColor.withAlpha(77), blurRadius: 20), // 0.3
+                        // Se usan withAlpha para evitar deprecaciones de withOpacity en contextos no-const
+                        Shadow(color: accentColor.withAlpha(128), blurRadius: 10),
+                        Shadow(color: accentColor.withAlpha(77), blurRadius: 20),
                       ],
                     ),
                     maxLines: 2, // Permite 2 líneas para nombres largos
@@ -371,32 +364,33 @@ class _DashboardHeader extends StatelessWidget {
               child: InkWell(
                 onTap: () async {
                   // Añadir confirmación antes de cerrar sesión
-                   final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: const Color(0xFF2D2D5A),
-                        title: const Text('Confirmar', style: TextStyle(color: Colors.white)),
-                        content: const Text('¿Seguro que quieres cerrar sesión?', style: TextStyle(color: Colors.white70)),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
-                          FilledButton(
-                            onPressed: () => Navigator.of(ctx).pop(true),
-                            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-                            child: const Text('Cerrar Sesión'),
-                          ),
-                        ],
-                      ),
-                    ) ?? false; // Si el usuario cierra el diálogo, es false
+                  final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: const Color(0xFF2D2D5A),
+                          title: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+                          content: const Text('¿Seguro que quieres cerrar sesión?', style: TextStyle(color: Colors.white70)),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+                            FilledButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                              child: const Text('Cerrar Sesión'),
+                            ),
+                          ],
+                        ),
+                      ) ??
+                      false; // Si el usuario cierra el diálogo, es false
 
-                   if (confirm) {
-                     if (context.mounted) { // Buena práctica post-await
-                       await authService.signOut();
-                     }
-                     // No necesitas navegar aquí, el AuthWrapper se encargará
-                   }
+                  if (confirm) {
+                    if (context.mounted) {
+                      await authService.signOut();
+                    }
+                    // No necesitas navegar aquí, el AuthWrapper se encargará
+                  }
                 },
                 borderRadius: BorderRadius.circular(30),
-                splashColor: accentColor.withAlpha(77), // 0.3
+                splashColor: const Color(0xFF00BFFF).withAlpha(77),
                 child: const Tooltip(
                   message: 'Cerrar Sesión',
                   child: Padding(
@@ -429,18 +423,18 @@ class _ProfileCompletionBanner extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: surfaceColor.withAlpha(178), // 0.7
+            color: surfaceColor.withAlpha(178), // 0.7 aprox
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: accentColor.withAlpha(128)), // 0.5
+            border: Border.all(color: accentColor.withAlpha(128)), // 0.5 approx
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline_rounded, color: accentColor, size: 32),
+              const Icon(Icons.info_outline_rounded, color: Color(0xFF00BFFF), size: 32),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: const [
                     Text('Finaliza la configuración', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
                     SizedBox(height: 4),
                     Text('Completa tu perfil para desbloquear todas las funciones.', style: TextStyle(color: Colors.white70)),
@@ -475,24 +469,24 @@ class _MetricsSectionPlaceholder extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(16),
-         border: Border.all(color: accentColor.withAlpha(77)), // 0.3
+        border: Border.all(color: accentColor.withAlpha(77)), // 0.3 approx
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-           Row(
-             children: [
-               const Icon(Icons.insights_rounded, color: accentColor, size: 20),
-               const SizedBox(width: 8),
-               Text(
-                 'Actividad Reciente',
-                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                       color: Colors.white,
-                       fontWeight: FontWeight.bold,
-                     ),
-               ),
-             ],
-           ),
+          Row(
+            children: [
+              const Icon(Icons.insights_rounded, color: Color(0xFF00BFFF), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Actividad Reciente',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           // Placeholder para las métricas (ej. visitas al perfil)
           const Row(
@@ -507,11 +501,11 @@ class _MetricsSectionPlaceholder extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () { /* TODO: Navegar a pantalla de métricas detalladas */
-                 ScaffoldMessenger.of(context).showSnackBar(
-                   const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
-                 );
-               },
+              onPressed: () {
+                // TODO: Navegar a pantalla de métricas detalladas
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).')));
+              },
               style: TextButton.styleFrom(foregroundColor: accentColor),
               child: const Text('Ver más detalles'),
             ),
@@ -542,7 +536,6 @@ class _MetricItemPlaceholder extends StatelessWidget {
     );
   }
 }
-
 
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
@@ -578,7 +571,7 @@ class _PublicProfileButton extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        side: const BorderSide(color: accentColor, width: 2),
+        side: const BorderSide(color: Color(0xFF00BFFF), width: 2),
         textStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -614,7 +607,7 @@ class _ModulesGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-             // Botón "Gestionar Tienda"
+            // Botón "Gestionar Tienda"
             if (user.publicProfileTemplate == 'store') // Lógica de negocio
               _ModuleCard(
                 title: 'Gestionar Tienda',
@@ -625,19 +618,19 @@ class _ModulesGrid extends StatelessWidget {
                   ));
                 },
               ),
-              // Botón "Gestionar Catálogo"
-          if (user.publicProfileTemplate == 'catalog') // Lógica de negocio
-            _ModuleCard(
-              title: 'Gestionar Catálogo',
-              // (Asegúrate de añadir 'auto_stories_outlined' a tu _iconMap o usa un ícono directamente)
-              icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined, 
-              onTap: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  // Navegamos a la nueva pantalla de gestión
-                  builder: (_) => ManageCatalogScreen(user: user), 
-                ));
-              },
-            ),
+            // Botón "Gestionar Catálogo"
+            if (user.publicProfileTemplate == 'catalog') // Lógica de negocio
+              _ModuleCard(
+                title: 'Gestionar Catálogo',
+                icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined,
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    // --- CAMBIO DE NAVEGACIÓN ---
+                    // Navegamos a la nueva pantalla de edición visual
+                    builder: (_) => CatalogEditorScreen(user: user),
+                  ));
+                },
+              ),
 
             // Módulos activos
             ...activeModules.map((module) {
@@ -676,9 +669,7 @@ class _ModulesGrid extends StatelessWidget {
       // Usamos el operador '!' porque ya comprobamos que no es nulo.
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Navegación para "$moduleId" no implementada.'))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Navegación para "$moduleId" no implementada.')));
     }
   }
 }
@@ -771,13 +762,14 @@ class _AddModuleCard extends StatelessWidget {
           radius: const Radius.circular(16),
           borderType: BorderType.rRect,
           dashPattern: const [8, 6],
-          child: const Center(
+          child: Center(
+            // => Quité `const` ya que usamos accentColor dinámico en Icon color.
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.add_rounded, size: 40, color: accentColor),
-                SizedBox(height: 12),
-                Text('Añadir Módulo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                const Text('Añadir Módulo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -855,29 +847,30 @@ class _DottedPainter extends CustomPainter {
     }
 
     Path dashPath = Path();
-    double distance = 0.0;
-    if (dashPattern.isNotEmpty && dashPattern[0] > 0) {
-       final double dashLength = dashPattern[0];
-       final double gapLength = dashPattern.length > 1 ? dashPattern[1] : 0;
-       final double totalDashPatternLength = dashLength + gapLength;
 
-       if (totalDashPatternLength > 0) {
-          for (PathMetric pathMetric in path.computeMetrics()) {
-            while (distance < pathMetric.length) {
-              final double end = (distance + dashLength).clamp(0.0, pathMetric.length);
-              dashPath.addPath(
-                pathMetric.extractPath(distance, end),
-                Offset.zero,
-              );
-              distance += totalDashPatternLength;
-            }
+    if (dashPattern.isNotEmpty && dashPattern[0] > 0) {
+      final double dashLength = dashPattern[0];
+      final double gapLength = dashPattern.length > 1 ? dashPattern[1] : 0;
+      final double totalDashPatternLength = dashLength + gapLength;
+
+      if (totalDashPatternLength > 0) {
+        for (PathMetric pathMetric in path.computeMetrics()) {
+          double distance = 0.0; // <<-- reset distance per metric
+          while (distance < pathMetric.length) {
+            final double end = (distance + dashLength).clamp(0.0, pathMetric.length);
+            dashPath.addPath(
+              pathMetric.extractPath(distance, end),
+              Offset.zero,
+            );
+            distance += totalDashPatternLength;
           }
-        } else {
-           dashPath = path;
         }
       } else {
-         dashPath = path;
+        dashPath = path;
       }
+    } else {
+      dashPath = path;
+    }
 
     canvas.drawPath(dashPath, paint);
   }
@@ -890,7 +883,6 @@ class _DottedPainter extends CustomPainter {
       oldDelegate.borderType != borderType ||
       !listEquals(oldDelegate.dashPattern, dashPattern); // Comparar listas correctamente
 }
-
 
 // --- Widgets de Carga ---
 // (Tu código existente para _LoadingSkeleton, _ShimmerObject, _SlidingGradientTransform)
@@ -938,36 +930,36 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
     return AnimatedBuilder(
       animation: _shimmerController,
       builder: (context, child) {
-         return CustomScrollView(
-           slivers: [
-             SliverPadding(
-               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-               sliver: SliverToBoxAdapter(
-                 child: Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   children: [
-                     Expanded(
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
-                           const SizedBox(height: 8),
-                           _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
-                         ],
-                       ),
-                     ),
-                     _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
-                   ],
-                 ),
-               ),
-             ),
-             // Placeholder para Métricas
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
+                          const SizedBox(height: 8),
+                          _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
+                        ],
+                      ),
+                    ),
+                    _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
+                  ],
+                ),
+              ),
+            ),
+            // Placeholder para Métricas
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               sliver: SliverToBoxAdapter(child: _ShimmerObject(height: 120, gradient: _shimmerGradient)),
             ),
-             // Placeholder para Botón Perfil Público
-             SliverPadding(
+            // Placeholder para Botón Perfil Público
+            SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               sliver: SliverToBoxAdapter(child: _ShimmerObject(height: 50, gradient: _shimmerGradient)),
             ),
@@ -980,9 +972,9 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
                 children: List.generate(6, (index) => _ShimmerObject(gradient: _shimmerGradient)),
               ),
             ),
-           ],
-         );
-       }
+          ],
+        );
+      },
     );
   }
 }
@@ -1024,4 +1016,3 @@ class _SlidingGradientTransform extends GradientTransform {
     return Matrix4.translationValues(translationX, 0.0, 0.0);
   }
 }
-

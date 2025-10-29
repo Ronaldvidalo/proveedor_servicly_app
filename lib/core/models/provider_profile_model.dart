@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // <-- AÑADIDO PARA debugPrint
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
 ///
@@ -158,6 +159,7 @@ class ProviderProfileModel {
     bool? showPromotionsModule,
     bool? showGiftCardModule,
   }) {
+    // --- ESTE ES EL MÉTODO 'copyWith' CORREGIDO ---
     return ProviderProfileModel(
       providerId: providerId ?? this.providerId,
       businessName: businessName ?? this.businessName,
@@ -187,7 +189,62 @@ class ProviderProfileModel {
       showGiftCardModule: showGiftCardModule ?? this.showGiftCardModule,
     );
   }
-}
+
+  // --- MÉTODO 'toMap' AÑADIDO EN SU LUGAR CORRECTO ---
+  /// Convierte este objeto ProviderProfileModel de nuevo a un Map anidado,
+  /// listo para ser guardado en el campo 'personalization' de Firestore.
+  Map<String, dynamic> toMap() {
+    return {
+      // Campos planos en 'personalization'
+      'businessName': businessName,
+      'logoUrl': logoUrl,
+      // Convierte Color a Hex RRGGBB (sin el 'FF' alfa)
+      'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2),
+      'contactEmail': contactEmail,
+      'address': address,
+      'slogan': slogan,
+      'averageRating': averageRating,
+      'reviewCount': reviewCount,
+      'openingHours': openingHours,
+      'phone': phone,
+      'whatsapp': whatsapp,
+      
+      // --- Módulos Anidados ---
+
+      // Módulo de Bienvenida
+      'welcomeModule': {
+        'show': showWelcomeModule,
+        'type': welcomeModuleType,
+        'text_content': welcomeMessage,
+        'video_url': welcomeVideoUrl,
+        'video_source_type': welcomeVideoSourceType,
+      },
+      
+      // Módulo de Portafolio
+      'portfolioModule': {
+        'show': showPortfolioModule,
+      },
+      
+      // Módulo de Reseñas
+      'reviewsModule': {
+        'show': showReviewsModule,
+      },
+      
+      // Módulo de Promociones
+      'promotionsModule': {
+        'show': showPromotionsModule,
+      },
+      
+      // Módulo de Gift Cards
+      'giftCardModule': {
+        'show': showGiftCardModule,
+      },
+      
+      // NO incluimos 'providerId' o 'activeModules'
+      // porque pertenecen al documento raíz, no a 'personalization'.
+    };
+  }
+} // <-- Esta es la llave de cierre de tu clase ProviderProfileModel
 
 /// Función de utilidad para convertir un string de color hexadecimal a un objeto [Color].
 Color? _colorFromHex(String? hexColor) {
@@ -197,7 +254,8 @@ Color? _colorFromHex(String? hexColor) {
     try {
       return Color(int.parse('FF$hexCode', radix: 16));
     } catch (e) {
-      print("Error parsing color: $hexColor");
+      // CORREGIDO: Usar debugPrint
+      debugPrint("Error parsing color: $hexColor. Error: $e");
       return null;
     }
   }
