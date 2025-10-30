@@ -1,22 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
-// ¡AÑADIDO! Importamos el servicio de permisos
 import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 
-/// Un Modal BottomSheet que permite al proveedor
-/// activar o desactivar la visibilidad de los módulos de su catálogo.
 class ModuleSettingsSheet extends StatelessWidget {
-  const ModuleSettingsSheet({Key? key}) : super(key: key);
+  const ModuleSettingsSheet({super.key}); // Añadido super.key
 
   @override
   Widget build(BuildContext context) {
-    // Leemos el servicio de permisos del contexto.
-    // Esto asume que PermissionsService está proveído en tu MultiProvider
-    // tal como me mostraste (como un ProxyProvider).
     final permissions = context.read<PermissionsService>();
 
     return Container(
+      // Damos un color de fondo oscuro que coincida con el editor
+      color: Colors.grey[850], // O el color que prefieras
       padding: const EdgeInsets.all(16.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -25,24 +21,19 @@ class ModuleSettingsSheet extends StatelessWidget {
           // Título del BottomSheet
           Text(
             "Configurar Módulos",
-            style: Theme.of(context).textTheme.headlineSmall,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white), // Texto blanco
           ),
           Text(
             "Selecciona qué módulos quieres mostrar en tu perfil público.",
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70), // Texto más claro
           ),
-          const Divider(height: 32),
-
-          // --- Lista de Módulos ---
-          // Usamos 'Consumer' para que cada switch se reconstruya
-          // cuando su valor cambie en el 'CatalogEditorProvider'.
+          const Divider(height: 32, color: Colors.white24), // Divisor más claro
 
           // Módulo de Bienvenida
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Bienvenida"),
-                // ¡CORREGIDO! Usamos el campo 'showWelcomeModule'
+                title: const Text("Módulo de Bienvenida", style: TextStyle(color: Colors.white)),
                 value: provider.profile.showWelcomeModule,
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
@@ -58,16 +49,14 @@ class ModuleSettingsSheet extends StatelessWidget {
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Portafolio"),
-                // ¡CORREGIDO! Usamos 'showPortfolioModule'
+                title: const Text("Módulo de Portafolio", style: TextStyle(color: Colors.white)),
                 value: provider.profile.showPortfolioModule,
-                // Lógica de Permisos: Se basa en 'canUsePortfolioModule'
                 onChanged: permissions.canUsePortfolioModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showPortfolioModule',
                     isVisible: newValue,
                   );
-                } : null, // Deshabilitado si no tiene permiso
+                } : null, 
               );
             },
           ),
@@ -78,20 +67,18 @@ class ModuleSettingsSheet extends StatelessWidget {
               return SwitchListTile(
                 title: Row(
                   children: [
-                    const Text("Módulo de Promociones"),
+                    const Text("Módulo de Promociones", style: TextStyle(color: Colors.white)),
                     if (!permissions.canUsePromotionsModule)
                       _buildUpgradeChip(),
                   ],
                 ),
-                // ¡CORREGIDO! Usamos 'showPromotionsModule'
                 value: provider.profile.showPromotionsModule,
-                // Lógica de Permisos:
                 onChanged: permissions.canUsePromotionsModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showPromotionsModule',
                     isVisible: newValue,
                   );
-                } : null, // Deshabilitado
+                } : null, 
               );
             },
           ),
@@ -102,20 +89,18 @@ class ModuleSettingsSheet extends StatelessWidget {
               return SwitchListTile(
                 title: Row(
                   children: [
-                    const Text("Módulo de Gift Cards"),
+                    const Text("Módulo de Gift Cards", style: TextStyle(color: Colors.white)),
                     if (!permissions.canUseGiftCardModule)
                       _buildUpgradeChip(),
                   ],
                 ),
-                // ¡CORREGIDO! Usamos 'showGiftCardModule'
                 value: provider.profile.showGiftCardModule,
-                // Lógica de Permisos:
                 onChanged: permissions.canUseGiftCardModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showGiftCardModule',
                     isVisible: newValue,
                   );
-                } : null, // Deshabilitado
+                } : null, 
               );
             },
           ),
@@ -124,16 +109,14 @@ class ModuleSettingsSheet extends StatelessWidget {
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Reseñas"),
-                // ¡CORREGIDO! Usamos 'showReviewsModule'
+                title: const Text("Módulo de Reseñas", style: TextStyle(color: Colors.white)),
                 value: provider.profile.showReviewsModule,
-                // Lógica de Permisos:
                 onChanged: permissions.canUseReviewsModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showReviewsModule',
                     isVisible: newValue,
                   );
-                } : null, // Deshabilitado
+                } : null, 
               );
             },
           ),
@@ -146,6 +129,8 @@ class ModuleSettingsSheet extends StatelessWidget {
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
+           // Padding para la barra de navegación del sistema (gestos)
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
     );

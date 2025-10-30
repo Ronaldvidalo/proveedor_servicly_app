@@ -42,8 +42,6 @@ class CatalogEditorProvider with ChangeNotifier {
        _permissionsService = permissionsService
   {
     _profileModelDraft = initialProfile.copyWith();
-    // Podríamos iniciar la carga de categorías aquí si fuera necesario
-    // loadInitialCategories(userId); // Necesitaríamos el userId aquí
   }
 
   // --- Getters Públicos (Generales) ---
@@ -62,84 +60,65 @@ class CatalogEditorProvider with ChangeNotifier {
 
   // --- Métodos de Mutación (Generales y Módulos Simples) ---
 
-  /// Actualiza el texto de bienvenida en el borrador.
   void updateWelcomeText(String newText) {
     if (_profileModelDraft.welcomeMessage == newText) return;
     _profileModelDraft = _profileModelDraft.copyWith(welcomeMessage: newText);
     _markAsDirty();
   }
 
-  /// Actualiza la visibilidad de un módulo (ej. desde el BottomSheet).
   void setModuleVisibility({required String moduleKey, required bool isVisible}) {
-    // (Ejemplo para portafolio)
     if (moduleKey == 'showPortfolioModule') {
       if (_profileModelDraft.showPortfolioModule == isVisible) return;
       _profileModelDraft = _profileModelDraft.copyWith(showPortfolioModule: isVisible);
     }
-    // (Ejemplo para bienvenida)
     else if (moduleKey == 'showWelcomeModule') {
        if (_profileModelDraft.showWelcomeModule == isVisible) return;
        _profileModelDraft = _profileModelDraft.copyWith(showWelcomeModule: isVisible);
     }
-    // (Ejemplo para contacto - asumiendo que se añade a copyWith)
-    // else if (moduleKey == 'showContactModule') {
-    //    if (_profileModelDraft.showContactModule == isVisible) return;
-    //    _profileModelDraft = _profileModelDraft.copyWith(showContactModule: isVisible);
-    // }
-    // (Ejemplo para reseñas)
     else if (moduleKey == 'showReviewsModule') {
        if (_profileModelDraft.showReviewsModule == isVisible) return;
        _profileModelDraft = _profileModelDraft.copyWith(showReviewsModule: isVisible);
     }
-    // (Ejemplo para promos)
     else if (moduleKey == 'showPromotionsModule') {
        if (_profileModelDraft.showPromotionsModule == isVisible) return;
        _profileModelDraft = _profileModelDraft.copyWith(showPromotionsModule: isVisible);
     }
-    // (Ejemplo para gift cards)
     else if (moduleKey == 'showGiftCardModule') {
        if (_profileModelDraft.showGiftCardModule == isVisible) return;
        _profileModelDraft = _profileModelDraft.copyWith(showGiftCardModule: isVisible);
     }
     else {
       debugPrint("Aviso: Clave de módulo desconocida en setModuleVisibility: $moduleKey");
-      return; // Key desconocida o sin cambios
+      return;
     }
-
     _markAsDirty();
   }
 
-  /// Actualiza el slogan en el borrador.
   void updateSlogan(String? newSlogan) {
     if (_profileModelDraft.slogan == newSlogan) return;
     _profileModelDraft = _profileModelDraft.copyWith(slogan: newSlogan);
     _markAsDirty();
   }
 
-  /// Actualiza el horario en el borrador.
   void updateOpeningHours(String? newHours) {
     if (_profileModelDraft.openingHours == newHours) return;
     _profileModelDraft = _profileModelDraft.copyWith(openingHours: newHours);
     _markAsDirty();
   }
 
-  /// Actualiza el teléfono en el borrador.
   void updatePhone(String? newPhone) {
     if (_profileModelDraft.phone == newPhone) return;
     _profileModelDraft = _profileModelDraft.copyWith(phone: newPhone);
     _markAsDirty();
   }
 
-  /// Actualiza el WhatsApp en el borrador.
   void updateWhatsapp(String? newWhatsapp) {
     if (_profileModelDraft.whatsapp == newWhatsapp) return;
     _profileModelDraft = _profileModelDraft.copyWith(whatsapp: newWhatsapp);
     _markAsDirty();
   }
 
-  /// Actualiza el email de contacto en el borrador.
   void updateContactEmail(String newEmail) {
-    // Asumimos que el email no puede ser null basado en el modelo
     if (_profileModelDraft.contactEmail == newEmail) return;
     _profileModelDraft = _profileModelDraft.copyWith(contactEmail: newEmail);
     _markAsDirty();
@@ -148,7 +127,6 @@ class CatalogEditorProvider with ChangeNotifier {
 
   // --- Métodos de Mutación (Portafolio) ---
 
-  /// Carga inicial de categorías desde Firestore y actualiza la lista local.
   Future<void> loadInitialCategories(String userId) async {
     _isLoadingCategories = true;
     notifyListeners();
@@ -170,14 +148,12 @@ class CatalogEditorProvider with ChangeNotifier {
     }
   }
 
-  /// Selecciona una categoría para mostrar sus ítems.
   void selectCategory(String? categoryId) {
     if (_selectedCategoryId == categoryId) return;
     _selectedCategoryId = categoryId;
     notifyListeners();
   }
 
-  /// Añade una nueva categoría de portafolio.
   Future<bool> addPortfolioCategory(String userId, String name) async {
     if (!_permissionsService.canAddPortfolioCategory(_localCategories.length)) {
       debugPrint("Límite de categorías de portafolio alcanzado.");
@@ -197,26 +173,15 @@ class CatalogEditorProvider with ChangeNotifier {
     }
   }
 
-  /// Actualiza el nombre de una categoría.
   Future<void> updatePortfolioCategoryName(String userId, String categoryId, String newName) async {
     try {
       await _firestoreService.updatePortfolioCategory(userId, categoryId, newName);
-      // --- WORKAROUND ---
-      // No actualizamos localmente porque falta copyWith en PortfolioCategoryModel.
-      // Recargamos todo para ver el cambio.
-      await loadInitialCategories(userId); 
-      // final index = _localCategories.indexWhere((cat) => cat.id == categoryId);
-      // if (index != -1) {
-      //   // ¡ESTA LÍNEA FALLA SI NO HAY copyWith!
-      //   _localCategories[index] = _localCategories[index].copyWith(name: newName); 
-      //   notifyListeners();
-      // }
+      await loadInitialCategories(userId); // Recarga para ver el cambio
     } catch (e) {
       debugPrint("Error al actualizar nombre de categoría de portafolio: $e");
     }
   }
 
-  /// Elimina una categoría (y sus ítems/archivos asociados).
   Future<void> deletePortfolioCategory(String userId, String categoryId) async {
     try {
       final itemsToDelete = await _firestoreService.getPortfolioItemsStream(userId, categoryId).first;
@@ -241,12 +206,11 @@ class CatalogEditorProvider with ChangeNotifier {
     }
   }
 
-  /// Reordena las categorías en la UI y guarda el nuevo orden en Firestore.
   Future<void> reorderPortfolioCategories(String userId, int oldIndex, int newIndex) async {
     final item = _localCategories.removeAt(oldIndex);
     final int insertIndex = (newIndex > oldIndex) ? newIndex - 1 : newIndex;
     _localCategories.insert(insertIndex, item);
-    notifyListeners(); // Actualiza UI inmediatamente
+    notifyListeners(); 
 
     final Map<String, int> newOrderMap = {};
     for (int i = 0; i < _localCategories.length; i++) {
@@ -260,22 +224,25 @@ class CatalogEditorProvider with ChangeNotifier {
     }
   }
 
-  /// Añade un nuevo ítem (foto o video) al portafolio en la categoría seleccionada.
-  Future<void> addPortfolioItem(String userId, PortfolioItemType type) async {
-     // TODO: Implementar chequeo de límite total de items (_permissionsService.canAddPortfolioItem)
-    // if (!_permissionsService.canAddPortfolioItem(await getTotalItemCount(userId))) {
-    //    debugPrint("Límite de ítems del portafolio alcanzado.");
-    //    return; // Mostrar SnackBar de límite
-    // }
+  // --- ¡MÉTODOS QUE FALTABAN! ---
 
+  /// Paso 1: Selecciona un archivo (imagen o video) del dispositivo.
+  Future<XFile?> pickPortfolioItem(PortfolioItemType type) async {
     final XFile? pickedFile = type == PortfolioItemType.image
-        ? await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 80) 
-        : await _imagePicker.pickVideo(source: ImageSource.gallery, maxDuration: _permissionsService.maxVideoDuration); 
+        ? await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 80)
+        : await _imagePicker.pickVideo(source: ImageSource.gallery, maxDuration: _permissionsService.maxVideoDuration);
+    
+    return pickedFile;
+  }
 
-    if (pickedFile == null || _selectedCategoryId == null) {
-      debugPrint("Añadir ítem cancelado: No se seleccionó archivo o categoría.");
+  /// Paso 2: Sube el archivo seleccionado y guarda sus metadatos (con caption) en Firestore.
+  Future<void> uploadAndSavePortfolioItem(String userId, XFile pickedFile, String? caption, PortfolioItemType type) async {
+    if (_selectedCategoryId == null) {
+      debugPrint("Error: No hay categoría seleccionada para guardar el ítem.");
       return;
     }
+    
+    // TODO: Implementar chequeo de límite total de items (_permissionsService.canAddPortfolioItem)
 
     _isUploadingItem = true;
     _uploadProgress = 0.0;
@@ -291,7 +258,7 @@ class CatalogEditorProvider with ChangeNotifier {
         file,
         storagePath,
         (progress) {
-          if (_isUploadingItem) { 
+          if (_isUploadingItem) {
              _uploadProgress = progress;
              notifyListeners();
           }
@@ -304,14 +271,13 @@ class CatalogEditorProvider with ChangeNotifier {
             categoryId: _selectedCategoryId!,
             type: type,
             url: downloadUrl,
+            caption: caption, // --- ¡GUARDAMOS EL TÍTULO! ---
           );
       }
-
     } catch (e) {
-      debugPrint("Error al añadir ítem de portafolio: $e");
+      debugPrint("Error al subir y guardar ítem de portafolio: $e");
     } finally {
-      // Usamos 'mounted' getter aquí por seguridad
-      if (mounted) { 
+      if (mounted) {
         _isUploadingItem = false;
         _uploadProgress = 0.0;
         _uploadingItemId = null;
@@ -335,18 +301,15 @@ class CatalogEditorProvider with ChangeNotifier {
 
   // --- Lógica de Estado y Guardado (General) ---
 
-  /// Marca el estado como "sucio" y notifica a los listeners.
   void _markAsDirty() {
     if (!_isDirty) {
       _isDirty = true;
     }
-    // Solo notifica si aún está montado
     if (mounted) {
        notifyListeners(); 
     }
   }
 
-  /// Guarda todos los cambios del borrador (_profileModelDraft) en Firestore.
   Future<bool> saveChangesToFirestore({required String providerId}) async {
     if (!_isDirty) {
        debugPrint("Guardar cambios: No hay cambios pendientes.");
@@ -354,7 +317,7 @@ class CatalogEditorProvider with ChangeNotifier {
     }
 
     _isSaving = true;
-     if (mounted) notifyListeners(); // Notifica antes del await
+     if (mounted) notifyListeners(); 
 
     try {
       await _firestoreService.updateUser(
@@ -366,28 +329,27 @@ class CatalogEditorProvider with ChangeNotifier {
 
       _isDirty = false; 
       _isSaving = false;
-       if (mounted) notifyListeners(); // Notifica después del await si está montado
+       if (mounted) notifyListeners(); 
       debugPrint("Guardar cambios: Éxito.");
       return true;
 
     } catch (e) {
       debugPrint("Error al guardar cambios generales: $e");
       _isSaving = false;
-       if (mounted) notifyListeners(); // Notifica error si está montado
+       if (mounted) notifyListeners(); 
       return false; 
     }
   }
 
-   // --- Helper para verificar si el widget está montado ---
+   // --- Helper 'mounted' ---
    bool _mounted = true; 
 
    @override
    void dispose() {
-     _mounted = false; // Marcar como no montado al hacer dispose
+     _mounted = false; 
      super.dispose();
    }
 
-   // Getter para verificar si está montado 
    bool get mounted => _mounted;
 
 } // Fin de la clase CatalogEditorProvider

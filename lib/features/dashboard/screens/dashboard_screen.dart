@@ -20,7 +20,7 @@ import '../../../core/models/user_model.dart';
 import '../../../core/models/module_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/firestore_service.dart';
-import '../../modules/screens/modules_screen.dart';
+import 'package:proveedor_servicly_app/features/catalogo/modules/modules_screen.dart';
 import '../../profile/screens/create_profile_screen.dart';
 import '../../public_profile/screens/public_profile_screen.dart';
 import '../../public_profile/screens/presentation/screens/select_profile_template_screen.dart';

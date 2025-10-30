@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart'; // Importado por si acaso (aunque no se use directamente aquí)
 // Asegúrate que las rutas sean correctas desde lib/widgets/modules/
-import '../../providers/catalog_editor_provider.dart'; 
-import '../../core/models/provider_profile_model.dart';
+
+import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 
 // --- Clase Base Abstracta ---
 /// Define el contrato base para la configuración de cualquier módulo.

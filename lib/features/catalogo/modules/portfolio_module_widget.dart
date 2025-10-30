@@ -1,24 +1,24 @@
-import 'dart:async'; // Para StreamBuilder
+// import 'dart:async'; // ¡Error 4! Eliminado (no se usa StreamBuilder directamente aquí)
+import 'dart:io'; // Para File
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart'; // Aunque la lógica está en el provider, el enum se usa aquí
-import 'package:flutter/foundation.dart'; // Para debugPrint
+import 'package:image_picker/image_picker.dart'; // Para XFile y PortfolioItemType
+// import 'package:flutter/foundation.dart'; // ¡Error 5! Eliminado (debugPrint está en material.dart)
 
 // Modelos y Servicios
 import 'package:proveedor_servicly_app/core/models/portfolio_category_model.dart';
 import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/core/services/permissions_service.dart'; // Para permisos
+import 'package:proveedor_servicly_app/core/services/permissions_service.dart'; 
 
 // Provider y Configuración
-// Ajusta la ruta si el provider no está 3 niveles arriba desde lib/widgets/modules/
-import '../../providers/catalog_editor_provider.dart';
-// Importación local (misma carpeta)
-import './module_config.dart';
+// ¡Rutas verificadas! (Asumiendo que están en carpetas paralelas)
+import '../../../providers/catalog_editor_provider.dart'; 
+import './module_config.dart'; // Importación local (misma carpeta)
 
-// --- Widgets Auxiliares --- (Ahora sí los usamos)
-import './_portfolio_item_card.dart';
-import './_category_chip.dart';
+// Widgets Auxiliares
+import './_portfolio_item_card.dart'; 
+import './_category_chip.dart';      
 
 class PortfolioModuleWidget extends StatelessWidget {
   final PortfolioModuleConfig config;
@@ -27,10 +27,10 @@ class PortfolioModuleWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cfg = config; // Promoción de tipo
+    final cfg = config; 
 
     if (cfg is PortfolioModuleViewConfig) {
-      return _PortfolioView(providerId: cfg.providerId);
+      return _PortfolioView(providerId: cfg.providerId); 
     }
 
     if (cfg is PortfolioModuleEditConfig) {
@@ -41,7 +41,7 @@ class PortfolioModuleWidget extends StatelessWidget {
     }
 
     debugPrint("Error: Tipo de PortfolioModuleConfig desconocido o importación fallida: ${cfg.runtimeType}");
-    return const SizedBox.shrink(); // Fallback seguro
+    return const SizedBox.shrink(); 
   }
 }
 
@@ -58,7 +58,7 @@ class _PortfolioView extends StatefulWidget {
 }
 
 class _PortfolioViewState extends State<_PortfolioView> {
-  String? _selectedCategoryId;
+  String? _selectedCategoryId; 
 
   @override
   Widget build(BuildContext context) {
@@ -85,19 +85,17 @@ class _PortfolioViewState extends State<_PortfolioView> {
               if (categorySnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator(strokeWidth: 2));
               }
-              // Si no hay categorías, no muestra nada (ni siquiera el selector)
               if (categorySnapshot.hasError || !categorySnapshot.hasData || categorySnapshot.data!.isEmpty) {
-                return const SizedBox(height: 40); // Mantiene el espacio vertical
+                return const SizedBox(height: 40); 
               }
 
               final categories = categorySnapshot.data!;
 
-              // Selecciona la primera si es necesario, usando post frame callback
               if (_selectedCategoryId == null || !categories.any((c) => c.id == _selectedCategoryId)) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
+                      if (mounted) { 
                            setState(() {
-                              _selectedCategoryId = categories.isNotEmpty ? categories.first.id : null;
+                              _selectedCategoryId = categories.isNotEmpty ? categories.first.id : null; 
                            });
                       }
                   });
@@ -105,16 +103,18 @@ class _PortfolioViewState extends State<_PortfolioView> {
                      _selectedCategoryId = categories.first.id;
                   }
               }
-
-              // Si por alguna razón sigue siendo null (ej. categorías vacías después del callback)
-              // no mostramos el ListView para evitar errores.
+              
+              if (categories.isEmpty) {
+                  return const SizedBox(height: 40);
+              }
+              
               if (_selectedCategoryId == null && categories.isNotEmpty) {
-                 _selectedCategoryId = categories.first.id; // Intenta asignar de nuevo por si acaso
+                 _selectedCategoryId = categories.first.id;
               }
 
 
               return SizedBox(
-                height: 40,
+                height: 40, 
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -123,12 +123,11 @@ class _PortfolioViewState extends State<_PortfolioView> {
                   itemBuilder: (context, index) {
                     final category = categories[index];
                     final isSelected = category.id == _selectedCategoryId;
-                    // --- USANDO WIDGET AUXILIAR ---
-                    return CategoryChip(
+                    return CategoryChip( 
                       label: category.name,
                       isSelected: isSelected,
                       onTap: () {
-                         if (!isSelected) {
+                         if (!isSelected) { 
                             setState(() {
                                _selectedCategoryId = category.id;
                             });
@@ -146,7 +145,7 @@ class _PortfolioViewState extends State<_PortfolioView> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: _selectedCategoryId == null
-              ? const Center(child: Text("Cargando ítems...", style: TextStyle(color: Colors.grey))) // Mensaje inicial o si no hay categorías
+              ? const Center(child: Text("Cargando ítems...", style: TextStyle(color: Colors.grey))) 
               : StreamBuilder<List<PortfolioItemModel>>(
                   stream: firestoreService.getPortfolioItemsStream(widget.providerId, _selectedCategoryId!),
                   builder: (context, itemSnapshot) {
@@ -172,18 +171,17 @@ class _PortfolioViewState extends State<_PortfolioView> {
 
                     return GridView.builder(
                       shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                      physics: const NeverScrollableScrollPhysics(), 
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
+                        crossAxisCount: crossAxisCount, 
                         crossAxisSpacing: 10,
                         mainAxisSpacing: 10,
-                        childAspectRatio: 1.0,
+                        childAspectRatio: 1.0, 
                       ),
                       itemCount: items.length,
                       itemBuilder: (context, index) {
                         final item = items[index];
-                        // --- USANDO WIDGET AUXILIAR ---
-                        return PortfolioItemCard(item: item, isEditable: false);
+                        return PortfolioItemCard(item: item, isEditable: false); 
                       },
                     );
                   },
@@ -215,7 +213,7 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
   void initState() {
     super.initState();
      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted) { 
            widget.editorProvider.loadInitialCategories(widget.userId);
         }
      });
@@ -223,13 +221,12 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchamos los cambios
     final provider = context.watch<CatalogEditorProvider>();
-    final permissions = context.read<PermissionsService>();
-    final firestoreService = context.read<FirestoreService>();
+    final permissions = context.read<PermissionsService>(); 
+    final firestoreService = context.read<FirestoreService>(); 
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 16.0), 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -248,7 +245,7 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
                   tooltip: "Añadir categoría",
                   onPressed: permissions.canAddPortfolioCategory(provider.localCategories.length)
                     ? () => _showAddCategoryDialog(context, provider, widget.userId)
-                    : null, // Deshabilitado si alcanza el límite
+                    : null, 
                 ),
               ],
             ),
@@ -265,17 +262,16 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
                     )
                   : ReorderableListView.builder(
                       shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                      physics: const NeverScrollableScrollPhysics(), 
                       itemCount: provider.localCategories.length,
                       itemBuilder: (context, index) {
                         final category = provider.localCategories[index];
                         final isSelected = category.id == provider.selectedCategoryId;
                         return ListTile(
-                          key: ValueKey(category.id),
+                          key: ValueKey(category.id), 
                           title: Text(category.name),
                           selected: isSelected,
-                          // Usamos withAlpha
-                          selectedTileColor: Colors.blue.withAlpha((255 * 0.1).round()),
+                          selectedTileColor: Colors.blue.withAlpha((255 * 0.1).round()), 
                           onTap: () => provider.selectCategory(category.id),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -290,8 +286,7 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
                                 tooltip: "Eliminar categoría",
                                 onPressed: () => _showDeleteCategoryDialog(context, provider, widget.userId, category),
                               ),
-                              // Handle para arrastrar
-                               ReorderableDragStartListener( index: index, child: const Icon(Icons.drag_handle)), // Descomentado
+                               ReorderableDragStartListener( index: index, child: const Icon(Icons.drag_handle)),
                             ],
                           ),
                         );
@@ -323,13 +318,33 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
                     icon: const Icon(Icons.add_photo_alternate_outlined, color: Colors.blue),
                     tooltip: "Añadir Foto",
                     // TODO: Añadir chequeo de permisos canAddPortfolioItem
-                    onPressed: provider.isUploadingItem ? null : () => provider.addPortfolioItem(widget.userId, PortfolioItemType.image),
+                    onPressed: provider.isUploadingItem 
+                      ? null 
+                      : () async { 
+                          // --- CORRECCIÓN use_build_context_synchronously ---
+                          // Guardamos el context (para el diálogo) ANTES del await
+                          final buildContext = context; 
+                          final file = await provider.pickPortfolioItem(PortfolioItemType.image);
+                          // Verificamos mounted ANTES de usar el context
+                          if (file != null && mounted) { 
+                            _showAddCaptionDialog(buildContext, provider, widget.userId, file, PortfolioItemType.image);
+                          }
+                        },
                   ),
                   IconButton(
                     icon: const Icon(Icons.video_call_outlined, color: Colors.orange),
                     tooltip: "Añadir Video",
                     // TODO: Añadir chequeo de permisos canAddPortfolioItem
-                    onPressed: provider.isUploadingItem ? null : () => provider.addPortfolioItem(widget.userId, PortfolioItemType.video),
+                    onPressed: provider.isUploadingItem 
+                      ? null 
+                      : () async { 
+                          // --- CORRECCIÓN use_build_context_synchronously ---
+                          final buildContext = context;
+                          final file = await provider.pickPortfolioItem(PortfolioItemType.video);
+                           if (file != null && mounted) {
+                            _showAddCaptionDialog(buildContext, provider, widget.userId, file, PortfolioItemType.video);
+                          }
+                        },
                   ),
                 ],
               ],
@@ -359,7 +374,6 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
 
                     return Column(
                       children: [
-                        // Indicador de subida
                         if (provider.isUploadingItem && provider.uploadingItemId != null)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 16.0),
@@ -375,7 +389,6 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
                             ),
                           ),
 
-                        // Grid o mensaje si está vacío
                        (items.isEmpty && !provider.isUploadingItem)
                           ? const Center(
                               child: Padding(
@@ -394,14 +407,11 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
                               ),
                               itemCount: items.length + (provider.isUploadingItem ? 1 : 0),
                               itemBuilder: (context, index) {
-                                // Placeholder si está subiendo
                                 if (provider.isUploadingItem && index == items.length) {
                                   return _buildUploadingPlaceholder();
                                 }
-                                // Item normal
                                 final item = items[index];
-                                // --- USANDO WIDGET AUXILIAR ---
-                                return PortfolioItemCard(
+                                return PortfolioItemCard( 
                                   item: item,
                                   isEditable: true,
                                   onDelete: () => _showDeleteItemDialog(context, provider, widget.userId, item),
@@ -418,7 +428,85 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
     );
   }
 
-  // --- Diálogos Helper --- (Sin cambios, pero con verificaciones 'mounted' añadidas)
+  // --- Diálogos Helper ---
+
+  /// Muestra un diálogo para añadir un título (caption) antes de subir.
+  void _showAddCaptionDialog(
+    BuildContext context, 
+    CatalogEditorProvider provider, 
+    String userId, 
+    XFile file, 
+    PortfolioItemType type
+  ) {
+    final captionController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (ctx) {
+         // Usamos un StatefulBuilder (o Consumer) para que el diálogo se actualice
+         // si el estado de 'isUploading' cambia
+         return Consumer<CatalogEditorProvider>(
+           builder: (context, provider, child) {
+             return AlertDialog(
+                title: Text(type == PortfolioItemType.image ? "Añadir Foto" : "Añadir Video"),
+                // --- CORRECCIÓN LINT --- (sort_child_properties_last)
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 150,
+                      width: 150,
+                      child: type == PortfolioItemType.image
+                          ? Image.file(File(file.path), fit: BoxFit.cover)
+                          : Container(color: Colors.black, child: const Center(child: Icon(Icons.videocam, color: Colors.white, size: 50))),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: captionController,
+                      decoration: const InputDecoration(
+                        labelText: "Título (Opcional)",
+                        border: OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: provider.isUploadingItem ? null : () => Navigator.of(ctx).pop(), 
+                    child: const Text("Cancelar")
+                  ),
+                  ElevatedButton(
+                    onPressed: provider.isUploadingItem 
+                      ? null 
+                      : () async {
+                          final navigator = Navigator.of(ctx); 
+                          final caption = captionController.text.trim();
+                          
+                          await provider.uploadAndSavePortfolioItem(
+                            userId, 
+                            file, 
+                            caption.isEmpty ? null : caption, 
+                            type
+                          );
+                          
+                          // Usamos 'mounted' del State, no del context del diálogo
+                          if (!mounted) return; 
+                          navigator.pop(); 
+                        },
+                     child: provider.isUploadingItem 
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                        : const Text("Guardar y Subir"),
+                  ),
+                ],
+              );
+           },
+         );
+      }
+    );
+  }
+
 
   void _showAddCategoryDialog(BuildContext context, CatalogEditorProvider provider, String userId) {
     final nameController = TextEditingController();
@@ -442,18 +530,15 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState?.validate() ?? false) {
-                 // Guardamos referencias ANTES del await
-                 final scaffoldMessenger = ScaffoldMessenger.of(ctx);
-                 final navigator = Navigator.of(ctx);
+                 final scaffoldMessenger = ScaffoldMessenger.of(ctx); 
+                 final navigator = Navigator.of(ctx); 
                 final success = await provider.addPortfolioCategory(userId, nameController.text.trim());
-                 // Verificamos mounted DESPUÉS del await
-                 if (!mounted) return;
-                if (success) {
-                  navigator.pop();
+                 if (!mounted) return; 
+                if (success) { 
+                  navigator.pop(); 
                 } else {
-                    // Verificamos mounted de nuevo antes de usar ctx
-                    if (!navigator.mounted) return; // Usamos el navigator que tiene el context original
-                    scaffoldMessenger.showSnackBar(
+                    if (!navigator.mounted) return; 
+                    scaffoldMessenger.showSnackBar( 
                        const SnackBar(content: Text('Error al añadir categoría o límite alcanzado.'), backgroundColor: Colors.orange)
                     );
                 }
@@ -488,10 +573,10 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
             ElevatedButton(
               onPressed: () async {
                  if (formKey.currentState?.validate() ?? false) {
-                   final navigator = Navigator.of(ctx);
+                   final navigator = Navigator.of(ctx); 
                    await provider.updatePortfolioCategoryName(userId, category.id, nameController.text.trim());
-                    if (!mounted) return;
-                    navigator.pop();
+                    if (!mounted) return; 
+                    navigator.pop(); 
                  }
               },
               child: const Text("Guardar"),
@@ -512,10 +597,10 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () async {
-                  final navigator = Navigator.of(ctx);
+                  final navigator = Navigator.of(ctx); 
                   await provider.deletePortfolioCategory(userId, category.id);
-                   if (!mounted) return;
-                   navigator.pop();
+                   if (!mounted) return; 
+                   navigator.pop(); 
               },
               child: const Text("Eliminar Todo"),
             ),
@@ -535,9 +620,9 @@ class _PortfolioEditState extends State<_PortfolioEdit> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () async {
-                  final navigator = Navigator.of(ctx);
+                  final navigator = Navigator.of(ctx); 
                   await provider.deletePortfolioItem(userId, item);
-                   if (!mounted) return;
+                   if (!mounted) return; 
                    navigator.pop();
               },
               child: const Text("Eliminar"),
