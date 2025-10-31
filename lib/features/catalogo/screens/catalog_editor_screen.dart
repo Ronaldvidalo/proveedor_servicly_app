@@ -4,12 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/core/services/provider_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 // Provider
 import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
-// --- NUESTROS WIDGETS DE EDICIÓN ---
+
+// --- ¡RUTAS CORREGIDAS! ---
 import '../widgets/catalog_editor_layout.dart'; // El layout principal
 import 'package:proveedor_servicly_app/features/catalogo/modules/module_settings_sheet.dart';
 
@@ -40,35 +40,40 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
 
   /// Carga el ProviderProfileModel inicial
   Future<ProviderProfileModel?> _loadInitialProfile() async {
-    final providerService = Provider.of<ProviderService>(context, listen: false);
+    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
 
     try {
-      final profile = await providerService.getProviderProfile(widget.user.uid);
+      var profile = await firestoreService.getCatalogData(widget.user.uid);
+      
       if (!mounted) return null;
 
       if (profile == null) {
          if(mounted) {
            ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No se encontró perfil existente. Puedes crear uno aquí.'), backgroundColor: Colors.orange),
+            const SnackBar(content: Text('Creando nuevo perfil de catálogo...'), backgroundColor: Colors.green),
           );
         }
-         return ProviderProfileModel(
+         
+         profile = ProviderProfileModel(
             providerId: widget.user.uid,
             businessName: widget.user.displayName ?? 'Nuevo Negocio',
-            logoUrl: '',
-            brandColor: Colors.deepPurple,
-            activeModules: widget.user.activeModules ?? [],
+            logoUrl: '', 
+            brandColor: Colors.deepPurple, 
+            activeModules: widget.user.activeModules ?? [], 
             profileType: 'catalog',
             contactEmail: widget.user.email ?? '', 
             welcomeMessage: '¡Bienvenido a mi negocio!', 
              showWelcomeModule: true, welcomeModuleType: 'text',
              showPortfolioModule: true, showReviewsModule: true,
              showPromotionsModule: false, showGiftCardModule: false,
+             showBookingModule: true, showQuotesModule: false,
          );
+         
+         await firestoreService.setCatalogData(widget.user.uid, profile.toMap());
       }
       return profile; 
     } catch (e) {
-      debugPrint("Error crítico al cargar ProviderProfile: $e");
+      debugPrint("Error crítico al cargar/crear ProviderProfile: $e");
       if (!mounted) return null;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -134,67 +139,39 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
           ),
           child: Builder(
             builder: (context) {
-              // Obtenemos el provider para pasarlo al layout
-              final editorProvider = context.read<CatalogEditorProvider>();
+              // El provider se lee/escucha dentro del layout, no aquí.
 
               return Scaffold(
+                // ¡LA APPBAR ESTÁ AQUÍ AHORA! (Ver _buildSliverHeader en el layout)
+                // (O la dejamos comentada si _buildSliverHeader la maneja)
+                /*
                 appBar: AppBar(
                   title: const Text("Editar Catálogo"),
-                  backgroundColor: Colors.grey[900], // Fondo oscuro
+                  backgroundColor: Colors.grey[900], 
                   elevation: 1.0, 
                   actions: [
                     Consumer<CatalogEditorProvider>(
                       builder: (ctx, provider, child) {
-                        if (provider.isSaving) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                            child: SizedBox(
-                                width: 24, height: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)),
-                          );
-                        }
-                        return TextButton(
-                          onPressed: provider.isDirty
-                              ? () async {
-                                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                                  final success = await provider.saveChangesToFirestore(providerId: widget.user.uid);
-                                  if (!mounted) return;
-                                  if (success) {
-                                    scaffoldMessenger.showSnackBar(
-                                      const SnackBar(content: Text('Cambios guardados con éxito!'), backgroundColor: Colors.green),
-                                    );
-                                  } else {
-                                     scaffoldMessenger.showSnackBar(
-                                      const SnackBar(content: Text('Error al guardar los cambios.'), backgroundColor: Colors.red),
-                                    );
-                                  }
-                                }
-                              : null,
-                          child: Text(
-                            "Guardar",
-                            style: TextStyle(
-                              color: provider.isDirty ? Colors.white : Colors.grey[600],
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        );
+                        // ... Botón Guardar ...
                       },
                     )
                   ],
                 ),
+                */
                 
-                // --- ¡CUERPO SIMPLIFICADO! ---
-                // Usamos nuestro nuevo layout de edición
-                backgroundColor: const Color(0xFF1A1A2E), // Fondo oscuro
+                backgroundColor: const Color(0xFF1A1A2E), 
                 body: CatalogEditorLayout(
-                  provider: editorProvider,
+                  // --- ¡CORRECCIÓN! ---
+                  // Le pasamos el userId al layout
                   userId: widget.user.uid,
                 ),
 
+                // --- ¡CORRECCIÓN! ---
+                // El FAB pertenece a la pantalla (Scaffold)
                 floatingActionButton: FloatingActionButton(
                   tooltip: "Configurar módulos",
                   onPressed: () {
+                    // Llamamos al método definido aquí
                     _showModuleSettings(context);
                   },
                   child: const Icon(Icons.layers_outlined),
@@ -207,15 +184,19 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
     );
   }
 
+  // --- ¡MÉTODO CORREGIDO! ---
+  // El método vive en el State de la pantalla
   void _showModuleSettings(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.grey[850], // Color oscuro
+      backgroundColor: Colors.grey[850], 
       shape: const RoundedRectangleBorder(
          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) {
+        // Usamos context.read porque el context del builder
+        // está por encima del ChangeNotifierProvider
         return ChangeNotifierProvider.value(
           value: context.read<CatalogEditorProvider>(),
           child: const ModuleSettingsSheet(),

@@ -1,45 +1,40 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/provider_profile_model.dart';
+// --- ¡IMPORTACIÓN CLAVE AÑADIDA! ---
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart'; 
 
-/// Servicio responsable de las interacciones con la colección de usuarios en Firestore
+/// Servicio responsable de las interacciones con Firestore
 /// para obtener los datos del perfil público de un proveedor.
 class ProviderService {
-  final FirebaseFirestore _firestore;
+  // --- ¡CAMBIO! ---
+  // Ya no usa FirebaseFirestore directamente, usa nuestro servicio
+  final FirestoreService _firestoreService;
 
-  /// Crea una instancia de [ProviderService].
-  ///
-  /// Requiere una instancia de [FirebaseFirestore], que normalmente se inyecta
-  /// a través de un sistema de inyección de dependencias como `Provider`.
-  ProviderService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  // --- ¡CAMBIO! ---
+  // El constructor ahora requiere el FirestoreService
+  ProviderService({required FirestoreService firestoreService})
+      : _firestoreService = firestoreService;
 
   /// Obtiene el perfil público de un proveedor desde Firestore.
-  ///
-  /// Dado un [providerId], este método recupera el documento correspondiente
-  /// de la colección `users` y lo mapea a un [ProviderProfileModel].
-  ///
-  /// Devuelve el [ProviderProfileModel] si tiene éxito.
-  /// Devuelve `null` si el documento no existe o si ocurre un error.
   Future<ProviderProfileModel?> getProviderProfile(String providerId) async {
     try {
-      // Apuntamos a la colección 'users' para obtener los datos del proveedor.
-      final docSnapshot = await _firestore.collection('users').doc(providerId).get();
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      // Llama al método centralizado en FirestoreService que
+      // ya sabe cómo leer desde la colección 'catalogs'.
+      final profile = await _firestoreService.getCatalogData(providerId);
 
-      if (docSnapshot.exists) {
-        // Si el documento existe, lo convertimos a nuestro modelo.
-        return ProviderProfileModel.fromFirestore(docSnapshot);
+      if (profile != null) {
+        return profile;
       } else {
-        // El proveedor con el ID dado no existe.
-        // En una app real, podrías registrar este evento.
-        debugPrint('No se encontró un proveedor con el ID: $providerId');
+        // Esto puede pasar si un proveedor NUNCA ha abierto el editor
+        // y el documento de 'catalogs' aún no se ha creado.
+        debugPrint('No se encontró un catálogo con el ID: $providerId');
         return null;
       }
     } catch (e) {
-      // En una app real, es crucial registrar este error en un servicio de monitoreo.
       debugPrint('Error al obtener el perfil del proveedor: $e');
       return null;
     }
   }
 }
-

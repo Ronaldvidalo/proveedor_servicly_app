@@ -77,18 +77,33 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // --- PROVEEDORES DE SERVICIOS (Singletons) ---
+        
+        // 1. Servicios que no dependen de nada
+        Provider<StorageService>(create: (_) => StorageService()),
+        Provider<ProductService>(create: (_) => ProductService()),
+        Provider<CategoryService>(create: (_) => CategoryService()),
+        Provider<AgendaService>(create: (_) => AgendaService()),
+
+        // 2. FirestoreService (necesario para los demás)
         Provider<FirestoreService>(create: (_) => FirestoreService()),
+
+        // 3. Servicios que dependen de otros servicios
         Provider<AuthService>(
           create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
           ),
         ),
-        Provider<ProviderService>(create: (_) => ProviderService()),
-        Provider<ProductService>(create: (_) => ProductService()),
-        Provider<StorageService>(create: (_) => StorageService()),
-        Provider<CategoryService>(create: (_) => CategoryService()),
-        Provider<AgendaService>(create: (_) => AgendaService()),
+
+        // --- ¡CORRECCIÓN APLICADA AQUÍ! ---
+        // ProviderService ahora DEPENDE de FirestoreService.
+        // Usamos un ProxyProvider para "inyectar" FirestoreService.
+        ProxyProvider<FirestoreService, ProviderService>(
+          update: (context, firestoreService, previousProviderService) => 
+              ProviderService(firestoreService: firestoreService),
+        ),
+        // La línea antigua "Provider<ProviderService>(create: (_) => ProviderService())," fue reemplazada.
+
 
         // --- PROVIDERS DE ESTADO (Streams Globales) ---
         StreamProvider<User?>(
@@ -127,12 +142,10 @@ class MyApp extends StatelessWidget {
           },
         ),
 
-        // --- ¡NUEVO SERVICIO DE PERMISOS! ---
-        // Se reconstruye cada vez que el UserModel cambia.
+        // Servicio de Permisos (depende de UserModel)
         ProxyProvider<UserModel?, PermissionsService>(
           update: (context, user, previousPermissions) {
-            // Si user es null, pasamos un UserModel vacío
-            // (Ver Error Faltante abajo)
+            // Si user es null (ej. al cerrar sesión), pasamos un UserModel vacío
             return PermissionsService(user ?? UserModel.empty());
           },
         ),

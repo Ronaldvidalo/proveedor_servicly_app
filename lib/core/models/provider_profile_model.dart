@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // <-- AÑADIDO PARA debugPrint
+import 'package:flutter/foundation.dart'; // Para debugPrint
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
 ///
@@ -52,6 +52,10 @@ class ProviderProfileModel {
   final bool showPromotionsModule;
   final bool showGiftCardModule;
 
+  // --- ¡NUEVOS CAMPOS AÑADIDOS! ---
+  final bool showBookingModule; // Módulo "Agendar Cita"
+  final bool showQuotesModule; // Módulo de Presupuestos
+
 
   /// Crea una instancia de [ProviderProfileModel].
   const ProviderProfileModel({
@@ -80,7 +84,11 @@ class ProviderProfileModel {
     this.showPortfolioModule = true,
     this.showReviewsModule = true,
     this.showPromotionsModule = true, // Default true
-    this.showGiftCardModule = true,   // Default true
+    this.showGiftCardModule = true,  // Default true
+
+    // --- ¡AÑADIDOS AL CONSTRUCTOR! ---
+    this.showBookingModule = true, // Activo por defecto
+    this.showQuotesModule = false, // Inactivo por defecto
   });
 
   /// Constructor factory para crear un [ProviderProfileModel] desde un documento de Firestore.
@@ -94,6 +102,11 @@ class ProviderProfileModel {
     final reviewsModule = personalization['reviewsModule'] as Map<String, dynamic>? ?? {};
     final promotionsModule = personalization['promotionsModule'] as Map<String, dynamic>? ?? {};
     final giftCardModule = personalization['giftCardModule'] as Map<String, dynamic>? ?? {};
+    
+    // --- ¡NUEVO! Leer módulos de Presupuesto y Agendar Cita ---
+    final bookingModule = personalization['bookingModule'] as Map<String, dynamic>? ?? {};
+    final quotesModule = personalization['quotesModule'] as Map<String, dynamic>? ?? {};
+
 
     return ProviderProfileModel(
       providerId: doc.id,
@@ -127,6 +140,10 @@ class ProviderProfileModel {
       showReviewsModule: reviewsModule['show'] as bool? ?? true,
       showPromotionsModule: promotionsModule['show'] as bool? ?? true,
       showGiftCardModule: giftCardModule['show'] as bool? ?? true,
+      
+      // --- ¡AÑADIDOS AL FACTORY! ---
+      showBookingModule: bookingModule['show'] as bool? ?? true, // Activo por defecto
+      showQuotesModule: quotesModule['show'] as bool? ?? false, // Inactivo por defecto
     );
   }
 
@@ -158,8 +175,11 @@ class ProviderProfileModel {
     bool? showReviewsModule,
     bool? showPromotionsModule,
     bool? showGiftCardModule,
+
+    // --- ¡AÑADIDOS AL COPYWITH! ---
+    bool? showBookingModule,
+    bool? showQuotesModule,
   }) {
-    // --- ESTE ES EL MÉTODO 'copyWith' CORREGIDO ---
     return ProviderProfileModel(
       providerId: providerId ?? this.providerId,
       businessName: businessName ?? this.businessName,
@@ -187,10 +207,13 @@ class ProviderProfileModel {
       showReviewsModule: showReviewsModule ?? this.showReviewsModule,
       showPromotionsModule: showPromotionsModule ?? this.showPromotionsModule,
       showGiftCardModule: showGiftCardModule ?? this.showGiftCardModule,
+
+      // --- ¡AÑADIDOS AL COPYWITH! ---
+      showBookingModule: showBookingModule ?? this.showBookingModule,
+      showQuotesModule: showQuotesModule ?? this.showQuotesModule,
     );
   }
-
-  // --- MÉTODO 'toMap' AÑADIDO EN SU LUGAR CORRECTO ---
+  
   /// Convierte este objeto ProviderProfileModel de nuevo a un Map anidado,
   /// listo para ser guardado en el campo 'personalization' de Firestore.
   Map<String, dynamic> toMap() {
@@ -198,8 +221,7 @@ class ProviderProfileModel {
       // Campos planos en 'personalization'
       'businessName': businessName,
       'logoUrl': logoUrl,
-      // Convierte Color a Hex RRGGBB (sin el 'FF' alfa)
-      'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2),
+      'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2), // Convierte Color a Hex RRGGBB
       'contactEmail': contactEmail,
       'address': address,
       'slogan': slogan,
@@ -240,11 +262,21 @@ class ProviderProfileModel {
         'show': showGiftCardModule,
       },
       
-      // NO incluimos 'providerId' o 'activeModules'
-      // porque pertenecen al documento raíz, no a 'personalization'.
+      // --- ¡AÑADIDOS AL TOMAP! ---
+      
+      // Módulo de Agendar Cita
+      'bookingModule': {
+        'show': showBookingModule,
+      },
+
+      // Módulo de Presupuestos
+      'quotesModule': {
+        'show': showQuotesModule,
+      },
+      
     };
   }
-} // <-- Esta es la llave de cierre de tu clase ProviderProfileModel
+} // Fin de la clase ProviderProfileModel
 
 /// Función de utilidad para convertir un string de color hexadecimal a un objeto [Color].
 Color? _colorFromHex(String? hexColor) {
@@ -254,8 +286,7 @@ Color? _colorFromHex(String? hexColor) {
     try {
       return Color(int.parse('FF$hexCode', radix: 16));
     } catch (e) {
-      // CORREGIDO: Usar debugPrint
-      debugPrint("Error parsing color: $hexColor. Error: $e");
+      debugPrint("Error parsing color: $hexColor");
       return null;
     }
   }

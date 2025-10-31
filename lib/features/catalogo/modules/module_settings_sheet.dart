@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
 import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 
+/// Un Modal BottomSheet que permite al proveedor
+/// activar o desactivar la visibilidad de los módulos de su catálogo.
 class ModuleSettingsSheet extends StatelessWidget {
-  const ModuleSettingsSheet({super.key}); // Añadido super.key
+  const ModuleSettingsSheet({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +14,7 @@ class ModuleSettingsSheet extends StatelessWidget {
 
     return Container(
       // Damos un color de fondo oscuro que coincida con el editor
-      color: Colors.grey[850], // O el color que prefieras
+      color: Colors.grey[850],
       padding: const EdgeInsets.all(16.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -38,6 +40,24 @@ class ModuleSettingsSheet extends StatelessWidget {
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showWelcomeModule',
+                    isVisible: newValue,
+                  );
+                },
+              );
+            },
+          ),
+
+          // --- ¡NUEVO SWITCH AÑADIDO! ---
+          // Módulo de Agendar Cita
+          Consumer<CatalogEditorProvider>(
+            builder: (context, provider, child) {
+              return SwitchListTile(
+                title: const Text("Módulo de Agendar Cita", style: TextStyle(color: Colors.white)),
+                value: provider.profile.showBookingModule,
+                // Asumimos que todos pueden usar el módulo de citas
+                onChanged: (newValue) { 
+                  provider.setModuleVisibility(
+                    moduleKey: 'showBookingModule',
                     isVisible: newValue,
                   );
                 },
@@ -104,19 +124,44 @@ class ModuleSettingsSheet extends StatelessWidget {
               );
             },
           ),
-          
+
+          // --- ¡NUEVO SWITCH AÑADIDO! ---
+          // Módulo de Presupuestos
+          Consumer<CatalogEditorProvider>(
+            builder: (context, provider, child) {
+              // Asumimos que se necesita un plan pago (reutilizamos la lógica de gift card)
+              final canUse = permissions.canUseGiftCardModule; 
+              return SwitchListTile(
+                title: Row(
+                  children: [
+                    const Text("Módulo de Presupuestos", style: TextStyle(color: Colors.white)),
+                    if (!canUse) _buildUpgradeChip(),
+                  ],
+                ),
+                value: provider.profile.showQuotesModule,
+                onChanged: canUse ? (newValue) {
+                  provider.setModuleVisibility(
+                    moduleKey: 'showQuotesModule',
+                    isVisible: newValue,
+                  );
+                } : null, 
+              );
+            },
+          ),
+
           // Módulo de Reseñas
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
                 title: const Text("Módulo de Reseñas", style: TextStyle(color: Colors.white)),
                 value: provider.profile.showReviewsModule,
-                onChanged: permissions.canUseReviewsModule ? (newValue) {
+                // Asumimos que reseñas siempre está activo/disponible
+                onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showReviewsModule',
                     isVisible: newValue,
                   );
-                } : null, 
+                },
               );
             },
           ),

@@ -10,7 +10,7 @@ import '../../dashboard/screens/dashboard_screen.dart';
 import '../../onboarding/screens/intro_screen.dart';
 import '../../auth/screens/auth_screen.dart';
 import '../../onboarding/screens/onboarding_screen.dart';
-
+// import '../../profile/screens/create_profile_screen.dart'; // Opcional si OnboardingScreen no es la pantalla
 
 /// Widget guardián que dirige el flujo principal de la aplicación.
 class AuthWrapper extends StatefulWidget {
@@ -22,84 +22,93 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _hasSeenIntro = false; // TODO: Usar SharedPreferences
-  UserModel? _directFetchedUserModel; // Variable para intento de lectura directa
-  bool _attemptedDirectFetch = false; // Bandera para evitar bucles
+  UserModel? _directFetchedUserModel; 
+  bool _attemptedDirectFetch = false; 
+  bool _directFetchFailed = false; // Bandera clave
 
   void _markIntroAsSeen() {
     setState(() => _hasSeenIntro = true);
     // TODO: Guardar en SharedPreferences
   }
 
-  // --- FUNCIÓN DE LECTURA DIRECTA (PARA EVITAR CARRERA) ---
+  // --- FUNCIÓN DE LECTURA DIRECTA (MODIFICADA) ---
   Future<void> _tryDirectFetch(String uid) async {
-      if (_attemptedDirectFetch || !mounted) return; // Evitar múltiples llamadas
+      if (_attemptedDirectFetch || !mounted) return; 
       setState(() {
         _attemptedDirectFetch = true;
+        _directFetchFailed = false; 
       });
       if (kDebugMode) {
-         print("[AuthWrapper] Intentando lectura directa para UID: $uid");
+          print("[AuthWrapper] Intentando lectura directa para UID: $uid");
       }
       try {
-        // Usamos get() en lugar de snapshots() para una sola lectura
         final doc = await context.read<FirestoreService>().getUserDocument(uid);
         if (doc.exists && doc.data() != null) {
            final fetchedModel = UserModel.fromJson(doc.data()!);
            if (mounted) {
-              setState(() {
-                _directFetchedUserModel = fetchedModel;
-                if (kDebugMode) {
+             setState(() {
+               _directFetchedUserModel = fetchedModel;
+               if (kDebugMode) {
                    print("[AuthWrapper] Lectura directa exitosa: ${fetchedModel.uid}");
-                }
-              });
+               }
+             });
            }
         } else {
-           if (kDebugMode) {
+            if (kDebugMode) {
               print("[AuthWrapper] Lectura directa: Documento no encontrado para UID: $uid");
-           }
-            // Podríamos intentar de nuevo tras un breve retraso si sospechamos lentitud de Firestore
+            }
             await Future.delayed(const Duration(seconds: 2));
             if (!mounted) return;
-            // Segundo intento
-              final docRetry = await context.read<FirestoreService>().getUserDocument(uid);
-              if (docRetry.exists && docRetry.data() != null) {
-                final fetchedModelRetry = UserModel.fromJson(docRetry.data()!);
-                 if (mounted) {
-                   setState(() {
-                     _directFetchedUserModel = fetchedModelRetry;
-                      if (kDebugMode) {
-                         print("[AuthWrapper] Lectura directa (REINTENTO) exitosa: ${fetchedModelRetry.uid}");
-                      }
-                   });
-                 }
-              } else {
-                  if (kDebugMode) {
-                     print("[AuthWrapper] Lectura directa (REINTENTO): Documento aún no encontrado.");
-                  }
-              }
+
+            final docRetry = await context.read<FirestoreService>().getUserDocument(uid);
+            if (docRetry.exists && docRetry.data() != null) {
+              final fetchedModelRetry = UserModel.fromJson(docRetry.data()!);
+                if (mounted) {
+                  setState(() {
+                    _directFetchedUserModel = fetchedModelRetry;
+                     if (kDebugMode) {
+                       print("[AuthWrapper] Lectura directa (REINTENTO) exitosa: ${fetchedModelRetry.uid}");
+                     }
+                  });
+                }
+            } else {
+                if (kDebugMode) {
+                  print("[AuthWrapper] Lectura directa (REINTENTO): Documento aún no encontrado.");
+                }
+                if (mounted) {
+                  setState(() {
+                    _directFetchFailed = true; // ¡Documento NO existe!
+                  });
+                }
+            }
         }
       } catch (e) {
          if (kDebugMode) {
-            print("[AuthWrapper] !! ERROR en lectura directa: $e");
+           print("[AuthWrapper] !! ERROR en lectura directa: $e");
+         }
+         if (mounted) {
+            setState(() {
+              _directFetchFailed = true; // Error también cuenta como fallo
+            });
          }
       }
   }
-  // --- Fin Nueva Función ---
   
   @override
   Widget build(BuildContext context) {
     final firebaseUser = context.watch<User?>();
-    final userModelFromStream = context.watch<UserModel?>(); // El del StreamProvider
+    final userModelFromStream = context.watch<UserModel?>(); 
 
-    // Usamos el modelo leído directamente si el del stream aún es null y ya intentamos leerlo
     final userModel = _directFetchedUserModel ?? userModelFromStream;
 
-    // --- Logs de Depuración ---
+    // --- Logs de Depuración (Sin cambios) ---
     if (kDebugMode) {
       print("===== AuthWrapper Build =====");
       print("  Firebase User: ${firebaseUser?.uid ?? 'null'}");
       print("  User Model (Stream): ${userModelFromStream?.uid ?? 'null'}");
       print("  User Model (Direct): ${_directFetchedUserModel?.uid ?? 'null'}");
       print("  User Model (Final): ${userModel?.uid ?? 'null'}");
+      print("  Direct Fetch Failed: $_directFetchFailed");
       if (userModel != null) {
         print("    isProfileComplete: ${userModel.isProfileComplete}");
         print("    Role: ${userModel.role ?? 'null'}");
@@ -110,9 +119,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Flujo 1: Usuario NO autenticado
     if (firebaseUser == null) {
       if (kDebugMode) print("-> Estado: No autenticado. Mostrando Intro/Auth.");
-       // Reseteamos banderas si el usuario cierra sesión
-       _attemptedDirectFetch = false;
-       _directFetchedUserModel = null;
+        _attemptedDirectFetch = false;
+        _directFetchedUserModel = null;
+        _directFetchFailed = false; 
       if (!_hasSeenIntro) {
         return IntroScreen(onFinished: _markIntroAsSeen);
       } else {
@@ -122,24 +131,46 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Flujo 2: Usuario SÍ autenticado en Firebase
     else {
       if (userModel == null) {
-        // --- MODIFICACIÓN: Intentar lectura directa ---
-        // Si el stream aún no emite, pero estamos autenticados,
-        // intentamos una lectura directa (solo una vez).
+        
+        // --- ¡LÓGICA DE CORRECCIÓN DEFINITIVA! ---
+        if (_directFetchFailed) {
+            if (kDebugMode) print("-> Estado: Autenticado, PERO UserModel no existe (Fantasma/Nuevo). Mostrando OnboardingScreen.");
+            
+            // Creamos un UserModel temporal VÁLIDO usando los datos de Auth
+            // y la estructura de tu UserModel.
+            final tempUserModel = UserModel(
+              uid: firebaseUser.uid,
+              email: firebaseUser.email, // Es nullable, está bien
+              isProfileComplete: false, // Es nuevo, así que no está completo
+              personalization: {
+                // Pre-poblamos el nombre del negocio con el de Auth (si existe)
+                'businessName': firebaseUser.displayName 
+              },
+              // Todos los demás campos (planType, etc.) usarán 
+              // los valores por defecto definidos en tu constructor de UserModel.
+            );
+            
+            // Enviamos este usuario temporal a OnboardingScreen.
+            // OnboardingScreen es responsable de llamar a firestoreService.createUser()
+            // cuando el usuario termine de elegir su rol y completar datos.
+            return OnboardingScreen(userModel: tempUserModel);
+        }
+        // --- FIN DE LA CORRECCIÓN ---
+
         if (!_attemptedDirectFetch) {
-           // Llamamos a la función asíncrona sin await para no bloquear el build
            Future.microtask(() => _tryDirectFetch(firebaseUser.uid));
         }
-        // Mientras esperamos (ya sea el stream o la lectura directa), mostramos carga.
+        
         if (kDebugMode) print("-> Estado: Autenticado, esperando UserModel (Stream o Directo). Mostrando Carga.");
         return const Scaffold(
           body: Center(child: CircularProgressIndicator()),
         );
-        // --- Fin Modificación ---
       }
-      // Flujo 3: Usuario autenticado Y perfil de Firestore CARGADO (desde Stream o directo)
+      // Flujo 3: Usuario autenticado Y perfil de Firestore CARGADO
       else {
-         // Reseteamos la bandera de intento directo si ya tenemos un modelo
          _attemptedDirectFetch = false;
+         _directFetchFailed = false;
+
         if (userModel.isProfileComplete) {
           if (kDebugMode) print("-> Estado: Perfil Completo. Decidiendo por Rol (${userModel.role}).");
           if (userModel.role == 'provider') {
@@ -157,4 +188,3 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 }
-

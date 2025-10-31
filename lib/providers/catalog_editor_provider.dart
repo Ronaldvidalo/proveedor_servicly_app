@@ -6,22 +6,25 @@ import 'package:image_picker/image_picker.dart'; // Para seleccionar imágenes/v
 // Modelos y Servicios
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/core/services/storage_service.dart'; // Para subir/borrar archivos
-import 'package:proveedor_servicly_app/core/models/portfolio_category_model.dart'; // Modelo de categoría
-import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart'; // Modelo de ítem
-import 'package:proveedor_servicly_app/core/services/permissions_service.dart'; // Para límites del plan
+import 'package:proveedor_servicly_app/core/services/storage_service.dart';
+import 'package:proveedor_servicly_app/core/models/portfolio_category_model.dart';
+import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart';
+import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 
 class CatalogEditorProvider with ChangeNotifier {
   // --- SERVICIOS INYECTADOS ---
   final FirestoreService _firestoreService;
   final StorageService _storageService;
   final PermissionsService _permissionsService;
-  final ImagePicker _imagePicker = ImagePicker(); // Instancia de ImagePicker
+  final ImagePicker _imagePicker = ImagePicker();
 
   // --- ESTADO GENERAL ---
   late ProviderProfileModel _profileModelDraft;
   bool _isDirty = false;
   bool _isSaving = false;
+  
+  // --- ¡NUEVO ESTADO DE SUBIDA DE LOGO! ---
+  bool _isUploadingLogo = false;
 
   // --- ESTADO DEL PORTAFOLIO ---
   List<PortfolioCategoryModel> _localCategories = [];
@@ -29,9 +32,9 @@ class CatalogEditorProvider with ChangeNotifier {
   bool _isLoadingCategories = true;
   bool _isUploadingItem = false;
   double _uploadProgress = 0.0;
-  String? _uploadingItemId; // Para identificar qué item se está subiendo
+  String? _uploadingItemId;
 
-  // --- Constructor Actualizado ---
+  // --- Constructor ---
   CatalogEditorProvider({
     required ProviderProfileModel initialProfile,
     required FirestoreService firestoreService,
@@ -44,12 +47,11 @@ class CatalogEditorProvider with ChangeNotifier {
     _profileModelDraft = initialProfile.copyWith();
   }
 
-  // --- Getters Públicos (Generales) ---
+  // --- Getters Públicos ---
   ProviderProfileModel get profile => _profileModelDraft;
   bool get isDirty => _isDirty;
   bool get isSaving => _isSaving;
-
-  // --- Getters Públicos (Portafolio) ---
+  bool get isUploadingLogo => _isUploadingLogo;
   List<PortfolioCategoryModel> get localCategories => _localCategories;
   String? get selectedCategoryId => _selectedCategoryId;
   bool get isLoadingCategories => _isLoadingCategories;
@@ -57,8 +59,57 @@ class CatalogEditorProvider with ChangeNotifier {
   double get uploadProgress => _uploadProgress;
   String? get uploadingItemId => _uploadingItemId;
 
-
   // --- Métodos de Mutación (Generales y Módulos Simples) ---
+
+  /// Actualiza el nombre del negocio
+  void updateBusinessName(String newName) {
+    if (_profileModelDraft.businessName == newName || newName.isEmpty) return;
+    _profileModelDraft = _profileModelDraft.copyWith(businessName: newName);
+    _markAsDirty();
+  }
+
+  /// Actualiza el Logo/Foto de Portada
+  Future<void> updateLogoImage(String userId) async {
+    final XFile? pickedFile = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (pickedFile == null) return;
+
+    _isUploadingLogo = true;
+    notifyListeners();
+
+    try {
+      final file = File(pickedFile.path);
+      final fileName = 'profile_logo.jpg'; // Nombre de archivo estático para que se reemplace
+      final storagePath = 'catalogs/$userId/$fileName'; // Nueva ruta de Storage
+      
+      // Borrar el logo anterior si existe (opcional, pero recomendado)
+      if (_profileModelDraft.logoUrl.isNotEmpty) {
+        try {
+          await _storageService.deleteFileByUrl(_profileModelDraft.logoUrl);
+        } catch (e) {
+          debugPrint("No se pudo borrar el logo anterior (puede que no exista): $e");
+        }
+      }
+
+      // Subir nueva imagen
+      final downloadUrl = await _storageService.uploadFileWithProgress(
+        file,
+        storagePath,
+        (progress) { /* Podríamos mostrar progreso si quisiéramos */ },
+      );
+
+      // Actualizar el borrador local
+      _profileModelDraft = _profileModelDraft.copyWith(logoUrl: downloadUrl);
+      _markAsDirty(); // Marcar como sucio para guardar en Firestore
+    
+    } catch (e) {
+      debugPrint("Error al subir logo: $e");
+      // TODO: Mostrar SnackBar de error
+    } finally {
+      _isUploadingLogo = false;
+      if (mounted) notifyListeners();
+    }
+  }
+
 
   void updateWelcomeText(String newText) {
     if (_profileModelDraft.welcomeMessage == newText) return;
@@ -86,6 +137,14 @@ class CatalogEditorProvider with ChangeNotifier {
     else if (moduleKey == 'showGiftCardModule') {
        if (_profileModelDraft.showGiftCardModule == isVisible) return;
        _profileModelDraft = _profileModelDraft.copyWith(showGiftCardModule: isVisible);
+    }
+    else if (moduleKey == 'showBookingModule') {
+       if (_profileModelDraft.showBookingModule == isVisible) return;
+       _profileModelDraft = _profileModelDraft.copyWith(showBookingModule: isVisible);
+    }
+    else if (moduleKey == 'showQuotesModule') {
+       if (_profileModelDraft.showQuotesModule == isVisible) return;
+       _profileModelDraft = _profileModelDraft.copyWith(showQuotesModule: isVisible);
     }
     else {
       debugPrint("Aviso: Clave de módulo desconocida en setModuleVisibility: $moduleKey");
@@ -131,7 +190,9 @@ class CatalogEditorProvider with ChangeNotifier {
     _isLoadingCategories = true;
     notifyListeners();
     try {
-      _localCategories = await _firestoreService.getPortfolioCategoriesStream(userId).first;
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      // Ahora usa el método que lee de 'catalogs/{userId}/portfolio_categories'
+      _localCategories = await _firestoreService.getCatalogPortfolioCategoriesStream(userId).first;
     } catch (e) {
       debugPrint("Error cargando categorías iniciales: $e");
       _localCategories = [];
@@ -160,7 +221,8 @@ class CatalogEditorProvider with ChangeNotifier {
       return false;
     }
     try {
-      await _firestoreService.addPortfolioCategory(userId, name);
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      await _firestoreService.addCatalogPortfolioCategory(userId, name);
       await loadInitialCategories(userId); 
       if (_localCategories.isNotEmpty) {
          _selectedCategoryId = _localCategories.last.id;
@@ -175,7 +237,8 @@ class CatalogEditorProvider with ChangeNotifier {
 
   Future<void> updatePortfolioCategoryName(String userId, String categoryId, String newName) async {
     try {
-      await _firestoreService.updatePortfolioCategory(userId, categoryId, newName);
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      await _firestoreService.updateCatalogPortfolioCategory(userId, categoryId, newName);
       await loadInitialCategories(userId); // Recarga para ver el cambio
     } catch (e) {
       debugPrint("Error al actualizar nombre de categoría de portafolio: $e");
@@ -184,16 +247,18 @@ class CatalogEditorProvider with ChangeNotifier {
 
   Future<void> deletePortfolioCategory(String userId, String categoryId) async {
     try {
-      final itemsToDelete = await _firestoreService.getPortfolioItemsStream(userId, categoryId).first;
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      final itemsToDelete = await _firestoreService.getCatalogPortfolioItemsStream(userId, categoryId).first;
       List<Future<void>> deleteFutures = [];
       for (var item in itemsToDelete) {
-        deleteFutures.add(_firestoreService.deletePortfolioItem(userId, item.id));
+        deleteFutures.add(_firestoreService.deleteCatalogPortfolioItem(userId, item.id)); // <-- Cambio
         if (item.url.isNotEmpty) {
            deleteFutures.add(_storageService.deleteFileByUrl(item.url));
         }
       }
       await Future.wait(deleteFutures);
-      await _firestoreService.deletePortfolioCategory(userId, categoryId);
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      await _firestoreService.deleteCatalogPortfolioCategory(userId, categoryId);
 
       _localCategories.removeWhere((cat) => cat.id == categoryId);
       if (_selectedCategoryId == categoryId) {
@@ -218,15 +283,13 @@ class CatalogEditorProvider with ChangeNotifier {
     }
 
     try {
-      await _firestoreService.updatePortfolioCategoriesOrder(userId, newOrderMap);
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      await _firestoreService.updateCatalogPortfolioCategoriesOrder(userId, newOrderMap);
     } catch (e) {
       debugPrint("Error al reordenar categorías de portafolio en Firestore: $e");
     }
   }
 
-  // --- ¡MÉTODOS QUE FALTABAN! ---
-
-  /// Paso 1: Selecciona un archivo (imagen o video) del dispositivo.
   Future<XFile?> pickPortfolioItem(PortfolioItemType type) async {
     final XFile? pickedFile = type == PortfolioItemType.image
         ? await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 80)
@@ -235,24 +298,22 @@ class CatalogEditorProvider with ChangeNotifier {
     return pickedFile;
   }
 
-  /// Paso 2: Sube el archivo seleccionado y guarda sus metadatos (con caption) en Firestore.
   Future<void> uploadAndSavePortfolioItem(String userId, XFile pickedFile, String? caption, PortfolioItemType type) async {
     if (_selectedCategoryId == null) {
       debugPrint("Error: No hay categoría seleccionada para guardar el ítem.");
       return;
     }
     
-    // TODO: Implementar chequeo de límite total de items (_permissionsService.canAddPortfolioItem)
-
     _isUploadingItem = true;
     _uploadProgress = 0.0;
     _uploadingItemId = DateTime.now().millisecondsSinceEpoch.toString();
-    notifyListeners();
+    if (mounted) notifyListeners();
 
     try {
       final file = File(pickedFile.path);
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
-      final storagePath = 'users/$userId/portfolio/$_selectedCategoryId/$fileName';
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      final storagePath = 'catalogs/$userId/portfolio/$_selectedCategoryId/$fileName'; // Nueva ruta de Storage
 
       final downloadUrl = await _storageService.uploadFileWithProgress(
         file,
@@ -260,36 +321,42 @@ class CatalogEditorProvider with ChangeNotifier {
         (progress) {
           if (_isUploadingItem) {
              _uploadProgress = progress;
-             notifyListeners();
+             if (mounted) notifyListeners(); 
           }
         },
       );
 
-      if (_isUploadingItem) {
-          await _firestoreService.addPortfolioItem(
+      if (_isUploadingItem && mounted) {
+          // --- ¡CAMBIO DE ARQUITECTURA! ---
+          await _firestoreService.addCatalogPortfolioItem(
             userId: userId,
             categoryId: _selectedCategoryId!,
             type: type,
             url: downloadUrl,
-            caption: caption, // --- ¡GUARDAMOS EL TÍTULO! ---
+            caption: caption,
           );
       }
     } catch (e) {
       debugPrint("Error al subir y guardar ítem de portafolio: $e");
+      _isUploadingItem = false;
+      _uploadProgress = 0.0;
+      _uploadingItemId = null;
+      if (mounted) notifyListeners();
+      
     } finally {
-      if (mounted) {
+      if (_isUploadingItem) { 
         _isUploadingItem = false;
         _uploadProgress = 0.0;
         _uploadingItemId = null;
-        notifyListeners();
+        if (mounted) notifyListeners();
       }
     }
   }
 
-  /// Elimina un ítem del portafolio (Firestore y Storage).
   Future<void> deletePortfolioItem(String userId, PortfolioItemModel item) async {
     try {
-      await _firestoreService.deletePortfolioItem(userId, item.id);
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      await _firestoreService.deleteCatalogPortfolioItem(userId, item.id);
       if (item.url.isNotEmpty) {
         await _storageService.deleteFileByUrl(item.url);
       }
@@ -297,7 +364,6 @@ class CatalogEditorProvider with ChangeNotifier {
       debugPrint("Error al eliminar ítem de portafolio: $e");
     }
   }
-
 
   // --- Lógica de Estado y Guardado (General) ---
 
@@ -320,12 +386,13 @@ class CatalogEditorProvider with ChangeNotifier {
      if (mounted) notifyListeners(); 
 
     try {
-      await _firestoreService.updateUser(
-        providerId,
-        {
-          'personalization': _profileModelDraft.toMap()
-        }
-      );
+      // --- ¡CAMBIO DE ARQUITECTURA! ---
+      // Guarda el objeto ProviderProfileModel completo en 'catalogs/{providerId}'
+      
+      final catalogData = _profileModelDraft.toMap();
+      
+      // Usamos un nuevo método de servicio
+      await _firestoreService.setCatalogData(providerId, catalogData);
 
       _isDirty = false; 
       _isSaving = false;
@@ -352,4 +419,4 @@ class CatalogEditorProvider with ChangeNotifier {
 
    bool get mounted => _mounted;
 
-} // Fin de la clase CatalogEditorProvider
+}
