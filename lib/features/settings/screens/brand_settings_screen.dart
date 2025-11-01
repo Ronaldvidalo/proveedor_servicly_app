@@ -5,8 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-// import 'package:proveedor_servicly_app/core/services/marketplace_service.dart'; // No se usa directamente aquí
-// import 'package:proveedor_servicly_app/core/models/country_model.dart'; // No se usa directamente aquí
+// ¡NUEVO! Importamos el modelo de perfil para usar los valores por defecto
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; 
 // --- CORRECCIÓN: Importación correcta de AuthWrapper ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 
@@ -31,8 +31,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _welcomeMessageController;
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
-  // Usaremos un TextEditingController también para el país por consistencia,
-  // aunque el valor se seleccione de un Dropdown o widget similar.
   late TextEditingController _countryController;
   late String _selectedFormat;
 
@@ -65,16 +63,17 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isInitialized) {
+      // Los datos de 'personalization' en el 'userModel' pueden estar vacíos
+      // si es la primera vez que el usuario entra aquí.
       final personalization = widget.user.personalization;
 
-      _businessNameController.text = personalization['businessName'] as String? ?? '';
-      _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '';
+      _businessNameController.text = personalization['businessName'] as String? ?? widget.user.displayName ?? '';
+      _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '¡Bienvenido a mi perfil!';
       _addressController.text = personalization['address'] as String? ?? '';
       _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
       _countryController.text = personalization['country'] as String? ?? ''; // Asignar al controller
 
-      // Mantenemos _selectedFormat ya que viene de un Dropdown
-      _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'cv';
+      _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'catalog'; // Default a 'catalog'
       _existingLogoUrl = personalization['logoUrl'] as String?;
 
       final hexColor = personalization['primaryColor'] as String?;
@@ -104,6 +103,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     }
   }
 
+  // --- ¡FUNCIÓN DE GUARDADO MODIFICADA! ---
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
     setState(() => _isLoading = true);
@@ -113,52 +113,97 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     final userModel = widget.user;
     String? newLogoUrl;
 
+    // Guardamos el context para usarlo después del await
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
+      // 1. Subir la imagen (si hay una nueva)
       if (_selectedImageFile != null) {
-        newLogoUrl = await storageService.uploadProductImage(
-          imageFile: _selectedImageFile!,
-          userId: userModel.uid,
+        // Usamos la nueva ruta de 'catalogs'
+        final String storagePath = 'catalogs/${userModel.uid}/profile_logo.jpg';
+        
+        // Borramos la imagen anterior si existía
+        if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
+           try { await storageService.deleteFileByUrl(_existingLogoUrl!); }
+           catch(e) { debugPrint("No se pudo borrar logo anterior: $e"); }
+        }
+
+        newLogoUrl = await storageService.uploadFileWithProgress(
+          File(_selectedImageFile!.path),
+          storagePath,
+          (progress) { /* Callback de progreso (opcional) */ },
         );
       }
 
-      final updatedPersonalization = Map<String, dynamic>.from(userModel.personalization);
-      updatedPersonalization['businessName'] = _businessNameController.text.trim();
-      updatedPersonalization['welcomeMessage'] = _welcomeMessageController.text.trim();
-      updatedPersonalization['address'] = _addressController.text.trim();
-      updatedPersonalization['contactEmail'] = _contactEmailController.text.trim();
-      updatedPersonalization['country'] = _countryController.text.trim(); // Leer desde el controller
-      if (newLogoUrl != null) updatedPersonalization['logoUrl'] = newLogoUrl;
-      if (_selectedColor != null) {
-        // --- CORRECCIÓN: Uso de componentes RGB para generar el Hex ---
-        final color = _selectedColor!;
-        final hex = '#${color.red.toRadixString(16).padLeft(2, '0')}'
-                    '${color.green.toRadixString(16).padLeft(2, '0')}'
-                    '${color.blue.toRadixString(16).padLeft(2, '0')}';
-        updatedPersonalization['primaryColor'] = hex.toUpperCase();
-      }
+      // 2. Preparar el mapa de datos para 'catalogs/{userId}'
+      final hexColor = _selectedColor ?? const Color(0xFF00BFFF);
+      final hexString = '#${hexColor.red.toRadixString(16).padLeft(2, '0')}'
+                         '${hexColor.green.toRadixString(16).padLeft(2, '0')}'
+                         '${hexColor.blue.toRadixString(16).padLeft(2, '0')}';
 
+      // Creamos el objeto de perfil con TODOS los datos (nuevos y por defecto)
+      // Usamos ProviderProfileModel para asegurar que todos los campos booleanos
+      // (showWelcomeModule, etc.) se inicialicen correctamente.
+      final newCatalogProfile = ProviderProfileModel(
+        providerId: userModel.uid,
+        businessName: _businessNameController.text.trim(),
+        logoUrl: newLogoUrl ?? _existingLogoUrl ?? '',
+        brandColor: _selectedColor ?? const Color(0xFF00BFFF),
+        activeModules: userModel.activeModules ?? [], // Hereda de user
+        profileType: _selectedFormat, // ¡USA EL FORMATO SELECCIONADO!
+        contactEmail: _contactEmailController.text.trim(),
+        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+        slogan: null, // El editor principal manejará esto
+        averageRating: 0, 
+        reviewCount: 0, 
+        openingHours: null, // El editor principal manejará esto
+        phone: null, // El editor principal manejará esto
+        whatsapp: null, // El editor principal manejará esto
+        welcomeMessage: _welcomeMessageController.text.trim(),
+        // Valores por defecto para los booleanos
+        showWelcomeModule: true,
+        welcomeModuleType: 'text',
+        showPortfolioModule: true,
+        showReviewsModule: true,
+        showPromotionsModule: false,
+        showGiftCardModule: false,
+        showBookingModule: true,
+        showQuotesModule: false,
+      );
+      
+      // Convertimos el modelo a un mapa para guardarlo
+      final catalogData = newCatalogProfile.toMap();
+      
+      // Añadimos campos extra que no están en el modelo pero sí en el formulario
+      catalogData['country'] = _countryController.text.trim();
+      catalogData['primaryColor'] = hexString.toUpperCase();
+      // ¡IMPORTANTE! Aseguramos que el template se guarde en el mapa
+      catalogData['publicProfileTemplate'] = _selectedFormat;
+
+
+      // 3. Guardar los datos del perfil PÚBLICO en la colección 'catalogs'
+      await firestoreService.setCatalogData(userModel.uid, catalogData);
+
+      // 4. Actualizar el documento 'users' solo con datos de estado
       await firestoreService.updateUser(userModel.uid, {
-        'personalization': updatedPersonalization,
-        'isProfileComplete': true, // Marcar como completo al guardar estos ajustes
-        'publicProfileCreated': true, // Marcar como creado
-        'publicProfileTemplate': _selectedFormat,
+        'isProfileComplete': true, 
+        'publicProfileCreated': true, 
+        'publicProfileTemplate': _selectedFormat, // Guardamos la plantilla aquí también por si acaso
       });
-
-      // TODO: Lógica para actualizar 'public_profiles' (Probablemente en un Cloud Function para seguridad)
-
+      // --- FIN DEL CAMBIO DE LÓGICA ---
+      
+      if (!mounted) return;
       _showSnackbar('¡Perfil público guardado con éxito!');
-      if(mounted) {
-        // Regresa a la pantalla anterior (presumiblemente HomeScreen o SettingsScreen)
-        Navigator.of(context).pop();
-        // Si quieres ir específicamente al AuthWrapper (raro desde aquí):
-        // Navigator.of(context).pushAndRemoveUntil(
-        //   MaterialPageRoute(builder: (context) => const AuthWrapper()),
-        //   (route) => false,
-        // );
-      }
+      
+      // Navegamos de vuelta al AuthWrapper
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const AuthWrapper()),
+        (route) => false,
+      );
 
     } catch (e) {
-      _showSnackbar('Error al guardar la configuración: $e', isError: true);
+      if(mounted) _showSnackbar('Error al guardar la configuración: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -217,8 +262,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   subtitle: 'Elige cómo verán tus clientes tu página de presentación.',
                   children: [
                     DropdownButtonFormField<String>(
-                      // No usar initialValue aquí, ya que el estado se maneja en _selectedFormat
-                      value: _selectedFormat,
+                      value: _selectedFormat, 
                       decoration: inputDecoration.copyWith(labelText: 'Formato de Perfil'),
                       dropdownColor: surfaceColor,
                       style: const TextStyle(color: Colors.white),
@@ -243,7 +287,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: inputDecoration.copyWith(labelText: 'Mensaje de Bienvenida o Eslogan'),
                       maxLength: 150,
-                      maxLines: 3, // Permitir múltiples líneas
+                      maxLines: 3, 
                       minLines: 1,
                     ),
                     const SizedBox(height: 16),
@@ -253,13 +297,10 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
                     ),
                     const SizedBox(height: 16),
-                     // Reemplazado por un TextFormField simple por ahora
-                     // Para un selector real, necesitarías un widget como _CountrySelector
-                    TextFormField(
+                     TextFormField(
                       controller: _countryController,
                       style: const TextStyle(color: Colors.white),
                       decoration: inputDecoration.copyWith(labelText: 'País'),
-                      // Podrías añadir validación si es necesario
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -336,29 +377,28 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
             clipBehavior: Clip.none, // Permitir que el botón sobresalga
             children: [
               Container(
-                 width: 80, height: 80, // Asegurar tamaño
+                width: 80, height: 80, // Asegurar tamaño
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   image: image != null ? DecorationImage(image: image, fit: BoxFit.cover) : null,
                   border: Border.all(color: const Color(0xFF00BFFF), width: 2),
                    color: image == null ? Colors.white.withAlpha(20) : Colors.transparent, // Fondo si no hay imagen
                 ),
-                // Mostrar icono solo si no hay imagen
                 child: image == null ? const Center(child: Icon(Icons.business_rounded, size: 40, color: Colors.white70)) : null,
               ),
               Positioned(
-                bottom: -4, // Ajustar posición para mejor estética
+                bottom: -4, 
                 right: -4,
                 child: GestureDetector(
                   onTap: _pickImage,
                   child: Container(
-                    padding: const EdgeInsets.all(6), // Aumentar padding
+                    padding: const EdgeInsets.all(6), 
                     decoration: const BoxDecoration(
                       color: Color(0xFF00BFFF),
                       shape: BoxShape.circle,
                        border: Border.fromBorderSide(BorderSide(color: Color(0xFF1A1A2E), width: 2)), // Borde para separar
                     ),
-                    child: const Icon(Icons.edit, size: 18, color: Colors.black), // Icono un poco más grande
+                    child: const Icon(Icons.edit, size: 18, color: Colors.black), 
                   ),
                 ),
               ),
@@ -427,13 +467,11 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     if (hexColor == null || hexColor.isEmpty) return null;
     final hexCode = hexColor.replaceAll('#', '');
     if (hexCode.length >= 6) {
-      // Asegurarse de que siempre tenga 8 caracteres para el canal alfa FF
       final validHexCode = hexCode.length == 6 ? 'FF$hexCode' : (hexCode.length == 8 ? hexCode : null);
        if (validHexCode != null) {
          try {
            return Color(int.parse(validHexCode, radix: 16));
          } catch (e) {
-           // Manejar posible error de formato
            return null;
          }
        }
@@ -441,9 +479,3 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     return null;
   }
 }
-
-// --- CORRECCIÓN: Se elimina el widget _CountrySelector duplicado ---
-// El código para _CountrySelector debe estar en un archivo separado o
-// definido una sola vez si se usa en múltiples lugares.
-// Se asume que el TextFormField simple para país es suficiente por ahora.
-

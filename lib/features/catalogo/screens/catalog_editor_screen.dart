@@ -8,10 +8,8 @@ import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 // Provider
 import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
-
-// --- ¡RUTAS CORREGIDAS! ---
-import '../widgets/catalog_editor_layout.dart'; // El layout principal
-import 'package:proveedor_servicly_app/features/catalogo/modules/module_settings_sheet.dart';
+// Widgets
+import '../widgets/catalog_editor_layout.dart'; // ¡Nuestro layout principal!
 
 
 class CatalogEditorScreen extends StatefulWidget {
@@ -41,10 +39,8 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
   /// Carga el ProviderProfileModel inicial
   Future<ProviderProfileModel?> _loadInitialProfile() async {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-
     try {
       var profile = await firestoreService.getCatalogData(widget.user.uid);
-      
       if (!mounted) return null;
 
       if (profile == null) {
@@ -53,7 +49,6 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
             const SnackBar(content: Text('Creando nuevo perfil de catálogo...'), backgroundColor: Colors.green),
           );
         }
-         
          profile = ProviderProfileModel(
             providerId: widget.user.uid,
             businessName: widget.user.displayName ?? 'Nuevo Negocio',
@@ -68,7 +63,6 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
              showPromotionsModule: false, showGiftCardModule: false,
              showBookingModule: true, showQuotesModule: false,
          );
-         
          await firestoreService.setCatalogData(widget.user.uid, profile.toMap());
       }
       return profile; 
@@ -130,6 +124,9 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
         final storageService = context.read<StorageService>();
         final permissionsService = context.read<PermissionsService>();
 
+        // --- ¡CAMBIO CLAVE! ---
+        // El ChangeNotifierProvider envuelve el layout.
+        // Ya no hay Scaffold ni AppBar aquí.
         return ChangeNotifierProvider<CatalogEditorProvider>(
           create: (_) => CatalogEditorProvider(
             initialProfile: initialProfile,
@@ -137,69 +134,9 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
             storageService: storageService,
             permissionsService: permissionsService,
           ),
-          child: Builder(
-            builder: (context) {
-              // El provider se lee/escucha dentro del layout, no aquí.
-
-              return Scaffold(
-                // ¡LA APPBAR ESTÁ AQUÍ AHORA! (Ver _buildSliverHeader en el layout)
-                // (O la dejamos comentada si _buildSliverHeader la maneja)
-                /*
-                appBar: AppBar(
-                  title: const Text("Editar Catálogo"),
-                  backgroundColor: Colors.grey[900], 
-                  elevation: 1.0, 
-                  actions: [
-                    Consumer<CatalogEditorProvider>(
-                      builder: (ctx, provider, child) {
-                        // ... Botón Guardar ...
-                      },
-                    )
-                  ],
-                ),
-                */
-                
-                backgroundColor: const Color(0xFF1A1A2E), 
-                body: CatalogEditorLayout(
-                  // --- ¡CORRECCIÓN! ---
-                  // Le pasamos el userId al layout
-                  userId: widget.user.uid,
-                ),
-
-                // --- ¡CORRECCIÓN! ---
-                // El FAB pertenece a la pantalla (Scaffold)
-                floatingActionButton: FloatingActionButton(
-                  tooltip: "Configurar módulos",
-                  onPressed: () {
-                    // Llamamos al método definido aquí
-                    _showModuleSettings(context);
-                  },
-                  child: const Icon(Icons.layers_outlined),
-                ),
-              );
-            }
+          child: CatalogEditorLayout( // <- El layout es ahora el widget raíz
+            userId: widget.user.uid,
           ),
-        );
-      },
-    );
-  }
-
-  // --- ¡MÉTODO CORREGIDO! ---
-  // El método vive en el State de la pantalla
-  void _showModuleSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.grey[850], 
-      shape: const RoundedRectangleBorder(
-         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) {
-        // Usamos context.read porque el context del builder
-        // está por encima del ChangeNotifierProvider
-        return ChangeNotifierProvider.value(
-          value: context.read<CatalogEditorProvider>(),
-          child: const ModuleSettingsSheet(),
         );
       },
     );

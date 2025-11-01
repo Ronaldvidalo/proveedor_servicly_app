@@ -281,7 +281,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   DropdownButtonFormField<String> _buildCountrySelector(InputDecoration baseDecoration) {
     return DropdownButtonFormField<String>(
-      value: _selectedCountry,
+      initialValue: _selectedCountry,
       decoration: baseDecoration.copyWith(labelText: 'País', prefixIcon: const Icon(Icons.public)),
       dropdownColor: const Color(0xFF2D2D5A),
       style: const TextStyle(color: Colors.white),
@@ -314,7 +314,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   DropdownButtonFormField<String> _buildProfessionSelector(InputDecoration baseDecoration) {
     return DropdownButtonFormField<String>(
-      value: _selectedProfession,
+      initialValue: _selectedProfession,
       decoration: baseDecoration.copyWith(labelText: 'Rubro Principal', prefixIcon: const Icon(Icons.work_outline_rounded)),
       dropdownColor: const Color(0xFF2D2D5A),
       style: const TextStyle(color: Colors.white),

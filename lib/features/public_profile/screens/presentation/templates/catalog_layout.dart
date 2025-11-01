@@ -647,8 +647,8 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                  if (profile.reviewCount != null && profile.reviewCount! > 0)
                    TextButton(
                      onPressed: () { /* TODO: Navegar a pantalla de todas las reseñas */ },
-                     child: Text('Ver todas (${profile.reviewCount})'),
                      style: TextButton.styleFrom(foregroundColor: profile.brandColor),
+                     child: Text('Ver todas (${profile.reviewCount})'),
                    ),
                ],
              ),

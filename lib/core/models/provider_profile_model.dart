@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Para debugPrint
+// Para debugPrint
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
 ///

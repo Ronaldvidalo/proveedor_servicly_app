@@ -15,15 +15,14 @@ import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
 // Widgets Auxiliares
 import 'package:proveedor_servicly_app/features/catalogo/modules/_category_chip.dart';
 import 'package:proveedor_servicly_app/features/catalogo/modules/_portfolio_item_card.dart';
-// import 'package:proveedor_servicly_app/features/modules/screens/module_config.dart'; // No se usa
+import 'package:proveedor_servicly_app/features/catalogo/modules/module_settings_sheet.dart';
 
 import 'package:video_player/video_player.dart';
 
 
 /// Layout "Editor Visual" de un proveedor.
+/// Es una copia de CatalogLayout adaptada para la edición en contexto (WYSIWYG).
 class CatalogEditorLayout extends StatefulWidget {
-  // --- ¡CAMBIO! ---
-  // Ya no recibe el provider, solo el userId
   final String userId;
 
   const CatalogEditorLayout({
@@ -50,50 +49,68 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchamos al provider para obtener el perfil (borrador)
+    // --- ¡CAMBIO CLAVE! ---
+    // Usamos context.watch para que el layout se reconstruya
+    // cuando el provider notifique cambios (ej. activar/desactivar módulos).
     final provider = context.watch<CatalogEditorProvider>();
     final profile = provider.profile;
     
     // Determinar visibilidad de módulos
     final showWelcome = profile.showWelcomeModule;
     final showPortfolio = profile.showPortfolioModule;
-    final showReviews = profile.showReviewsModule; // Ahora se usa
+    final showReviews = profile.showReviewsModule;
     final showPromotions = profile.showPromotionsModule;
     final showGiftCards = profile.showGiftCardModule;
     final showBooking = profile.showBookingModule;
     final showQuotes = profile.showQuotesModule;
 
-    // El CustomScrollView es el cuerpo principal
-    return CustomScrollView(
-      slivers: [
-        // MÓDULO 1: Cabecera
-        _buildSliverHeader(context, provider, profile),
+    // --- ¡AHORA ESTO ES UN SCAFFOLD! ---
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E), // Fondo oscuro
+      
+      // El CustomScrollView va en el body
+      body: CustomScrollView(
+        slivers: [
+          // MÓDULO 1: Cabecera (SliverAppBar)
+          _buildSliverHeader(context, provider, profile),
 
-        // MÓDULO 1.5: CTA Principal
-        if (showBooking)
-          _buildPrimaryCtaModule(context, profile),
+          // MÓDULO 1.5: CTA Principal
+          if (showBooking)
+            _buildPrimaryCtaModule(context, profile),
 
-        // MÓDULO 2: Información y Contacto
-        _buildInfoModule(context, provider, profile, showWelcome),
+          // MÓDULO 2: Información y Contacto
+          _buildInfoModule(context, provider, profile, showWelcome),
 
-        // MÓDULO Promociones
-        _buildPromotionsModule(context, provider, profile, showPromotions),
+          // MÓDULO Promociones
+          _buildPromotionsModule(context, provider, profile, showPromotions),
 
-        // MÓDULO Portafolio
-        if (showPortfolio) _buildPortfolioModule(context, provider, profile),
+          // MÓDULO Portafolio
+          if (showPortfolio) _buildPortfolioModule(context, provider, profile),
 
-        // MÓDULO Gift Cards
-        _buildGiftCardModule(context, provider, profile, showGiftCards),
+          // MÓDULO Gift Cards
+          _buildGiftCardModule(context, provider, profile, showGiftCards),
 
-        // MÓDULO Presupuestos
-        _buildQuotesModule(context, provider, profile, showQuotes),
+          // MÓDULO Presupuestos
+          _buildQuotesModule(context, provider, profile, showQuotes),
 
-        // MÓDULO Reseñas
-        if (showReviews) // Ahora se usa el booleano
-          _buildReviewsModule(context, profile),
+          // MÓDULO Reseñas
+          if (showReviews)
+            _buildReviewsModule(context, profile),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 80)), // Espacio para FAB
-      ],
+          const SliverToBoxAdapter(child: SizedBox(height: 80)), // Espacio para FAB
+        ],
+      ),
+
+      // El FAB ahora vive en este Scaffold
+      floatingActionButton: FloatingActionButton(
+        tooltip: "Configurar módulos",
+        onPressed: () {
+          // --- ¡CORRECCIÓN! ---
+          // Llamamos a _showModuleSettings, que está definido aquí abajo.
+          _showModuleSettings(context);
+        },
+        child: const Icon(Icons.layers_outlined),
+      ),
     );
   }
 
@@ -101,12 +118,71 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
   Widget _buildSliverHeader(BuildContext context, CatalogEditorProvider provider, ProviderProfileModel profile) {
     final brandColor = profile.brandColor;
     final isUploadingLogo = provider.isUploadingLogo;
+    final isDirty = provider.isDirty; 
+    final isSaving = provider.isSaving; 
 
-    return SliverToBoxAdapter(
-      child: Container(
-        height: 280.0, 
-        color: const Color(0xFF1A1A2E),
-        child: Stack(
+    return SliverAppBar(
+      expandedHeight: 280.0,
+      pinned: true,
+      backgroundColor: const Color(0xFF1A1A2E), 
+      foregroundColor: Colors.white, // Flecha de "atrás"
+      
+      // Botón de Guardar
+      actions: [
+        if (isSaving)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)),
+          )
+        else
+          TextButton(
+            onPressed: isDirty
+                ? () async {
+                    // Usamos context.read porque estamos en un callback
+                    final provider = context.read<CatalogEditorProvider>();
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                    final success = await provider.saveChangesToFirestore(providerId: widget.userId);
+                    
+                    if (!mounted) return;
+                    if (success) {
+                      scaffoldMessenger.showSnackBar(
+                        const SnackBar(content: Text('Cambios guardados con éxito!'), backgroundColor: Colors.green),
+                      );
+                    } else {
+                       scaffoldMessenger.showSnackBar(
+                        const SnackBar(content: Text('Error al guardar los cambios.'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                : null,
+            child: Text(
+              "Guardar",
+              style: TextStyle(
+                color: isDirty ? Colors.white : Colors.grey[600],
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+      ],
+
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsetsDirectional.only(start: 72, bottom: 16, end: 150), 
+        title: Text(
+          profile.businessName, // Título dinámico
+          style: TextStyle(
+            color: ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark
+                ? Colors.white
+                : Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 16, 
+            shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
+          ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+        centerTitle: false, 
+        background: Stack(
           fit: StackFit.expand,
           children: [
             // Imagen de fondo (logo/banner)
@@ -144,7 +220,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
             
             // Botón de Edición de Portada
             Positioned(
-              top: 16,
+              top: 40, // Ajustado para no chocar con la flecha de 'atrás'
               right: 16,
               child: isUploadingLogo
                 ? const Padding(
@@ -155,7 +231,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                     icon: const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 28),
                     tooltip: "Cambiar foto de portada/logo",
                     onPressed: () {
-                      provider.updateLogoImage(widget.userId); // ¡CORREGIDO!
+                      context.read<CatalogEditorProvider>().updateLogoImage(widget.userId);
                     },
                   ),
             ),
@@ -163,7 +239,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
             // Eslogan opcional
             if (profile.slogan != null && profile.slogan!.isNotEmpty)
               Positioned(
-                bottom: 60,
+                bottom: 60, 
                 left: 16,
                 right: 16,
                 child: Text(
@@ -179,33 +255,11 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              
-            // Nombre del Negocio
-             Positioned(
-                bottom: 16,
-                left: 16,
-                right: 16,
-                child: Text(
-                  profile.businessName,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark
-                        ? Colors.white
-                        : Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 24, 
-                    shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
           ],
         ),
       ),
     );
   }
-
 
   // --- MÓDULO 1.5: CTA Principal (Sin cambios) ---
   Widget _buildPrimaryCtaModule(BuildContext context, ProviderProfileModel profile) {
@@ -311,7 +365,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
             child: IconButton(
               icon: Icon(Icons.edit, color: Colors.blue.shade400, size: 24),
               tooltip: "Editar Información y Contacto",
-              onPressed: () => _showEditContactDialog(context, provider),
+              onPressed: () => _showEditContactDialog(context, provider), // Pasamos el provider
             ),
           )
         ],
@@ -369,7 +423,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                 icon: const Icon(Icons.add_circle_outline, color: Colors.green),
                 tooltip: "Añadir NUEVA categoría",
                 onPressed: permissions.canAddPortfolioCategory(provider.localCategories.length)
-                  ? () => _showAddCategoryDialog(context, provider, widget.userId) // ¡CORREGIDO!
+                  ? () => _showAddCategoryDialog(context, provider, widget.userId)
                   : null, 
               ),
             ],
@@ -416,7 +470,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                             child: Row(
                               children: [
                                 InkWell(
-                                  onTap: () => _showEditCategoryDialog(context, provider, widget.userId, category), // ¡CORREGIDO!
+                                  onTap: () => _showEditCategoryDialog(context, provider, widget.userId, category),
                                   child: Container(
                                     padding: const EdgeInsets.all(2),
                                     decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
@@ -425,7 +479,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                                 ),
                                 const SizedBox(width: 4),
                                 InkWell(
-                                  onTap: () => _showDeleteCategoryDialog(context, provider, widget.userId, category), // ¡CORREGIDO!
+                                  onTap: () => _showDeleteCategoryDialog(context, provider, widget.userId, category),
                                   child: Container(
                                     padding: const EdgeInsets.all(2),
                                     decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
@@ -439,7 +493,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                       );
                     },
                     onReorder: (oldIndex, newIndex) {
-                      provider.reorderPortfolioCategories(widget.userId, oldIndex, newIndex); // ¡CORREGIDO!
+                      provider.reorderPortfolioCategories(widget.userId, oldIndex, newIndex);
                     },
                   ),
                 ),
@@ -460,7 +514,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                         final buildContext = context; 
                         final file = await provider.pickPortfolioItem(PortfolioItemType.image);
                         if (file != null && buildContext.mounted) {
-                          _showAddCaptionDialog(buildContext, provider, widget.userId, file, PortfolioItemType.image); // ¡CORREGIDO!
+                          _showAddCaptionDialog(buildContext, provider, widget.userId, file, PortfolioItemType.image);
                         }
                       },
                     ),
@@ -472,7 +526,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                         final buildContext = context; 
                         final file = await provider.pickPortfolioItem(PortfolioItemType.video);
                         if (file != null && buildContext.mounted) {
-                          _showAddCaptionDialog(buildContext, provider, widget.userId, file, PortfolioItemType.video); // ¡CORREGIDO!
+                          _showAddCaptionDialog(buildContext, provider, widget.userId, file, PortfolioItemType.video);
                         }
                       },
                     ),
@@ -484,7 +538,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
               provider.selectedCategoryId == null
                 ? const Center(child: Text("Selecciona o crea una categoría.", style: TextStyle(color: Colors.white54)))
                 : StreamBuilder<List<PortfolioItemModel>>(
-                    stream: firestoreService.getCatalogPortfolioItemsStream(widget.userId, provider.selectedCategoryId!), // ¡CORREGIDO!
+                    stream: firestoreService.getCatalogPortfolioItemsStream(widget.userId, provider.selectedCategoryId!), 
                     builder: (context, itemSnapshot) {
                       if (itemSnapshot.connectionState == ConnectionState.waiting && !provider.isUploadingItem) {
                         return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Colors.white54)));
@@ -522,7 +576,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
                           return PortfolioItemCard( 
                             item: item, 
                             isEditable: true, 
-                            onDelete: () => _showDeleteItemDialog(context, provider, widget.userId, item) // ¡CORREGIDO!
+                            onDelete: () => _showDeleteItemDialog(context, provider, widget.userId, item)
                           );
                         },
                       );
@@ -763,6 +817,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
   // --- DIÁLOGOS HELPER ---
   
   void _showEditContactDialog(BuildContext context, CatalogEditorProvider provider) {
+    // Usamos el 'provider' que recibimos como argumento
     final profile = provider.profile;
     final businessNameController = TextEditingController(text: profile.businessName);
     final sloganController = TextEditingController(text: profile.slogan);
@@ -771,10 +826,11 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
     final phoneController = TextEditingController(text: profile.phone);
     final whatsappController = TextEditingController(text: profile.whatsapp);
     final welcomeController = TextEditingController(text: profile.welcomeMessage);
+    // final addressController = TextEditingController(text: profile.address);
 
     showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
+      context: context, // Usamos el context del build
+      builder: (ctx) => AlertDialog( // ctx es el context del diálogo
         title: const Text("Editar Información y Contacto"),
         content: SingleChildScrollView( 
           child: Column(
@@ -788,6 +844,8 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
               const SizedBox(height: 12),
               TextFormField(controller: hoursController, decoration: const InputDecoration(labelText: "Horario", border: OutlineInputBorder()), maxLines: 2),
               const SizedBox(height: 12),
+              // TextFormField(controller: addressController, decoration: const InputDecoration(labelText: "Dirección", border: OutlineInputBorder())),
+              // const SizedBox(height: 12),
               TextFormField(controller: emailController, decoration: const InputDecoration(labelText: "Email de Contacto", border: OutlineInputBorder()), keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 12),
               TextFormField(controller: phoneController, decoration: const InputDecoration(labelText: "Teléfono", border: OutlineInputBorder()), keyboardType: TextInputType.phone),
@@ -804,7 +862,9 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
           ElevatedButton(
             child: const Text("Aplicar Cambios"),
             onPressed: () {
-              final provider = context.read<CatalogEditorProvider>();
+              // ¡CORRECCIÓN! Usamos el 'provider' (pasado como argumento)
+              // O podemos usar context.read aquí, que también funciona.
+              // final provider = context.read<CatalogEditorProvider>(); // Alternativa
               provider.updateBusinessName(businessNameController.text.trim());
               provider.updateWelcomeText(welcomeController.text.trim());
               provider.updateSlogan(sloganController.text.trim().isEmpty ? null : sloganController.text.trim());
@@ -825,75 +885,85 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
     final captionController = TextEditingController();
     
     showDialog(
-      context: context,
+      context: context, // Usamos el context del build
       barrierDismissible: false,
-      builder: (ctx) {
-         return Consumer<CatalogEditorProvider>(
-           builder: (consumerContext, provider, child) { 
-             return AlertDialog(
-                title: Text(type == PortfolioItemType.image ? "Añadir Foto" : "Añadir Video"),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 150,
-                      width: 150,
-                      child: type == PortfolioItemType.image
-                          ? Image.file(File(file.path), fit: BoxFit.cover)
-                          : Container(color: Colors.black, child: const Center(child: Icon(Icons.videocam, color: Colors.white, size: 50))),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: captionController,
-                      decoration: const InputDecoration(
-                        labelText: "Título (Opcional)",
-                        border: OutlineInputBorder(),
+      builder: (ctx) { // ctx es el context del diálogo
+         // --- ¡CORRECCIÓN! ---
+         // Envolvemos el AlertDialog en un ChangeNotifierProvider.value
+         // para pasar el provider al árbol del diálogo
+         return ChangeNotifierProvider.value(
+           value: provider, 
+           child: Consumer<CatalogEditorProvider>( // Ahora el Consumer usará el provider
+             builder: (consumerContext, provider, child) { 
+               return AlertDialog(
+                  title: Text(type == PortfolioItemType.image ? "Añadir Foto" : "Añadir Video"),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 150,
+                        width: 150,
+                        child: type == PortfolioItemType.image
+                            ? Image.file(File(file.path), fit: BoxFit.cover)
+                            : Container(color: Colors.black, child: const Center(child: Icon(Icons.videocam, color: Colors.white, size: 50))),
                       ),
-                      textCapitalization: TextCapitalization.sentences,
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: captionController,
+                        decoration: const InputDecoration(
+                          labelText: "Título (Opcional)",
+                          border: OutlineInputBorder(),
+                        ),
+                        textCapitalization: TextCapitalization.sentences,
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: provider.isUploadingItem ? null : () => Navigator.of(ctx).pop(), 
+                      child: const Text("Cancelar")
+                    ),
+                    ElevatedButton(
+                      onPressed: provider.isUploadingItem 
+                        ? null 
+                        : () async {
+                            final navigator = Navigator.of(ctx); 
+                            final caption = captionController.text.trim();
+                            
+                            // Usamos el provider del Consumer
+                            await provider.uploadAndSavePortfolioItem(
+                              userId, 
+                              file, 
+                              caption.isEmpty ? null : caption, 
+                              type
+                            );
+                            
+                            if (!mounted) return;
+                            navigator.pop(); 
+                          },
+                       child: provider.isUploadingItem 
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                          : const Text("Guardar y Subir"),
                     ),
                   ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: provider.isUploadingItem ? null : () => Navigator.of(ctx).pop(), 
-                    child: const Text("Cancelar")
-                  ),
-                  ElevatedButton(
-                    onPressed: provider.isUploadingItem 
-                      ? null 
-                      : () async {
-                          final navigator = Navigator.of(ctx); 
-                          final caption = captionController.text.trim();
-                          
-                          await consumerContext.read<CatalogEditorProvider>().uploadAndSavePortfolioItem(
-                            userId, 
-                            file, 
-                            caption.isEmpty ? null : caption, 
-                            type
-                          );
-                          
-                          if (!mounted) return;
-                          navigator.pop(); 
-                        },
-                     child: provider.isUploadingItem 
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
-                        : const Text("Guardar y Subir"),
-                  ),
-                ],
-              );
-           },
+                );
+             },
+           ),
          );
       }
     );
   }
+
+  // --- El resto de diálogos helper ---
+  // (Usamos context.read en los callbacks onPressed)
 
   void _showAddCategoryDialog(BuildContext context, CatalogEditorProvider provider, String userId) {
     final nameController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
+      context: context, // Context bueno
+      builder: (ctx) => AlertDialog( // ctx
         title: const Text("Nueva Categoría"),
         content: Form(
           key: formKey,
@@ -911,8 +981,8 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
               if (formKey.currentState?.validate() ?? false) {
                  final scaffoldMessenger = ScaffoldMessenger.of(ctx); 
                  final navigator = Navigator.of(ctx); 
-                 final provider = context.read<CatalogEditorProvider>(); 
-                final success = await provider.addPortfolioCategory(userId, nameController.text.trim());
+                 // Leemos el provider del context original (el bueno)
+                 final success = await context.read<CatalogEditorProvider>().addPortfolioCategory(userId, nameController.text.trim());
                  if (!mounted) return; 
                 if (success) { 
                   navigator.pop(); 
@@ -936,8 +1006,8 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
      final formKey = GlobalKey<FormState>();
 
       showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
+        context: context, // Context bueno
+        builder: (ctx) => AlertDialog( // ctx
           title: const Text("Editar Categoría"),
           content: Form(
             key: formKey,
@@ -954,8 +1024,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
               onPressed: () async {
                  if (formKey.currentState?.validate() ?? false) {
                    final navigator = Navigator.of(ctx); 
-                   final provider = context.read<CatalogEditorProvider>(); 
-                   await provider.updatePortfolioCategoryName(userId, category.id, nameController.text.trim());
+                   await context.read<CatalogEditorProvider>().updatePortfolioCategoryName(userId, category.id, nameController.text.trim());
                     if (!mounted) return; 
                     navigator.pop(); 
                  }
@@ -969,8 +1038,8 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
   
    void _showDeleteCategoryDialog(BuildContext context, CatalogEditorProvider provider, String userId, PortfolioCategoryModel category) {
       showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
+        context: context, // Context bueno
+        builder: (ctx) => AlertDialog( // ctx
           title: const Text("Eliminar Categoría"),
           content: Text("¿Seguro que quieres eliminar la categoría '${category.name}'?\n\n¡Esto también eliminará permanentemente todas las fotos y videos dentro de ella!"),
           actions: [
@@ -979,8 +1048,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () async {
                   final navigator = Navigator.of(ctx); 
-                  final provider = context.read<CatalogEditorProvider>(); 
-                  await provider.deletePortfolioCategory(userId, category.id);
+                  await context.read<CatalogEditorProvider>().deletePortfolioCategory(userId, category.id);
                    if (!mounted) return; 
                    navigator.pop(); 
               },
@@ -993,8 +1061,8 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
   
   void _showDeleteItemDialog(BuildContext context, CatalogEditorProvider provider, String userId, PortfolioItemModel item) {
       showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
+        context: context, // Context bueno
+        builder: (ctx) => AlertDialog( // ctx
           title: const Text("Eliminar Ítem"),
           content: const Text("¿Seguro que quieres eliminar este ítem del portafolio?\nLa acción no se puede deshacer."),
           actions: [
@@ -1003,8 +1071,7 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () async {
                   final navigator = Navigator.of(ctx); 
-                  final provider = context.read<CatalogEditorProvider>(); 
-                  await provider.deletePortfolioItem(userId, item);
+                  await context.read<CatalogEditorProvider>().deletePortfolioItem(userId, item);
                    if (!mounted) return; 
                    navigator.pop();
               },
@@ -1029,6 +1096,27 @@ class _CatalogEditorLayoutState extends State<CatalogEditorLayout> {
           ],
         ),
       ),
+    );
+  }
+  
+  // --- ¡MÉTODO AÑADIDO! ---
+  // Este método ahora vive aquí, ya que el FAB está en el Scaffold de este layout
+  void _showModuleSettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context, // Usa el context del build
+      isScrollControlled: true,
+      backgroundColor: Colors.grey[850], 
+      shape: const RoundedRectangleBorder(
+         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        // Usamos ChangeNotifierProvider.value para pasar el provider
+        // que YA ESTÁ en el context de este widget.
+        return ChangeNotifierProvider.value(
+          value: context.read<CatalogEditorProvider>(),
+          child: const ModuleSettingsSheet(),
+        );
+      },
     );
   }
 
