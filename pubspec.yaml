@@ -18,10 +18,19 @@ dependencies:
 
 # ... tus otras dependencias
   table_calendar: ^3.0.9
-  intl: ^0.18.1
   firebase_messaging: ^14.9.4
   url_launcher: ^6.3.1
   video_player: ^2.8.6
+
+# --- GESTIÓN DE ESTADO ---
+  flutter_riverpod: ^2.5.1
+
+  # --- UI & GRÁFICOS ---
+  fl_chart: ^0.68.0  # Para los gráficos
+
+  # --- UTILIDADES ---
+  intl: ^0.18.1
+  uuid: ^4.4.0       # Para generar IDs
 
   # Firebase (versiones compatibles y estables)
   firebase_core: ^2.31.0

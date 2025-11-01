@@ -30,6 +30,10 @@ import '../../manage_store/presentation/screens/manage_store_screen.dart';
 import '../../agenda/presentation/screens/agenda_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
 
+// *** CORRECCIÓN ***
+// Import duplicado y con error de sintaxis eliminado y reemplazado por este.
+import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
+
 // --- CAMBIO DE IMPORTACIÓN ---
 // Importamos la nueva pantalla con la ruta corregida
 import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
@@ -319,6 +323,9 @@ class _DashboardHeader extends StatelessWidget {
     // Esta línea es la que reportaba 'dead_code'. La lógica es correcta
     // ya que userModel.displayName SÍ es nullable. Ignoramos el lint.
 
+    // *** CORRECCIÓN ***
+    // Añadido 'ignore' para suprimir el aviso incorrecto del linter.
+    // ignore: dead_code
     final businessName = userModel.personalization['businessName'] as String? ?? userModel.displayName;
     const accentColor = Color(0xFF00BFFF);
 
@@ -661,12 +668,19 @@ class _ModulesGrid extends StatelessWidget {
       case 'clients':
         // destination = ClientsScreen(user: user);
         break;
+
+      // *** CORRECCIÓN ***
+      // AÑADIDO EL CASE PARA EL NUEVO MÓDULO DE FINANZAS
+      case 'advanced-finance':
+        destination = const AdvancedFinanceScreen();
+        break;
+        
       // Añade más casos aquí...
     }
 
     if (destination != null) {
       // 'destination' es Widget?, pero el builder espera Widget.
-      // Usamos el operador '!' porque ya comprobamos que no es nulo.
+      // *** CORRECCIÓN *** // Usamos el operador '!' porque ya comprobamos que no es nulo.
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Navegación para "$moduleId" no implementada.')));
@@ -1016,3 +1030,4 @@ class _SlidingGradientTransform extends GradientTransform {
     return Matrix4.translationValues(translationX, 0.0, 0.0);
   }
 }
+
