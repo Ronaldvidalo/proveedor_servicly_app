@@ -1,24 +1,14 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ¡Import de Riverpod ELIMINADO de aquí!
 
 import '../models/cobro_model.dart';
 import '../models/gasto_model.dart';
 import '../models/presupuesto_financiero_model.dart';
 
-/// Provider para exponer el FinanceRepository a la UI.
-///
-/// La UI (nuestros providers) "leerán" este provider para acceder
-/// a los métodos del repositorio (ej. ref.read(financeRepositoryProvider))
-final financeRepositoryProvider = Provider<FinanceRepository>((ref) {
-  // Idealmente, deberíamos pasarle el userId aquí,
-  // pero por simplicidad, lo obtendremos de FirebaseAuth dentro del repo.
-  return FinanceRepository(
-    firestore: FirebaseFirestore.instance,
-    auth: FirebaseAuth.instance,
-  );
-});
+// --- ¡Definición del Provider ELIMINADA de aquí! ---
+// final financeRepositoryProvider = Provider<FinanceRepository>((ref) { ... });
 
 /// Clase que encapsula toda la lógica de acceso a datos (Firestore).
 /// Es la única clase en toda la app que debe importar 'cloud_firestore'.
@@ -105,8 +95,9 @@ class FinanceRepository {
         .collection('users')
         .doc(_userId)
         .collection('cobros')
-        // Ordenamos por fecha de creación (o la que corresponda)
-        // .orderBy('fechaCreacion', descending: true) 
+        // --- CORRECCIÓN --- 
+        // Añadido orden para que los cobros recientes aparezcan
+        .orderBy('fechaCobro', descending: true) 
         .snapshots()
         .map((snapshot) {
       // CORREGIDO (Preventivo): de fromMap a fromFirestore
@@ -117,14 +108,17 @@ class FinanceRepository {
   // --- MÉTODOS DE PRESUPUESTOS ---
 
   /// Obtiene un Stream de la lista de presupuestos.
-  Stream<List<PresupuestoFinancieroModel>> getPresupuestosStream() {
+  // --- CORRECCIÓN: Acepta filtro de mes ---
+  Stream<List<PresupuestoFinancieroModel>> getPresupuestosStream(String mesYYYYMM) {
     if (_userId == null) return Stream.value([]);
     
     return _firestore
         .collection('users')
         .doc(_userId)
         .collection('presupuestos_financieros')
-        .orderBy('mes', descending: true)
+        // --- CORRECCIÓN: Filtrado eficiente en Firestore ---
+        .where('mes', isEqualTo: mesYYYYMM)
+        .where('activo', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
       // CORREGIDO (Preventivo): de fromMap a fromFirestore

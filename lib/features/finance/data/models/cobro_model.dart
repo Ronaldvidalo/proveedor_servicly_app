@@ -9,6 +9,7 @@ class CobroModel {
   final String estado; // PENDIENTE, COBRADO, CANCELADO
   final DateTime? fechaCobro; // Fecha en que se marcó como cobrado
   final DateTime? fechaVencimiento; // Fecha límite de pago
+  final String? concepto; // <-- *** CAMPO AÑADIDO (fusionado) ***
 
   CobroModel({
     required this.id,
@@ -16,10 +17,10 @@ class CobroModel {
     required this.estado,
     this.fechaCobro,
     this.fechaVencimiento,
+    this.concepto, // <-- *** CAMPO AÑADIDO (fusionado) ***
   });
 
   /// Factory constructor para crear una instancia desde un DocumentSnapshot de Firestore.
-  /// ESTE ES EL MÉTODO QUE FALTABA (Error 1)
   factory CobroModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return CobroModel(
@@ -33,11 +34,11 @@ class CobroModel {
       fechaVencimiento: data['fechaVencimiento'] != null
           ? (data['fechaVencimiento'] as Timestamp).toDate()
           : null,
+      concepto: data['concepto'] as String?, // <-- *** CAMPO AÑADIDO (fusionado) ***
     );
   }
 
   /// Método para convertir la instancia a un Map, listo para Firestore.
-  /// (Aunque el repo no lo usa aún, es buena práctica tenerlo)
   Map<String, dynamic> toFirestore() {
     return {
       'monto': monto,
@@ -47,17 +48,18 @@ class CobroModel {
       'fechaVencimiento': fechaVencimiento != null
           ? Timestamp.fromDate(fechaVencimiento!)
           : null,
+      'concepto': concepto, // <-- *** CAMPO AÑADIDO (fusionado) ***
     };
   }
 
   /// Crea una copia de la instancia actual, reemplazando los campos proporcionados.
-  /// (Proactivamente añadido para futuras ediciones)
   CobroModel copyWith({
     String? id,
     double? monto,
     String? estado,
     DateTime? fechaCobro,
     DateTime? fechaVencimiento,
+    String? concepto, // <-- *** CAMPO AÑADIDO (fusionado) ***
   }) {
     return CobroModel(
       id: id ?? this.id,
@@ -66,6 +68,7 @@ class CobroModel {
       // Manejar valores nulos explícitamente
       fechaCobro: fechaCobro ?? this.fechaCobro,
       fechaVencimiento: fechaVencimiento ?? this.fechaVencimiento,
+      concepto: concepto ?? this.concepto, // <-- *** CAMPO AÑADIDO (fusionado) ***
     );
   }
 }

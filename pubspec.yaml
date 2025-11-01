@@ -21,6 +21,7 @@ dependencies:
   firebase_messaging: ^14.9.4
   url_launcher: ^6.3.1
   video_player: ^2.8.6
+  collection: ^1.18.0
 
 # --- GESTIÓN DE ESTADO ---
   flutter_riverpod: ^2.5.1

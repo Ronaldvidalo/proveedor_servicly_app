@@ -1,3 +1,15 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 26/10/2025
+// Style: Cyber Glow
+// This summary tab was fully refactored to align with the "Cyber Glow" design.
+// It features custom-styled _KpiCard widgets, a themed LineChart (fl_chart),
+// styled alert banners, and a redesigned recent transactions list.
+// CORRECCIÓN: Ajustada la lógica de min/max Y-axis en _buildIncomeChart
+// para asegurar que la línea del gráfico sea visible incluso si todos los valores son 0.
+// CORRECCIÓN 3: Forzado el casteo a double en 'horizontalInterval' para
+// solucionar el error 'invalid_assignment'.
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -5,7 +17,6 @@ import 'package:intl/intl.dart';
 
 import '../../data/models/financial_summary_model.dart';
 import '../providers/finance_providers.dart';
-import '../widgets/kpi_card.dart';
 
 // ignore_for_file: avoid_print
 
@@ -26,9 +37,13 @@ class SummaryTab extends ConsumerWidget {
     // Observamos el provider principal que nos da el resumen completo
     final summaryAsync = ref.watch(financialSummaryProvider);
 
+    // --- Paleta "Cyber Glow" ---
+    const accentColor = Color(0xFF00BFFF);
+    const backgroundColor = Color(0xFF1A1A2E);
+    
     return summaryAsync.when(
       // --- ESTADO DE CARGA ---
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: CircularProgressIndicator(color: accentColor)),
       
       // --- ESTADO DE ERROR ---
       error: (error, stack) => Center(
@@ -37,7 +52,7 @@ class SummaryTab extends ConsumerWidget {
           child: Text(
             'Error al cargar el resumen:\n$error',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style: const TextStyle(color: Colors.redAccent),
           ),
         ),
       ),
@@ -45,6 +60,8 @@ class SummaryTab extends ConsumerWidget {
       // --- ESTADO DE ÉXITO (DATOS) ---
       data: (summary) {
         return RefreshIndicator(
+          color: accentColor, // Color del spinner
+          backgroundColor: backgroundColor, // Fondo del spinner
           onRefresh: () async {
             // Invalidamos los streams base para forzar un recálculo
             ref.invalidate(gastosStreamProvider);
@@ -59,23 +76,29 @@ class SummaryTab extends ConsumerWidget {
               return ListView(
                 padding: const EdgeInsets.all(16.0),
                 children: [
-                  _buildKpiGrid(summary, isMobile),
+                  _buildKpiGrid(summary, isMobile, currencyFormatter),
                   const SizedBox(height: 24),
                   _buildAlerts(summary, context),
                   const SizedBox(height: 24),
                   Text(
                     'Ingresos Netos (Últimos 6 Meses)',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  _buildIncomeChart(summary.datosGraficoIngresos6Meses, context),
+                  _buildIncomeChart(summary.datosGraficoIngresos6Meses, context, currencyFormatter),
                   const SizedBox(height: 24),
                   Text(
                     'Transacciones Recientes',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  _buildRecentTransactions(summary.transaccionesRecientes),
+                  _buildRecentTransactions(summary.transaccionesRecientes, currencyFormatter),
                 ],
               );
             },
@@ -86,41 +109,39 @@ class SummaryTab extends ConsumerWidget {
   }
 
   /// Construye la cuadrícula de KPIs principales.
-  Widget _buildKpiGrid(FinancialSummaryModel summary, bool isMobile) {
-    // *** CORRECCIÓN ***
-    // Adaptamos las llamadas a KpiCard a los errores.
-    // - 'value' es un double.
-    // - 'icon', 'backgroundColor' y 'extraContent' no existen.
+  Widget _buildKpiGrid(FinancialSummaryModel summary, bool isMobile, NumberFormat formatter) {
+    
+    final kpiCrecimientoColor = summary.porcentajeCrecimiento3Meses >= 0
+        ? const Color(0xFF00FF7F) // Verde Neón
+        : Colors.redAccent;
+    final kpiCrecimientoIcon = summary.porcentajeCrecimiento3Meses >= 0
+        ? Icons.trending_up_rounded
+        : Icons.trending_down_rounded;
 
     // KPI 3: Mini-gráfico de Crecimiento
-    final kpiCrecimiento = KpiCard(
-      title: 'Crecimiento (3M)',
-      value: (summary.porcentajeCrecimiento3Meses * 100), // Pasamos el double
-      color: summary.porcentajeCrecimiento3Meses >= 0
-          ? Colors.green.shade700
-          : Colors.red.shade700,
-      // 'icon' eliminado
-      // 'backgroundColor' eliminado
-      // 'extraContent' eliminado
+    final kpiCrecimiento = _KpiCard(
+      title: 'Crecimiento (vs 3M)',
+      // Formateamos el valor como string
+      value: '${(summary.porcentajeCrecimiento3Meses * 100).toStringAsFixed(1)}%',
+      icon: kpiCrecimientoIcon,
+      color: kpiCrecimientoColor,
     );
 
     // Lista de KPIs
     final kpis = [
       // KPI 1: Ingresos Netos
-      KpiCard(
+      _KpiCard(
         title: 'Ingresos Netos',
-        value: summary.ingresosNetos, // Pasamos el double
-        color: Colors.green.shade700,
-        // 'icon' eliminado
-        // 'backgroundColor' eliminado
+        value: formatter.format(summary.ingresosNetos), // Formateado
+        icon: Icons.attach_money_rounded,
+        color: const Color(0xFF00FF7F), // Verde Neón
       ),
       // KPI 2: Pendiente de Cobro
-      KpiCard(
+      _KpiCard(
         title: 'Pendiente de Cobro',
-        value: summary.montoPendienteDeCobro, // Pasamos el double
-        color: Colors.orange.shade800,
-        // 'icon' eliminado
-        // 'backgroundColor' eliminado
+        value: formatter.format(summary.montoPendienteDeCobro), // Formateado
+        icon: Icons.account_balance_wallet_outlined,
+        color: Colors.orangeAccent,
         onTap: () {
           // TODO: Implementar navegación a lista de cobros pendientes
           print('Navegar a cobros pendientes');
@@ -134,7 +155,7 @@ class SummaryTab extends ConsumerWidget {
         children: [
           ...kpis,
           kpiCrecimiento,
-        ].map((k) => Padding(padding: const EdgeInsets.only(bottom: 12.0), child: k)).toList(),
+        ].map((k) => Padding(padding: const EdgeInsets.only(bottom: 16.0), child: k)).toList(),
       );
     } else {
       // Web/Tablet: Grid
@@ -144,7 +165,7 @@ class SummaryTab extends ConsumerWidget {
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 2.0, // Más anchos que altos
+        childAspectRatio: 2.2, // Más anchos que altos
         children: [
           ...kpis,
           kpiCrecimiento,
@@ -155,46 +176,52 @@ class SummaryTab extends ConsumerWidget {
 
   /// Construye las alertas de presupuesto si existen.
   Widget _buildAlerts(FinancialSummaryModel summary, BuildContext context) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    const successColor = Color(0xFF00FF7F);
+    const warningColor = Colors.orangeAccent;
+
     if (summary.alertasPresupuesto.isEmpty) {
       // Si no hay alertas, mostramos un mensaje tranquilizador
-      return Card(
-        color: Colors.grey.shade50,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
+      return Container(
+        decoration: BoxDecoration(
+          color: surfaceColor.withAlpha(150), // Ligeramente transparente
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.shade300),
+          border: Border.all(color: successColor.withAlpha(150)),
         ),
         child: const ListTile(
-          leading: Icon(Icons.check_circle_outline, color: Colors.green),
-          title: Text('¡Todo en orden!'),
-          subtitle: Text('Tus presupuestos están bajo control este mes.'),
+          leading: Icon(Icons.check_circle_outline, color: successColor),
+          title: Text('¡Todo en orden!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          subtitle: Text('Tus presupuestos están bajo control este mes.', style: TextStyle(color: Colors.white70)),
         ),
       );
     }
 
     // Si hay alertas
-    return Card(
-      color: Colors.amber.shade50,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceColor.withAlpha(150),
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.amber.shade300),
+        border: Border.all(color: warningColor.withAlpha(200), width: 1.5),
+         boxShadow: [
+          BoxShadow(color: warningColor.withAlpha(70), blurRadius: 10)
+        ]
       ),
       child: ListTile(
-        leading: Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800),
-        title: Text(
+        leading: Icon(Icons.warning_amber_rounded, color: warningColor),
+        title: const Text(
           'Alerta de Presupuesto',
           style: TextStyle(
-              color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+              color: warningColor, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
           'Has superado el 80% en: ${summary.alertasPresupuesto.map((a) => a.categoria).join(', ')}.',
-          style: TextStyle(color: Colors.amber.shade800),
+          style: TextStyle(color: warningColor.withAlpha((255 * 0.9).round())),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white70),
         onTap: () {
-          // TODO: Navegar a la pestaña de Análisis
-          print('Navegar a la pestaña de Análisis');
+          // Navega a la pestaña de Análisis
+           final controller = DefaultTabController.of(context);
+           controller.animateTo(2); // 2 es el índice de la pestaña 'Análisis'
         },
       ),
     );
@@ -204,52 +231,59 @@ class SummaryTab extends ConsumerWidget {
   Widget _buildIncomeChart(
     List<MonthlyData> data, 
     BuildContext context,
+    NumberFormat formatter,
   ) {
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
     if (data.isEmpty) {
-      return const Center(child: Text('No hay datos suficientes para el gráfico.'));
+      return const Center(child: Text('No hay datos suficientes para el gráfico.', style: TextStyle(color: Colors.white70)));
     }
 
-    // Encontrar el valor máximo y mínimo para el eje Y
     final minY = data.map((d) => d.monto).reduce((a, b) => a < b ? a : b);
     final maxY = data.map((d) => d.monto).reduce((a, b) => a > b ? a : b);
-    final buffer = (maxY - minY) * 0.2; // 20% de búfer
+    final buffer = (maxY - minY).abs() * 0.2; // 20% de búfer
 
-    // *** CORRECCIÓN ***
-    // Añadimos un chequeo para evitar que horizontalInterval sea 0.
-    double horizontalInterval = (maxY - minY) / 4;
-    if (horizontalInterval == 0) {
-      // Si max y min son iguales (ej. un solo dato),
-      // creamos un intervalo por defecto.
-      // Si maxY es 0, usamos 1, si no, usamos un cuarto de maxY.
-      horizontalInterval = maxY > 0 ? maxY / 4 : 1.0;
+    // --- CORRECCIÓN DEFINITIVA ---
+    // Forzamos que la operación sea `double` desde el principio.
+    double horizontalInterval = (maxY.toDouble() - minY.toDouble()) / 4.0;
+    if (horizontalInterval == 0 || horizontalInterval.isNaN) {
+      horizontalInterval = maxY > 0 ? (maxY.toDouble() / 4.0) : 1.0;
     }
-    // *** FIN DE LA CORRECCIÓN ***
+    // --- FIN DE LA CORRECCIÓN ---
+    
+    // Asegurarse de que min y max no sean iguales
+    double finalMinY = (minY - buffer).floorToDouble();
+    double finalMaxY = (maxY + buffer).ceilToDouble();
+    if (finalMinY == finalMaxY) {
+      finalMaxY += 100; // Añadir un valor por defecto si son iguales
+    }
+
+    // --- CORRECCIÓN DE UX (GRÁFICO VACÍO) ---
+    if (finalMinY == 0) { 
+      finalMinY = - (finalMaxY * 0.1).clamp(1, 10).toDouble(); 
+    }
+    // --- FIN DE LA CORRECCIÓN ---
 
     return SizedBox(
       height: 250,
       child: LineChart(
         LineChartData(
-          // Usamos 'floor' y 'ceil' para asegurar que el buffer no sea 0
-          minY: (minY - buffer).floorToDouble(),
-          maxY: (maxY + buffer).ceilToDouble(),
+          minY: finalMinY,
+          maxY: finalMaxY,
           gridData: FlGridData(
             show: true,
-            drawVerticalLine: true,
-            horizontalInterval: horizontalInterval, // Usamos la variable corregida
+            drawVerticalLine: false, // Ocultar líneas verticales
+            horizontalInterval: horizontalInterval,
             getDrawingHorizontalLine: (value) {
               return FlLine(
-                color: Colors.grey.shade300,
+                color: Colors.white.withAlpha(50), // Líneas de cuadrícula tenues
                 strokeWidth: 1,
-                dashArray: [2, 2],
-              );
-            },
-            getDrawingVerticalLine: (value) {
-              return FlLine(
-                color: Colors.transparent,
+                dashArray: [3, 3],
               );
             },
           ),
-          borderData: FlBorderData(show: false),
+          borderData: FlBorderData(show: false), // Sin bordes
           titlesData: FlTitlesData(
             // Eje X (Meses)
             bottomTitles: AxisTitles(
@@ -265,23 +299,19 @@ class SummaryTab extends ConsumerWidget {
                     return SideTitleWidget(
                       axisSide: meta.axisSide,
                       space: 8.0,
-      
-                      child: Text(mes,
+                      child: Text(mes.toUpperCase(),
                           style: const TextStyle(
-                              color: Colors.black54, fontSize: 10)),
+                              color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
                     );
                   }
                   return const Text('');
                 },
               ),
             ),
-            // Eje Y (Montos) - Oculto
-            leftTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            // Ejes Y (Ocultos)
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           // Datos de la línea
           lineBarsData: [
@@ -292,24 +322,32 @@ class SummaryTab extends ConsumerWidget {
                   .map((e) => FlSpot(e.key.toDouble(), e.value.monto))
                   .toList(),
               isCurved: true,
-              color: Theme.of(context).primaryColor,
-              barWidth: 4,
+              color: accentColor, // Color neón
+              barWidth: 3,
               isStrokeCapRound: true,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
+              dotData: const FlDotData(show: false), // Sin puntos
+              belowBarData: BarAreaData( // Área sombreada
                 show: true,
-                color: Theme.of(context).primaryColor.withAlpha((255 * 0.1).round()), 
+                gradient: LinearGradient(
+                  colors: [
+                    accentColor.withAlpha(80),
+                    accentColor.withAlpha(0),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                )
               ),
             ),
           ],
           // Tooltips
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
+              getTooltipColor: (LineBarSpot spot) => surfaceColor,
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((spot) {
                   final monto = spot.y;
                   return LineTooltipItem(
-                    currencyFormatter.format(monto),
+                    formatter.format(monto),
                     const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold),
                   );
@@ -322,79 +360,41 @@ class SummaryTab extends ConsumerWidget {
     );
   }
 
-  // *** CORRECCIÓN ***
-  // Esta función ya no se usa porque KpiCard no tiene 'extraContent'.
-  // La eliminamos para limpiar el código.
-  /*
-  /// Construye el mini-gráfico para la tarjeta KPI.
-  Widget _buildMiniGrowthChart(List<MonthlyData> data, Color color) {
-    if (data.isEmpty) return const SizedBox.shrink();
-
-    final minY = data.map((d) => d.monto).reduce((a, b) => a < b ? a : b);
-    final maxY = data.map((d) => d.monto).reduce((a, b) => a > b ? a : b);
-
-    return LineChart(
-      LineChartData(
-        minY: minY,
-        maxY: maxY,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: const FlTitlesData(
-          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles:false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data
-                .asMap()
-                .entries
-                .map((e) => FlSpot(e.key.toDouble(), e.value.monto))
-                .toList(),
-            isCurved: true,
-            color: color,
-            barWidth: 2.5,
-            dotData: const FlDotData(show: false),
-          ),
-        ],
-        lineTouchData: const LineTouchData(enabled: false),
-      ),
-    );
-  }
-  */
-
   /// Construye la lista de transacciones recientes.
-  Widget _buildRecentTransactions(List<RecentTransaction> transacciones) {
+  Widget _buildRecentTransactions(List<RecentTransaction> transacciones, NumberFormat formatter) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    const successColor = Color(0xFF00FF7F);
+    const errorColor = Colors.redAccent;
+
     if (transacciones.isEmpty) {
-      return const Card(
-        elevation: 0,
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Center(child: Text('No hay transacciones recientes.')),
+      return Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: surfaceColor.withAlpha(150),
+          borderRadius: BorderRadius.circular(12),
         ),
+        child: const Center(child: Text('No hay transacciones recientes.', style: TextStyle(color: Colors.white70))),
       );
     }
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceColor.withAlpha(150),
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300)
       ),
-      clipBehavior: Clip.antiAlias,
+      clipBehavior: Clip.antiAlias, // Para que los ListTile no se salgan
       child: Column(
         children: transacciones.map((tx) {
           final esIngreso = tx.tipo == TransactionType.ingreso;
-          final color = esIngreso ? Colors.green : Colors.red;
-          final icon = esIngreso ? Icons.arrow_upward : Icons.arrow_downward;
+          final color = esIngreso ? successColor : errorColor;
+          final icon = esIngreso ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
 
           return ListTile(
-            leading: Icon(icon, color: color),
-            title: Text(tx.concepto, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(DateFormat.yMMMd('es').format(tx.fecha)),
+            leading: Icon(icon, color: color, size: 28),
+            title: Text(tx.concepto, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+            subtitle: Text(DateFormat.yMMMd('es').format(tx.fecha), style: const TextStyle(color: Colors.white60)),
             trailing: Text(
-              currencyFormatter.format(tx.monto),
+              formatter.format(tx.monto),
               style: TextStyle(
                 color: color,
                 fontWeight: FontWeight.w600,
@@ -403,6 +403,87 @@ class SummaryTab extends ConsumerWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// --- WIDGET KPI REDISEÑADO ---
+// ===================================================================
+
+/// Un widget de tarjeta KPI rediseñado para el estilo "Cyber Glow".
+class _KpiCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _KpiCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withAlpha(100)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withAlpha(70),
+            blurRadius: 12,
+            spreadRadius: 1,
+          )
+        ]
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: color.withAlpha(50),
+          highlightColor: color.withAlpha(30),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Icon(icon, size: 36, color: color),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        value,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                           shadows: [Shadow(color: color, blurRadius: 10)]
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

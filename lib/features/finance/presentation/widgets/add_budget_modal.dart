@@ -1,3 +1,13 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 26/10/2025
+// Style: Cyber Glow
+// This modal was refactored to align with the "Cyber Glow" design,
+// reusing the same custom form widgets from AddExpenseModal for
+// perfect visual consistency.
+// CORRECCIÓN: Se eliminó el padding de viewInsets.bottom, que ahora es
+// manejado por el builder de showModalBottomSheet en analysis_tab.dart.
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -36,6 +46,13 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
   String? _selectedCategoria;
   bool _isLoading = false;
 
+  // --- Paleta de Colores "Cyber Glow" ---
+  static const Color accentColor = Color(0xFF00BFFF);
+  static const Color surfaceColor = Color(0xFF2D2D5A);
+  static const Color backgroundColor = Color(0xFF1A1A2E);
+  static const Color successColor = Color(0xFF00FF7F);
+  static const Color errorColor = Colors.redAccent;
+
   @override
   void initState() {
     super.initState();
@@ -48,17 +65,43 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
     super.dispose();
   }
 
+  /// Muestra el DatePicker para seleccionar la fecha
+  Future<void> _pickDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(DateTime.now().year - 1),
+      lastDate: DateTime(DateTime.now().year + 2),
+      // --- Estilo Cyber Glow para DatePicker ---
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: accentColor,
+              onPrimary: Colors.black,
+              surface: surfaceColor,
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: backgroundColor,
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDate = pickedDate;
+      });
+    }
+  }
+
+
   /// Valida y envía el formulario
   Future<void> _submitForm() async {
     // Validar que el formulario esté completo
     if (!_formKey.currentState!.validate() || _selectedCategoria == null) {
       if (_selectedCategoria == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Por favor, selecciona una categoría.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackbar('Por favor, selecciona una categoría.', isError: true);
       }
       return; // No continuar
     }
@@ -75,7 +118,6 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
       }
 
       // --- Validación Anti-Duplicados ---
-      // Obtenemos los presupuestos existentes ANTES de añadir uno nuevo
       final presupuestosExistentes = await ref.read(presupuestosStreamProvider.future);
       final yaExiste = presupuestosExistentes.any(
         (p) => p.mes == mes && p.categoria == _selectedCategoria!,
@@ -94,44 +136,45 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
         activo: true, // Siempre se crea como activo
       );
       
-      // Aquí estaba el Error 1
       await repository.addPresupuesto(newPresupuesto);
 
-      // --- CORRECCIÓN (Error 2): Chequear 'mounted' ---
       if (!mounted) return;
 
       // Éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Presupuesto añadido con éxito'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // Cerrar el modal
+      _showSnackbar('Presupuesto añadido con éxito');
       Navigator.of(context).pop();
 
     } catch (e) {
-      setState(() => _isLoading = false);
-      
-      // --- CORRECCIÓN (Error 3): Chequear 'mounted' ---
       if (!mounted) return;
-      
-      // Error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al guardar: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnackbar('Error al guardar: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+     if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        message, 
+        style: TextStyle(
+          color: isError ? Colors.white : Colors.black, // Contraste
+          fontWeight: FontWeight.bold
+        )
+      ),
+      backgroundColor: isError ? errorColor : successColor,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
+    // --- CORRECCIÓN DE TECLADO ---
+    // Se elimina el padding para 'viewInsets.bottom' de aquí.
     return Padding(
-      // Padding para que el teclado no tape el modal
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+      padding: const EdgeInsets.only(
         left: 16,
         right: 16,
         top: 20,
@@ -144,20 +187,21 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // --- Título ---
-              Text(
+              const Text(
                 'Añadir Presupuesto',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               
               // --- Monto Meta ---
-              TextFormField(
+              _StyledTextFormField(
                 controller: _montoController,
-                decoration: const InputDecoration(
-                  labelText: 'Monto Meta',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.track_changes),
-                ),
+                labelText: 'Monto Meta',
+                prefixIcon: Icons.track_changes_rounded,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Campo requerido';
@@ -169,76 +213,67 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
               const SizedBox(height: 16),
               
               // --- Categoría ---
-              DropdownButtonFormField<String>(
-                // Error 4: Ignoramos la advertencia de 'value'
+              _StyledDropdownField(
                 value: _selectedCategoria,
-                hint: const Text('Categoría'),
-                isExpanded: true,
-                items: _categoriasGasto.map((cat) => DropdownMenuItem(
-                  value: cat,
-                  child: Text(cat, overflow: TextOverflow.ellipsis),
-                )).toList(),
+                hint: 'Categoría del Presupuesto',
+                prefixIcon: Icons.category_outlined,
+                items: _categoriasGasto,
                 onChanged: (value) {
                   setState(() => _selectedCategoria = value);
                 },
                 validator: (value) => value == null ? 'Requerido' : null,
-                decoration: const InputDecoration(
-                  labelText: 'Categoría del Presupuesto',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category),
-                ),
               ),
               const SizedBox(height: 16),
               
-              // --- Selector de Mes ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Mes del Presupuesto:',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  TextButton(
-                    // Simple picker para el mes (simplificado)
-                    // Para un picker de solo mes/año real, se necesitaría un paquete
-                    onPressed: () async {
-                      final pickedDate = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate,
-                        firstDate: DateTime(DateTime.now().year - 1),
-                        lastDate: DateTime(DateTime.now().year + 2),
-                        // Opcional: Cambiar el modo inicial a solo mes/año
-                        // initialDatePickerMode: DatePickerMode.year, 
-                      );
-                      if (pickedDate != null) {
-                        setState(() {
-                          _selectedDate = pickedDate;
-                        });
-                      }
-                    },
-                    child: Text(
+              // --- Selector de Mes (Rediseñado) ---
+              InputDecorator(
+                decoration: _buildInputDecoration(
+                  labelText: 'Mes del Presupuesto',
+                  prefixIcon: Icons.calendar_today_rounded,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
                       DateFormat('MMMM yyyy', 'es_ES').format(_selectedDate),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                        color: Colors.white, 
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16
+                      ),
                     ),
-                  ),
-                ],
+                    TextButton(
+                      onPressed: _pickDate,
+                      style: TextButton.styleFrom(foregroundColor: accentColor),
+                      child: const Row(
+                         children: [
+                           Icon(Icons.edit_calendar_outlined, size: 20),
+                           SizedBox(width: 8),
+                           Text('Cambiar'),
+                         ],
+                       ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
-              // --- Botón de Guardar ---
+              // --- Botón de Guardar (Rediseñado) ---
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
+                child: FilledButton.icon(
                   onPressed: _isLoading ? null : _submitForm,
                   icon: _isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 3, color: Colors.black),
                         )
-                      : const Icon(Icons.save),
+                      : const Icon(Icons.save_rounded),
                   label: Text(_isLoading ? 'Guardando...' : 'Añadir Presupuesto'),
-                  style: ElevatedButton.styleFrom(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -251,5 +286,110 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
       ),
     );
   }
+}
+
+// --- WIDGETS DE FORMULARIO ESTILIZADOS ---
+
+/// Un TextFormField con el estilo "Cyber Glow".
+class _StyledTextFormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String labelText;
+  final IconData prefixIcon;
+  final FormFieldValidator<String>? validator;
+  final TextInputType? keyboardType;
+
+  const _StyledTextFormField({
+    required this.controller,
+    required this.labelText,
+    required this.prefixIcon,
+    this.validator,
+    this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white),
+      decoration: _buildInputDecoration(
+        labelText: labelText,
+        prefixIcon: prefixIcon,
+      ),
+      keyboardType: keyboardType,
+      validator: validator,
+    );
+  }
+}
+
+/// Un DropdownButtonFormField con el estilo "Cyber Glow".
+class _StyledDropdownField extends StatelessWidget {
+  final String? value;
+  final String hint;
+  final IconData prefixIcon;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+  final FormFieldValidator<String>? validator;
+
+  const _StyledDropdownField({
+    required this.value,
+    required this.hint,
+    required this.prefixIcon,
+    required this.items,
+    required this.onChanged,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      hint: Text(hint, style: const TextStyle(color: Colors.white70)),
+      isExpanded: true,
+      items: items.map((item) => DropdownMenuItem(
+        value: item,
+        child: Text(item, overflow: TextOverflow.ellipsis),
+      )).toList(),
+      onChanged: onChanged,
+      validator: validator,
+      // --- Estilo "Cyber Glow" ---
+      style: const TextStyle(color: Colors.white),
+      iconEnabledColor: const Color(0xFF00BFFF),
+      decoration: _buildInputDecoration(
+        labelText: hint,
+        prefixIcon: prefixIcon,
+      ),
+      dropdownColor: const Color(0xFF2D2D5A), // Color del menú
+    );
+  }
+}
+
+/// Helper centralizado para la decoración de inputs.
+InputDecoration _buildInputDecoration({required String labelText, IconData? prefixIcon}) {
+  const accentColor = Color(0xFF00BFFF);
+  const formFieldColor = Color(0xFF1A1A2E); // Fondo más oscuro para contraste
+
+  return InputDecoration(
+    labelText: labelText,
+    labelStyle: const TextStyle(color: Colors.white70),
+    prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: accentColor, size: 20) : null,
+    filled: true,
+    fillColor: formFieldColor,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: accentColor, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.redAccent.shade100, width: 1.5),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+    ),
+  );
 }
 
