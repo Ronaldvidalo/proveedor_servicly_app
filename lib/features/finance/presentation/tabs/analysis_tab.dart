@@ -2,14 +2,14 @@
 // UX/UI Redesigned: 26/10/2025
 // Style: Cyber Glow
 // This analysis tab was fully refactored to align with the "Cyber Glow" design.
-// Both charts (Bar and Line) are now styled with neon colors and dark themes.
-// The budget list, empty state, and modal dialogs are all styled for a cohesive experience.
+// CORRECCIÓN: Añadido parámetro GlobalKey para el tour virtual (ShowCaseView).
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:showcaseview/showcaseview.dart'; // Importar showcaseview
 
 import '../../data/models/cobro_model.dart';
 import '../../data/models/gasto_model.dart';
@@ -20,7 +20,13 @@ import '../widgets/add_budget_modal.dart';
 
 /// Pestaña 3: Análisis y Proyección
 class AnalysisTab extends ConsumerWidget {
-  AnalysisTab({super.key});
+  // --- NUEVO: Aceptar la key del tour ---
+  final GlobalKey analysisChartKey;
+  
+  AnalysisTab({
+    super.key,
+    required this.analysisChartKey,
+  });
 
   final currencyFormatter = NumberFormat.currency(
     locale: 'es_CL',
@@ -73,10 +79,15 @@ class AnalysisTab extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               
-              // --- Gráfico 1: Comparativa Ingreso vs Gasto (6 Meses) ---
-              SizedBox(
-                height: 250,
-                child: _buildIngresoVsGastoChart(context, cobros, gastos),
+              // --- Gráfico 1: Envuelta con Showcase ---
+              Showcase(
+                key: analysisChartKey,
+                title: 'Análisis Comparativo',
+                description: 'Compara tus ingresos (verde) contra tus gastos (rojo) mes a mes para ver la salud de tu negocio.',
+                child: SizedBox(
+                  height: 250,
+                  child: _buildIngresoVsGastoChart(context, cobros, gastos),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -144,8 +155,8 @@ class AnalysisTab extends ConsumerWidget {
 
     return ListView.builder(
       itemCount: presupuestosMesActual.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true, // Importante dentro de un SingleChildScrollView
+      physics: const NeverScrollableScrollPhysics(), // El scroll lo maneja el padre
       itemBuilder: (context, index) {
         final presupuesto = presupuestosMesActual[index];
         
@@ -255,7 +266,7 @@ class AnalysisTab extends ConsumerWidget {
               final String label = (rodIndex == 0) ? 'Ingreso' : 'Gasto';
               return BarTooltipItem(
                 '$label\n${currencyFormatter.format(rod.toY)}',
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                TextStyle(color: rodIndex == 0 ? successColor : errorColor, fontWeight: FontWeight.bold),
               );
             },
           ),
@@ -409,3 +420,4 @@ class AnalysisTab extends ConsumerWidget {
     );
   }
 }
+

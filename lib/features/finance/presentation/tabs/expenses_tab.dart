@@ -2,10 +2,9 @@
 // UX/UI Redesigned: 26/10/2025
 // Style: Cyber Glow
 // This expenses tab was fully refactored to align with the "Cyber Glow" design.
-// The PieChart was redesigned with a center value metric and neon color palette.
-// List items, modals, and snackbars are all styled for a cohesive experience.
 // CORRECCIÓN (Definitiva): Se asignó un width/height fijo al 'leading' (widget de fecha)
 // en _buildExpensesList para solucionar el RenderFlex overflow de 2.0 pixels.
+// CORRECCIÓN 2: Añadido parámetro GlobalKey para el tour virtual (ShowCaseView).
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -13,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart'; // Para groupBy
+import 'package:showcaseview/showcaseview.dart'; // Importar showcaseview
 
 import '../../data/models/gasto_model.dart';
 import '../../data/repositories/finance_repository.dart';
@@ -26,7 +26,13 @@ final selectedExpenseCategoryProvider = StateProvider<String?>((ref) => null);
 
 /// Pestaña 2: Gestión de Gastos
 class ExpensesTab extends ConsumerStatefulWidget {
-  const ExpensesTab({super.key});
+  // --- NUEVO: Aceptar la key del tour ---
+  final GlobalKey addExpenseButtonKey;
+
+  const ExpensesTab({
+    super.key,
+    required this.addExpenseButtonKey,
+  });
 
   @override
   ConsumerState<ExpensesTab> createState() => _ExpensesTabState();
@@ -125,15 +131,20 @@ class _ExpensesTabState extends ConsumerState<ExpensesTab> {
         },
       ),
       // --- Botón para Añadir Gasto ---
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Llamamos al modal para AÑADIR (gasto = null)
-          _showAddExpenseModal(context, null);
-        },
-        backgroundColor: accentColor,
-        foregroundColor: Colors.black, // Color del icono
-        tooltip: 'Añadir Gasto',
-        child: const Icon(Icons.add),
+      floatingActionButton: Showcase(
+        key: widget.addExpenseButtonKey,
+        title: 'Añadir Gasto',
+        description: 'Toca este botón para registrar un nuevo gasto en cualquier momento.',
+        child: FloatingActionButton(
+          onPressed: () {
+            // Llamamos al modal para AÑADIR (gasto = null)
+            _showAddExpenseModal(context, null);
+          },
+          backgroundColor: accentColor,
+          foregroundColor: Colors.black, // Color del icono
+          tooltip: 'Añadir Gasto',
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }

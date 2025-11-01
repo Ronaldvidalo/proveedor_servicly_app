@@ -2,18 +2,14 @@
 // UX/UI Redesigned: 26/10/2025
 // Style: Cyber Glow
 // This summary tab was fully refactored to align with the "Cyber Glow" design.
-// It features custom-styled _KpiCard widgets, a themed LineChart (fl_chart),
-// styled alert banners, and a redesigned recent transactions list.
-// CORRECCIÓN: Ajustada la lógica de min/max Y-axis en _buildIncomeChart
-// para asegurar que la línea del gráfico sea visible incluso si todos los valores son 0.
-// CORRECCIÓN 3: Forzado el casteo a double en 'horizontalInterval' para
-// solucionar el error 'invalid_assignment'.
+// CORRECCIÓN: Añadidos parámetros GlobalKey para el tour virtual (ShowCaseView).
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:showcaseview/showcaseview.dart'; // Importar showcaseview
 
 import '../../data/models/financial_summary_model.dart';
 import '../providers/finance_providers.dart';
@@ -21,9 +17,16 @@ import '../providers/finance_providers.dart';
 // ignore_for_file: avoid_print
 
 /// Pestaña 1: Resumen Ejecutivo
-/// Muestra los KPIs principales, gráficos de resumen y transacciones recientes.
 class SummaryTab extends ConsumerWidget {
-  SummaryTab({super.key});
+  // --- NUEVO: Aceptar las keys del tour ---
+  final GlobalKey kpiCardsKey;
+  final GlobalKey incomeChartKey;
+
+  SummaryTab({
+    super.key,
+    required this.kpiCardsKey,
+    required this.incomeChartKey,
+  });
 
   // Formateador de moneda
   final currencyFormatter = NumberFormat.currency(
@@ -34,7 +37,6 @@ class SummaryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Observamos el provider principal que nos da el resumen completo
     final summaryAsync = ref.watch(financialSummaryProvider);
 
     // --- Paleta "Cyber Glow" ---
@@ -60,14 +62,13 @@ class SummaryTab extends ConsumerWidget {
       // --- ESTADO DE ÉXITO (DATOS) ---
       data: (summary) {
         return RefreshIndicator(
-          color: accentColor, // Color del spinner
-          backgroundColor: backgroundColor, // Fondo del spinner
+          color: accentColor,
+          backgroundColor: backgroundColor,
           onRefresh: () async {
             // Invalidamos los streams base para forzar un recálculo
             ref.invalidate(gastosStreamProvider);
             ref.invalidate(cobrosStreamProvider);
             ref.invalidate(presupuestosStreamProvider);
-            // Damos un pequeño retraso para que el indicador se muestre
             await Future.delayed(const Duration(milliseconds: 500));
           },
           child: LayoutBuilder(
@@ -76,7 +77,13 @@ class SummaryTab extends ConsumerWidget {
               return ListView(
                 padding: const EdgeInsets.all(16.0),
                 children: [
-                  _buildKpiGrid(summary, isMobile, currencyFormatter),
+                  // --- 5. Envolver el widget con Showcase ---
+                  Showcase(
+                    key: kpiCardsKey,
+                    title: 'Tus Métricas Clave',
+                    description: 'Aquí ves un resumen rápido de tus ingresos, deudas y crecimiento.',
+                    child: _buildKpiGrid(summary, isMobile, currencyFormatter),
+                  ),
                   const SizedBox(height: 24),
                   _buildAlerts(summary, context),
                   const SizedBox(height: 24),
@@ -88,7 +95,13 @@ class SummaryTab extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildIncomeChart(summary.datosGraficoIngresos6Meses, context, currencyFormatter),
+                  // --- 6. Envolver el widget con Showcase ---
+                  Showcase(
+                    key: incomeChartKey,
+                    title: 'Gráfico de Ingresos',
+                    description: 'Visualiza tus ingresos netos (ingresos menos gastos) de los últimos 6 meses.',
+                    child: _buildIncomeChart(summary.datosGraficoIngresos6Meses, context, currencyFormatter),
+                  ),
                   const SizedBox(height: 24),
                   Text(
                     'Transacciones Recientes',
@@ -118,28 +131,23 @@ class SummaryTab extends ConsumerWidget {
         ? Icons.trending_up_rounded
         : Icons.trending_down_rounded;
 
-    // KPI 3: Mini-gráfico de Crecimiento
     final kpiCrecimiento = _KpiCard(
       title: 'Crecimiento (vs 3M)',
-      // Formateamos el valor como string
       value: '${(summary.porcentajeCrecimiento3Meses * 100).toStringAsFixed(1)}%',
       icon: kpiCrecimientoIcon,
       color: kpiCrecimientoColor,
     );
 
-    // Lista de KPIs
     final kpis = [
-      // KPI 1: Ingresos Netos
       _KpiCard(
         title: 'Ingresos Netos',
-        value: formatter.format(summary.ingresosNetos), // Formateado
+        value: formatter.format(summary.ingresosNetos),
         icon: Icons.attach_money_rounded,
-        color: const Color(0xFF00FF7F), // Verde Neón
+        color: const Color(0xFF00FF7F),
       ),
-      // KPI 2: Pendiente de Cobro
       _KpiCard(
         title: 'Pendiente de Cobro',
-        value: formatter.format(summary.montoPendienteDeCobro), // Formateado
+        value: formatter.format(summary.montoPendienteDeCobro),
         icon: Icons.account_balance_wallet_outlined,
         color: Colors.orangeAccent,
         onTap: () {
@@ -158,14 +166,13 @@ class SummaryTab extends ConsumerWidget {
         ].map((k) => Padding(padding: const EdgeInsets.only(bottom: 16.0), child: k)).toList(),
       );
     } else {
-      // Web/Tablet: Grid
       return GridView.count(
         crossAxisCount: 3,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 2.2, // Más anchos que altos
+        childAspectRatio: 2.2,
         children: [
           ...kpis,
           kpiCrecimiento,
@@ -181,10 +188,9 @@ class SummaryTab extends ConsumerWidget {
     const warningColor = Colors.orangeAccent;
 
     if (summary.alertasPresupuesto.isEmpty) {
-      // Si no hay alertas, mostramos un mensaje tranquilizador
       return Container(
         decoration: BoxDecoration(
-          color: surfaceColor.withAlpha(150), // Ligeramente transparente
+          color: surfaceColor.withAlpha(150),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: successColor.withAlpha(150)),
         ),
@@ -196,7 +202,6 @@ class SummaryTab extends ConsumerWidget {
       );
     }
 
-    // Si hay alertas
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor.withAlpha(150),
@@ -215,13 +220,12 @@ class SummaryTab extends ConsumerWidget {
         ),
         subtitle: Text(
           'Has superado el 80% en: ${summary.alertasPresupuesto.map((a) => a.categoria).join(', ')}.',
-          style: TextStyle(color: warningColor.withAlpha((255 * 0.9).round())),
+          style: TextStyle(color: warningColor.withAlpha( (255 * 0.9).round() )),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white70),
         onTap: () {
-          // Navega a la pestaña de Análisis
            final controller = DefaultTabController.of(context);
-           controller.animateTo(2); // 2 es el índice de la pestaña 'Análisis'
+           controller.animateTo(2);
         },
       ),
     );
@@ -237,33 +241,30 @@ class SummaryTab extends ConsumerWidget {
     const surfaceColor = Color(0xFF2D2D5A);
 
     if (data.isEmpty) {
-      return const Center(child: Text('No hay datos suficientes para el gráfico.', style: TextStyle(color: Colors.white70)));
+      return const SizedBox(
+        height: 250,
+        child: Center(child: Text('No hay datos suficientes para el gráfico.', style: TextStyle(color: Colors.white70)))
+      );
     }
 
     final minY = data.map((d) => d.monto).reduce((a, b) => a < b ? a : b);
     final maxY = data.map((d) => d.monto).reduce((a, b) => a > b ? a : b);
-    final buffer = (maxY - minY).abs() * 0.2; // 20% de búfer
+    final buffer = (maxY - minY).abs() * 0.2;
 
-    // --- CORRECCIÓN DEFINITIVA ---
-    // Forzamos que la operación sea `double` desde el principio.
     double horizontalInterval = (maxY.toDouble() - minY.toDouble()) / 4.0;
     if (horizontalInterval == 0 || horizontalInterval.isNaN) {
       horizontalInterval = maxY > 0 ? (maxY.toDouble() / 4.0) : 1.0;
     }
-    // --- FIN DE LA CORRECCIÓN ---
     
-    // Asegurarse de que min y max no sean iguales
     double finalMinY = (minY - buffer).floorToDouble();
     double finalMaxY = (maxY + buffer).ceilToDouble();
     if (finalMinY == finalMaxY) {
-      finalMaxY += 100; // Añadir un valor por defecto si son iguales
+      finalMaxY += 100;
     }
 
-    // --- CORRECCIÓN DE UX (GRÁFICO VACÍO) ---
-    if (finalMinY == 0) { 
+    if (finalMinY >= 0) { 
       finalMinY = - (finalMaxY * 0.1).clamp(1, 10).toDouble(); 
     }
-    // --- FIN DE LA CORRECCIÓN ---
 
     return SizedBox(
       height: 250,
@@ -273,19 +274,18 @@ class SummaryTab extends ConsumerWidget {
           maxY: finalMaxY,
           gridData: FlGridData(
             show: true,
-            drawVerticalLine: false, // Ocultar líneas verticales
+            drawVerticalLine: false,
             horizontalInterval: horizontalInterval,
             getDrawingHorizontalLine: (value) {
               return FlLine(
-                color: Colors.white.withAlpha(50), // Líneas de cuadrícula tenues
+                color: Colors.white.withAlpha(50),
                 strokeWidth: 1,
                 dashArray: [3, 3],
               );
             },
           ),
-          borderData: FlBorderData(show: false), // Sin bordes
+          borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
-            // Eje X (Meses)
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
@@ -295,7 +295,7 @@ class SummaryTab extends ConsumerWidget {
                   final index = value.toInt();
                   if (index >= 0 && index < data.length) {
                     final mes = DateFormat.MMM('es')
-                        .format(data[index].mes); // 'es' para español
+                        .format(data[index].mes);
                     return SideTitleWidget(
                       axisSide: meta.axisSide,
                       space: 8.0,
@@ -308,12 +308,10 @@ class SummaryTab extends ConsumerWidget {
                 },
               ),
             ),
-            // Ejes Y (Ocultos)
             leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
-          // Datos de la línea
           lineBarsData: [
             LineChartBarData(
               spots: data
@@ -322,11 +320,11 @@ class SummaryTab extends ConsumerWidget {
                   .map((e) => FlSpot(e.key.toDouble(), e.value.monto))
                   .toList(),
               isCurved: true,
-              color: accentColor, // Color neón
+              color: accentColor,
               barWidth: 3,
               isStrokeCapRound: true,
-              dotData: const FlDotData(show: false), // Sin puntos
-              belowBarData: BarAreaData( // Área sombreada
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
                   colors: [
@@ -339,7 +337,6 @@ class SummaryTab extends ConsumerWidget {
               ),
             ),
           ],
-          // Tooltips
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: (LineBarSpot spot) => surfaceColor,
@@ -382,7 +379,7 @@ class SummaryTab extends ConsumerWidget {
         color: surfaceColor.withAlpha(150),
         borderRadius: BorderRadius.circular(12),
       ),
-      clipBehavior: Clip.antiAlias, // Para que los ListTile no se salgan
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: transacciones.map((tx) {
           final esIngreso = tx.tipo == TransactionType.ingreso;

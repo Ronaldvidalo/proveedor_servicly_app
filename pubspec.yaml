@@ -11,6 +11,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
    # Utilidades y UI
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
@@ -22,8 +23,10 @@ dependencies:
   url_launcher: ^6.3.1
   video_player: ^2.8.6
   collection: ^1.18.0
+  showcaseview: ^3.0.0 # O la versión más reciente
+  shared_preferences: ^2.2.3
 
-# --- GESTIÓN DE ESTADO ---
+  # --- GESTIÓN DE ESTADO ---
   flutter_riverpod: ^2.5.1
 
   # --- UI & GRÁFICOS ---
