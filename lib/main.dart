@@ -1,3 +1,7 @@
+// *** CORRECCIÓN ***
+// Ocultamos los nombres que entran en conflicto con el paquete 'provider'
+// 'ProviderScope' no está oculto, por lo que podemos seguir usándolo.
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider, StreamProvider, ChangeNotifierProvider;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -66,7 +70,13 @@ void main() async {
   }
   // ----------------------------------------------------
 
-  runApp(const MyApp());
+  // *** CORRECCIÓN APLICADA AQUÍ ***
+  // Faltaba envolver tu ProviderScope con runApp()
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -167,3 +177,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

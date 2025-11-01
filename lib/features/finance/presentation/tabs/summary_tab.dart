@@ -12,8 +12,6 @@ import '../widgets/kpi_card.dart';
 /// Pestaña 1: Resumen Ejecutivo
 /// Muestra los KPIs principales, gráficos de resumen y transacciones recientes.
 class SummaryTab extends ConsumerWidget {
-  // *** CORRECCIÓN ***
-  // Usamos super.key para el constructor
   SummaryTab({super.key});
 
   // Formateador de moneda
@@ -47,21 +45,12 @@ class SummaryTab extends ConsumerWidget {
       // --- ESTADO DE ÉXITO (DATOS) ---
       data: (summary) {
         return RefreshIndicator(
-          // *** CORRECCIÓN ***
-          // onRefresh debe devolver un Future<void>.
-          // Invalidamos los providers de datos base (streams)
-          // y el provider de resumen se actualizará automáticamente.
           onRefresh: () async {
-            // Invalidamos los streams para que vuelvan a cargar
+            // Invalidamos los streams base para forzar un recálculo
             ref.invalidate(gastosStreamProvider);
             ref.invalidate(cobrosStreamProvider);
             ref.invalidate(presupuestosStreamProvider);
-
-            // Invalidamos el resumen para que se recalcule
-            ref.invalidate(financialSummaryProvider);
-
-            // Damos un pequeño delay para asegurar que el spinner se muestre
-            // mientras los streams emiten sus nuevos valores.
+            // Damos un pequeño retraso para que el indicador se muestre
             await Future.delayed(const Duration(milliseconds: 500));
           },
           child: LayoutBuilder(
@@ -99,35 +88,20 @@ class SummaryTab extends ConsumerWidget {
   /// Construye la cuadrícula de KPIs principales.
   Widget _buildKpiGrid(FinancialSummaryModel summary, bool isMobile) {
     // *** CORRECCIÓN ***
-    // El KpiCard no acepta 'extraContent', así que construimos el
-    // widget como una Columna que *contiene* el KpiCard y el gráfico.
-    final kpiCrecimiento = Column(
-      children: [
-        KpiCard(
-          title: 'Crecimiento (3M)',
-          // *** CORRECCIÓN ***
-          // El 'value' debe ser un double, no un String.
-          value: (summary.porcentajeCrecimiento3Meses * 100),
-          color: summary.porcentajeCrecimiento3Meses >= 0
-              ? Colors.green.shade700
-              : Colors.red.shade700,
-          // *** CORRECCIÓN ***
-          // Eliminados 'icon', 'backgroundColor' y 'extraContent'
-          // porque no están definidos en tu KpiCard.
-        ),
-        // Movimos el gráfico (que estaba en extraContent)
-        // para que se muestre *debajo* de la tarjeta.
-        if (summary.datosCurvaCrecimiento3M.isNotEmpty)
-          SizedBox(
-            height: 40,
-            child: _buildMiniGrowthChart(
-              summary.datosCurvaCrecimiento3M,
-              summary.porcentajeCrecimiento3Meses >= 0
-                  ? Colors.green
-                  : Colors.red,
-            ),
-          )
-      ],
+    // Adaptamos las llamadas a KpiCard a los errores.
+    // - 'value' es un double.
+    // - 'icon', 'backgroundColor' y 'extraContent' no existen.
+
+    // KPI 3: Mini-gráfico de Crecimiento
+    final kpiCrecimiento = KpiCard(
+      title: 'Crecimiento (3M)',
+      value: (summary.porcentajeCrecimiento3Meses * 100), // Pasamos el double
+      color: summary.porcentajeCrecimiento3Meses >= 0
+          ? Colors.green.shade700
+          : Colors.red.shade700,
+      // 'icon' eliminado
+      // 'backgroundColor' eliminado
+      // 'extraContent' eliminado
     );
 
     // Lista de KPIs
@@ -135,22 +109,18 @@ class SummaryTab extends ConsumerWidget {
       // KPI 1: Ingresos Netos
       KpiCard(
         title: 'Ingresos Netos',
-        // *** CORRECIÓN ***
-        // El 'value' debe ser un double, no un String.
-        value: summary.ingresosNetos,
+        value: summary.ingresosNetos, // Pasamos el double
         color: Colors.green.shade700,
-        // *** CORRECCIÓN ***
-        // Eliminados 'icon' y 'backgroundColor'.
+        // 'icon' eliminado
+        // 'backgroundColor' eliminado
       ),
       // KPI 2: Pendiente de Cobro
       KpiCard(
         title: 'Pendiente de Cobro',
-        // *** CORRECIÓN ***
-        // El 'value' debe ser un double, no un String.
-        value: summary.montoPendienteDeCobro,
+        value: summary.montoPendienteDeCobro, // Pasamos el double
         color: Colors.orange.shade800,
-        // *** CORRECCIÓN ***
-        // Eliminados 'icon' y 'backgroundColor'.
+        // 'icon' eliminado
+        // 'backgroundColor' eliminado
         onTap: () {
           // TODO: Implementar navegación a lista de cobros pendientes
           print('Navegar a cobros pendientes');
@@ -232,7 +202,6 @@ class SummaryTab extends ConsumerWidget {
 
   /// Construye el gráfico principal de ingresos de 6 meses.
   Widget _buildIncomeChart(
-    // El tipo es 'MonthlyData'
     List<MonthlyData> data, 
     BuildContext context,
   ) {
@@ -245,16 +214,28 @@ class SummaryTab extends ConsumerWidget {
     final maxY = data.map((d) => d.monto).reduce((a, b) => a > b ? a : b);
     final buffer = (maxY - minY) * 0.2; // 20% de búfer
 
+    // *** CORRECCIÓN ***
+    // Añadimos un chequeo para evitar que horizontalInterval sea 0.
+    double horizontalInterval = (maxY - minY) / 4;
+    if (horizontalInterval == 0) {
+      // Si max y min son iguales (ej. un solo dato),
+      // creamos un intervalo por defecto.
+      // Si maxY es 0, usamos 1, si no, usamos un cuarto de maxY.
+      horizontalInterval = maxY > 0 ? maxY / 4 : 1.0;
+    }
+    // *** FIN DE LA CORRECCIÓN ***
+
     return SizedBox(
       height: 250,
       child: LineChart(
         LineChartData(
+          // Usamos 'floor' y 'ceil' para asegurar que el buffer no sea 0
           minY: (minY - buffer).floorToDouble(),
           maxY: (maxY + buffer).ceilToDouble(),
           gridData: FlGridData(
             show: true,
             drawVerticalLine: true,
-            horizontalInterval: (maxY - minY) / 4,
+            horizontalInterval: horizontalInterval, // Usamos la variable corregida
             getDrawingHorizontalLine: (value) {
               return FlLine(
                 color: Colors.grey.shade300,
@@ -317,7 +298,6 @@ class SummaryTab extends ConsumerWidget {
               dotData: const FlDotData(show: false),
               belowBarData: BarAreaData(
                 show: true,
-                // 'withOpacity' está obsoleto
                 color: Theme.of(context).primaryColor.withAlpha((255 * 0.1).round()), 
               ),
             ),
@@ -342,6 +322,10 @@ class SummaryTab extends ConsumerWidget {
     );
   }
 
+  // *** CORRECCIÓN ***
+  // Esta función ya no se usa porque KpiCard no tiene 'extraContent'.
+  // La eliminamos para limpiar el código.
+  /*
   /// Construye el mini-gráfico para la tarjeta KPI.
   Widget _buildMiniGrowthChart(List<MonthlyData> data, Color color) {
     if (data.isEmpty) return const SizedBox.shrink();
@@ -357,7 +341,7 @@ class SummaryTab extends ConsumerWidget {
         borderData: FlBorderData(show: false),
         titlesData: const FlTitlesData(
           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles:false)),
           topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
@@ -378,9 +362,9 @@ class SummaryTab extends ConsumerWidget {
       ),
     );
   }
+  */
 
   /// Construye la lista de transacciones recientes.
-  /// Esta función ahora consume la lista pre-calculada del provider
   Widget _buildRecentTransactions(List<RecentTransaction> transacciones) {
     if (transacciones.isEmpty) {
       return const Card(
