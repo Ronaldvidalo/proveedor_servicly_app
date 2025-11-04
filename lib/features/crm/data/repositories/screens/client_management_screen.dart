@@ -6,10 +6,13 @@ import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; 
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/client_list_viewmodel.dart';
-import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; // NECESARIO para MultiProvider
+import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; 
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/client_detail_screen.dart'; 
-import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_list_tab.dart';// WIDGET DE LEADS
+import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_list_tab.dart';
+import 'package:proveedor_servicly_app/features/crm/presentation/screens/contact_form_screen.dart'; // NUEVA PANTALLA
 
+// --- WIDGETS AUXILIARES (omito la definición de ClientListItem y FreeLimitBar por ser muy largas) ---
+// (ASUMIR QUE ClientListItem y FreeLimitBar ESTÁN AQUÍ)
 // --- WIDGETS AUXILIARES (Definidos aquí para que la pantalla sea self-contained) ---
 
 // Widget para el ítem de la lista, mostrando la distinción Free/Pro
@@ -97,7 +100,6 @@ class FreeLimitBar extends StatelessWidget {
           const SizedBox(height: 4),
           LinearProgressIndicator(
             value: percentage,
-            // Reemplazar withOpacity (deprecated) con withAlpha o color directo
             backgroundColor: color.withOpacity(0.2), 
             color: color,
           ),
@@ -201,7 +203,7 @@ class ClientManagementScreen extends StatelessWidget {
           create: (context) => ClientListViewModel(context.read<CrmRepository>()),
         ),
 
-        // 3. Proveedor del Lead ViewModel (ChangeNotifier) - NECESARIO
+        // 3. Proveedor del Lead ViewModel (ChangeNotifier)
         ChangeNotifierProvider(
           create: (context) => LeadListViewModel(context.read<CrmRepository>()),
         ),
@@ -225,7 +227,6 @@ class ClientManagementScreen extends StatelessWidget {
             ),
           ),
           // El cuerpo del Scaffold es el TabBarView
-          // FIX APLICADO: Removido 'const' de TabBarView y sus hijos para resolver errores de constante y de tipo
           body: TabBarView(
             children: [
               const ClientsTab(), 
@@ -235,9 +236,10 @@ class ClientManagementScreen extends StatelessWidget {
           // Botón flotante para la creación rápida de leads (Web/Mobile)
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () {
-               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Iniciando flujo de adición de nuevo contacto...')),
-              );
+               // ABRIR EL NUEVO FORMULARIO DE CONTACTO
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (context) => const ContactFormScreen()),
+               );
             },
             label: const Text('Añadir Contacto'),
             icon: const Icon(Icons.add),
