@@ -63,7 +63,7 @@ class CrmRepository {
     });
   }
 
-  // Método para crear un nuevo Cliente o Lead (Implementación pendiente de la pantalla de Formulario)
+  // Método para crear un nuevo Cliente o Lead (Desde ContactFormScreen)
   Future<void> createCliente(Map<String, dynamic> data) async {
     // Implementación sencilla para crear un nuevo documento
     await _clientesRef.add({
@@ -72,13 +72,29 @@ class CrmRepository {
       'ultimaInteraccion': FieldValue.serverTimestamp(),
       'montoTotalFacturado': 0.0,
       'etiquetas': [],
+      'notasInternas': '', // Campo inicial para las notas
     });
   }
 
   // Método para obtener el conteo total de clientes y leads (necesario para el límite Free)
   Future<int> getClienteCount() async {
     final snapshot = await _clientesRef.count().get();
-    // FIX: Usamos ?? 0 para convertir int? (nullable) a int, resolviendo el error.
     return snapshot.count ?? 0;
+  }
+
+  // --- NUEVOS MÉTODOS PARA FUNCIONALIDAD PRO ---
+
+  // Actualiza la lista de etiquetas de un cliente
+  Future<void> updateClientTags(String clientId, List<String> tags) async {
+    await _clientesRef.doc(clientId).update({
+      'etiquetas': tags,
+    });
+  }
+
+  // Actualiza las notas internas de un cliente
+  Future<void> updateClientNotes(String clientId, String notes) async {
+    await _clientesRef.doc(clientId).update({
+      'notasInternas': notes,
+    });
   }
 }
