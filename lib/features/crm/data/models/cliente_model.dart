@@ -1,115 +1,114 @@
-// Imports de Flutter y paquetes
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
+import '../../core/crm_enums.dart';
 
-// --- ENUMS ---
-
-/// Define los posibles estados de un contacto dentro del flujo CRM (Lead-to-Client).
-enum EstadoCRM {
-  // Estados para la versión PRO
-  leadNuevo('LEAD_NUEVO'), // Lead recién capturado o creado
-  contactado('CONTACTADO'), // Se ha iniciado el primer contacto
-  cotizado('COTIZADO'), // Se ha enviado una cotización/presupuesto
-
-  // Estados compartidos (Free/Pro)
-  lead('LEAD'), // Estado genérico de Lead (usado por Free)
-  clienteActivo('CLIENTE_ACTIVO'), // Cliente que ha realizado al menos 1 cobro
-  clienteInactivo('CLIENTE_INACTIVO'); // Cliente inactivo (solo Pro)
-
-  const EstadoCRM(this.value);
-  final String value;
-
-  // Conversión de String a Enum para Firestore
-  static EstadoCRM fromString(String value) {
-    return EstadoCRM.values.firstWhere(
-      (e) => e.value == value,
-      orElse: () => EstadoCRM.lead, // Valor por defecto si no se encuentra
-    );
-  }
-}
-
-// --- MODELO DE DATOS ---
-
-class ClienteModel extends Equatable {
+// La clase Cliente será la representación de la fuente de verdad de Firestore
+class Cliente {
   final String id;
   final String nombreCompleto;
   final String email;
   final String telefono;
-  final EstadoCRM estadoCRM;
+  final CrmEstado estadoCRM;
   final DateTime fechaAlta;
-  final String creadoPor;
 
-  // Campos Exclusivos PRO
+  // --- Campos Pro ---
   final double montoTotalFacturado; // LTV
-  final DateTime? ultimaInteraccion;
   final String notasInternas;
-  final List<String> etiquetas; // Para segmentación de marketing
+  final List<String> etiquetas;
+  final DateTime ultimaInteraccion;
 
-  const ClienteModel({
+  Cliente({
     required this.id,
     required this.nombreCompleto,
-    this.email = '',
-    this.telefono = '',
+    required this.email,
+    required this.telefono,
     required this.estadoCRM,
     required this.fechaAlta,
-    this.creadoPor = 'manual',
-    // Valores por defecto para campos Pro
+    // Valores por defecto seguros para campos Pro (aunque se lean desde Firestore)
     this.montoTotalFacturado = 0.0,
-    this.ultimaInteraccion,
     this.notasInternas = '',
     this.etiquetas = const [],
+    required this.ultimaInteraccion,
   });
 
-  // Constructor para crear ClienteModel desde un Map (Firestore)
-  factory ClienteModel.fromMap(Map<String, dynamic> data, String id) {
-    return ClienteModel(
-      id: id,
-      nombreCompleto: data['nombreCompleto'] ?? '',
+  // Factory para crear desde un DocumentSnapshot de Firestore
+  factory Cliente.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) {
+      throw Exception("Documento de cliente nulo");
+    }
+
+    // Mapeo seguro y robusto del estado CRM
+    CrmEstado estado = CrmEstado.lead; // Default seguro
+    try {
+      final estadoStr = (data['estadoCRM'] as String? ?? 'lead').toLowerCase();
+      estado = CrmEstado.values.firstWhere(
+        (e) => e.name.toLowerCase() == estadoStr,
+        orElse: () => CrmEstado.lead,
+      );
+    } catch (_) {
+      // Si falla la conversión del enum, se mantiene el default
+    }
+
+    return Cliente(
+      id: doc.id,
+      nombreCompleto: data['nombreCompleto'] ?? 'Cliente sin nombre',
       email: data['email'] ?? '',
       telefono: data['telefono'] ?? '',
-      estadoCRM: EstadoCRM.fromString(data['estadoCRM'] ?? 'LEAD'),
-      fechaAlta: (data['fechaAlta'] as Timestamp).toDate(),
-      creadoPor: data['creadoPor'] ?? 'manual',
+      estadoCRM: estado,
+      // Conversión de Timestamp a DateTime
+      fechaAlta: (data['fechaAlta'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      
       // Campos Pro
       montoTotalFacturado: (data['montoTotalFacturado'] as num?)?.toDouble() ?? 0.0,
-      ultimaInteraccion: (data['ultimaInteraccion'] as Timestamp?)?.toDate(),
       notasInternas: data['notasInternas'] ?? '',
       etiquetas: List<String>.from(data['etiquetas'] ?? []),
+      ultimaInteraccion: (data['ultimaInteraccion'] as Timestamp?)?.toDate() ?? (data['fechaAlta'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
-  // Conversión del modelo a Map para guardar en Firestore
+  // Método para crear el mapa de datos para enviar a Firestore
   Map<String, dynamic> toMap() {
     return {
       'nombreCompleto': nombreCompleto,
       'email': email,
       'telefono': telefono,
-      'estadoCRM': estadoCRM.value,
+      'estadoCRM': estadoCRM.name,
       'fechaAlta': Timestamp.fromDate(fechaAlta),
-      'creadoPor': creadoPor,
-      // Campos Pro
       'montoTotalFacturado': montoTotalFacturado,
-      'ultimaInteraccion': ultimaInteraccion != null
-          ? Timestamp.fromDate(ultimaInteraccion!)
-          : null,
       'notasInternas': notasInternas,
       'etiquetas': etiquetas,
+      'ultimaInteraccion': Timestamp.fromDate(ultimaInteraccion),
     };
   }
 
-  // Implementación de Equatable para comparación de objetos
-  @override
-  List<Object?> get props => [
-        id,
-        nombreCompleto,
-        email,
-        telefono,
-        estadoCRM,
-        fechaAlta,
-        creadoPor,
-        montoTotalFacturado,
-        ultimaInteraccion,
-        notasInternas,
-        etiquetas,
-      ];
+  // Helper para verificar el plan de forma segura
+  bool get isProState => [CrmEstado.leadNuevo, CrmEstado.contactado, CrmEstado.cotizado, CrmEstado.clienteInactivo].contains(estadoCRM);
+  bool get isLead => estadoCRM.name.contains('lead') || estadoCRM == CrmEstado.contactado || estadoCRM == CrmEstado.cotizado;
+
+  Cliente copyWith({
+    String? id,
+    String? nombreCompleto,
+    String? email,
+    String? telefono,
+    CrmEstado? estadoCRM,
+    DateTime? fechaAlta,
+    double? montoTotalFacturado,
+    String? notasInternas,
+    List<String>? etiquetas,
+    DateTime? ultimaInteraccion,
+  }) {
+    return Cliente(
+      id: id ?? this.id,
+      nombreCompleto: nombreCompleto ?? this.nombreCompleto,
+      email: email ?? this.email,
+      telefono: telefono ?? this.telefono,
+      estadoCRM: estadoCRM ?? this.estadoCRM,
+      fechaAlta: fechaAlta ?? this.fechaAlta,
+      montoTotalFacturado: montoTotalFacturado ?? this.montoTotalFacturado,
+      notasInternas: notasInternas ?? this.notasInternas,
+      etiquetas: etiquetas ?? this.etiquetas,
+      ultimaInteraccion: ultimaInteraccion ?? this.ultimaInteraccion,
+    );
+  }
 }
