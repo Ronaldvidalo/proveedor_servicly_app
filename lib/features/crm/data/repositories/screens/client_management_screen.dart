@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart'; 
 
-// Importaciones corregidas a rutas de paquete para evitar problemas de resolución de tipos
-import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; // NECESARIO para Provider
+// Importaciones de paquete:
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; 
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/client_list_viewmodel.dart';
-import 'package:proveedor_servicly_app/features/crm/presentation/screens/client_detail_screen.dart';
+import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; // NECESARIO para MultiProvider
+import 'package:proveedor_servicly_app/features/crm/presentation/screens/client_detail_screen.dart'; 
+import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_list_tab.dart';// WIDGET DE LEADS
 
-
-
-// Las importaciones de crm_enums y flutter/foundation.dart se eliminan por ser unused
-
-// --- WIDGETS AUXILIARES (simulando archivos separados) ---
+// --- WIDGETS AUXILIARES (Definidos aquí para que la pantalla sea self-contained) ---
 
 // Widget para el ítem de la lista, mostrando la distinción Free/Pro
 class ClientListItem extends StatelessWidget {
@@ -64,7 +62,6 @@ class ClientListItem extends StatelessWidget {
           ],
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        // --- NAVEGACIÓN A LA PANTALLA DE DETALLE ---
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -72,7 +69,6 @@ class ClientListItem extends StatelessWidget {
             ),
           );
         },
-        // --- FIN NAVEGACIÓN ---
       ),
     );
   }
@@ -101,7 +97,8 @@ class FreeLimitBar extends StatelessWidget {
           const SizedBox(height: 4),
           LinearProgressIndicator(
             value: percentage,
-            backgroundColor: color.withOpacity(0.2),
+            // Reemplazar withOpacity (deprecated) con withAlpha o color directo
+            backgroundColor: color.withOpacity(0.2), 
             color: color,
           ),
           const SizedBox(height: 4),
@@ -119,14 +116,13 @@ class ClientsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El tipo T en Consumer<T> ahora se resuelve correctamente
+    // Usamos Consumer para escuchar los cambios del ViewModel
     return Consumer<ClientListViewModel>(
       builder: (context, viewModel, child) {
         // Campo de búsqueda siempre visible
         final searchBar = Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(
-            // viewModel ahora es no-nulo (gracias a la inyección y el tipo resuelto)
             onChanged: viewModel.setSearchTerm, 
             decoration: InputDecoration(
               hintText: 'Buscar por nombre, email o teléfono...',
@@ -139,7 +135,6 @@ class ClientsTab extends StatelessWidget {
 
         // Barra de límite solo para usuarios Free
         final limitBar = FreeLimitBar(
-          // viewModel ahora es no-nulo
           percentage: viewModel.limitPercentage, 
           count: viewModel.clienteCount, 
           limit: viewModel.freeLimit,
@@ -148,12 +143,10 @@ class ClientsTab extends StatelessWidget {
         return Column(
           children: [
             searchBar,
-            // viewModel ahora es no-nulo
             if (!viewModel.isProUser) limitBar,
             Expanded(
               // StreamBuilder para manejar los datos en tiempo real
               child: StreamBuilder<List<Cliente>>(
-                // viewModel ahora es no-nulo
                 stream: viewModel.filteredClientesStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -175,7 +168,6 @@ class ClientsTab extends StatelessWidget {
                       final cliente = clientes[index];
                       return ClientListItem(
                         cliente: cliente,
-                        // viewModel ahora es no-nulo
                         isProUser: viewModel.isProUser,
                       );
                     },
@@ -190,61 +182,6 @@ class ClientsTab extends StatelessWidget {
   }
 }
 
-// Pestaña 2: Leads y Seguimiento (LeadsTab - Simplificado)
-class LeadsTab extends StatelessWidget {
-  const LeadsTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Acceso seguro al ViewModel (el tipo T ahora está resuelto)
-    final viewModel = Provider.of<ClientListViewModel>(context);
-    
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.group_add, size: 80, color: Colors.blueGrey),
-          const SizedBox(height: 20),
-          const Text(
-            'Gestión de Leads',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40.0),
-            child: Text(
-              'Esta sección permite capturar y gestionar contactos nuevos. En la versión Pro, se habilita el embudo de ventas avanzado (Nuevo, Contactado, Cotizado) y la captura automática.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Abriendo formulario de creación manual de Lead...')),
-              );
-            },
-            icon: const Icon(Icons.person_add),
-            label: const Text('Crear Lead Manualmente'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-            ),
-          ),
-          const SizedBox(height: 20),
-          // viewModel ahora es no-nulo
-          if (!viewModel.isProUser)
-            const Chip(
-              label: Text('Funcionalidad Pro: Captura automática de Leads y estados avanzados'),
-              backgroundColor: Colors.amber,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 // PANTALLA PRINCIPAL
 class ClientManagementScreen extends StatelessWidget {
   static const String routeName = '/client-management';
@@ -253,16 +190,20 @@ class ClientManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Inyectamos el Repositorio y el ViewModel en el árbol de widgets
+    // Inyectamos el Repositorio y los ViewModels en el árbol de widgets
     return MultiProvider(
       providers: [
-        // Proveedor del Repositorio (Singleton)
+        // 1. Proveedor del Repositorio (Singleton)
         Provider(create: (_) => CrmRepository()),
         
-        // Proveedor del ViewModel (ChangeNotifier)
-        // El tipo ClientListViewModel ahora se resuelve correctamente
+        // 2. Proveedor del Cliente ViewModel (ChangeNotifier)
         ChangeNotifierProvider(
           create: (context) => ClientListViewModel(context.read<CrmRepository>()),
+        ),
+
+        // 3. Proveedor del Lead ViewModel (ChangeNotifier) - NECESARIO
+        ChangeNotifierProvider(
+          create: (context) => LeadListViewModel(context.read<CrmRepository>()),
         ),
       ],
       child: DefaultTabController(
@@ -284,10 +225,11 @@ class ClientManagementScreen extends StatelessWidget {
             ),
           ),
           // El cuerpo del Scaffold es el TabBarView
-          body: const TabBarView(
+          // FIX APLICADO: Removido 'const' de TabBarView y sus hijos para resolver errores de constante y de tipo
+          body: TabBarView(
             children: [
-              ClientsTab(), 
-              LeadsTab(), 
+              const ClientsTab(), 
+              const LeadsTab(), // Usamos el widget LeadsTab importado
             ],
           ),
           // Botón flotante para la creación rápida de leads (Web/Mobile)
