@@ -15,7 +15,6 @@ import 'package:collection/collection.dart'; // Para groupBy
 import 'package:showcaseview/showcaseview.dart'; // Importar showcaseview
 
 import '../../data/models/gasto_model.dart';
-import '../../data/repositories/finance_repository.dart';
 import '../providers/finance_providers.dart';
 // Importamos el modal
 import '../widgets/add_expense_modal.dart';

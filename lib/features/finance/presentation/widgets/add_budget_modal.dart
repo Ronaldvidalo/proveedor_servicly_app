@@ -81,8 +81,7 @@ class _AddBudgetModalState extends ConsumerState<AddBudgetModal> {
               onPrimary: Colors.black,
               surface: surfaceColor,
               onSurface: Colors.white,
-            ),
-            dialogBackgroundColor: backgroundColor,
+            ), dialogTheme: DialogThemeData(backgroundColor: backgroundColor),
           ),
           child: child!,
         );
@@ -342,7 +341,7 @@ class _StyledDropdownField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       hint: Text(hint, style: const TextStyle(color: Colors.white70)),
       isExpanded: true,
       items: items.map((item) => DropdownMenuItem(

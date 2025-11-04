@@ -262,7 +262,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   subtitle: 'Elige cómo verán tus clientes tu página de presentación.',
                   children: [
                     DropdownButtonFormField<String>(
-                      value: _selectedFormat, 
+                      initialValue: _selectedFormat, 
                       decoration: inputDecoration.copyWith(labelText: 'Formato de Perfil'),
                       dropdownColor: surfaceColor,
                       style: const TextStyle(color: Colors.white),

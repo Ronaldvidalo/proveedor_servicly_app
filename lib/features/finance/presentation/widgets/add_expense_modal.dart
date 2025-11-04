@@ -406,7 +406,7 @@ class _StyledDropdownField extends StatelessWidget {
       // El linter reporta 'value' como obsoleto (severity 2),
       // pero es un falso positivo. Usar 'value' es CORRECTO
       // para un componente controlado por 'setState'.
-      value: value, 
+      initialValue: value, 
       hint: Text(hint, style: const TextStyle(color: Colors.white70)),
       isExpanded: true,
       items: items.map((item) => DropdownMenuItem(
