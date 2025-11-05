@@ -1,35 +1,33 @@
-import 'dart:ui';
+import 'dart:ui'; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 // Modelos y Servicios Existentes
-import 'package:proveedor_servicly_app/core/models/category_model.dart'; // Para servicios
+import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/core/services/category_service.dart'; // Para servicios
+import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
-// Imports para Portafolio
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart'; // Para portafolio
-import 'package:proveedor_servicly_app/core/models/portfolio_category_model.dart'; // Para portafolio
-import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart'; // Para portafolio
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart'; 
+import 'package:proveedor_servicly_app/core/models/portfolio_category_model.dart'; 
+import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart'; 
 // Pantalla de Booking
 import 'package:proveedor_servicly_app/features/booking/screens/booking_screen.dart';
-// --- NUEVO IMPORT ---
-import 'package:url_launcher/url_launcher.dart'; // Para botones de contacto
 import 'package:video_player/video_player.dart';
+// --- IMPORTACIÓN CRM ---
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 
 /// Layout "Landing Page" de un proveedor.
-/// Actúa como el perfil público centralizado, combinando información,
-/// portafolio, servicios y reseñas en una sola vista optimizada para la conversión.
 class CatalogLayout extends StatefulWidget {
-  final String providerId;
-  final ProviderProfileModel profile;
-
   const CatalogLayout({
     super.key,
     required this.providerId,
     required this.profile,
   });
+
+  final String providerId;
+  final ProviderProfileModel profile;
 
   @override
   State<CatalogLayout> createState() => _CatalogLayoutState();
@@ -41,28 +39,34 @@ class _CatalogLayoutState extends State<CatalogLayout> {
   // Estado para el filtro de PORTAFOLIO
   String? _selectedPortfolioCategoryId;
 
-  // --- NUEVA FUNCIÓN ASÍNCRONA para lanzar URLs ---
-  Future<void> _launchUrlHelper(Uri url, BuildContext context, String errorMessage) async {
-    // Verificar si se puede lanzar la URL antes de intentar
+  // --- FUNCIÓN ASÍNCRONA para lanzar URLs y CAPTURAR LEAD ---
+  Future<void> _launchUrlAndCaptureLead(Uri url, BuildContext context, String source) async {
+    // 1. Intentar registrar el Lead (Capturar intención de compra)
+    try {
+      final crmRepository = context.read<CrmRepository>();
+      // Usamos los parámetros que definimos en el Repositorio
+      await crmRepository.captureLeadFromPublicProfile(
+        email: null, 
+        nombreCompleto: 'Visitante Catálogo', 
+        source: source,
+        providerId: widget.providerId,
+        telefono: null,
+      );
+    } catch (e) {
+      debugPrint("Error al capturar Lead desde Catálogo: $e");
+    }
+
+    // 2. Lanzar la URL
     if (await canLaunchUrl(url)) {
-      try {
-        await launchUrl(
-          url,
-          // Para WhatsApp, intentar abrir en la app externa si es posible
-          mode: url.scheme == 'https' && url.host.contains('wa.me')
-              ? LaunchMode.externalApplication
-              : LaunchMode.platformDefault,
-        );
-      } catch (e) {
-         // Asegurarse que el widget todavía está montado antes de usar context
-         if (context.mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error inesperado al abrir: $e')));
-         }
-      }
+      await launchUrl(
+        url,
+        mode: url.scheme == 'https' && url.host.contains('wa.me')
+            ? LaunchMode.externalApplication
+            : LaunchMode.platformDefault,
+      );
     } else {
-       // Asegurarse que el widget todavía está montado antes de usar context
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo abrir la aplicación de contacto.')));
       }
     }
   }
@@ -90,18 +94,18 @@ class _CatalogLayoutState extends State<CatalogLayout> {
           // --- MÓDULO 1.5: CTA Principal (Botón "Agendar Cita") ---
           _buildPrimaryCtaModule(context, widget.profile),
 
-          // --- MÓDULO 2: Información y Contacto ---
+          // --- MÓDULO 2: Información y Contacto (ACTUALIZADO) ---
           // Incluye el módulo de bienvenida (texto/video) si está activo
           _buildInfoModule(context, widget.profile, showWelcome),
 
           // --- MÓDULO Promociones (Placeholder) ---
-           if (showPromotions) _buildPromotionsModule(context, widget.profile),
+            if (showPromotions) _buildPromotionsModule(context, widget.profile),
 
           // --- MÓDULO Portafolio ---
           if (showPortfolio) _buildPortfolioModule(context, widget.profile),
 
           // --- MÓDULO Gift Cards (Placeholder) ---
-           if (showGiftCards) _buildGiftCardModule(context, widget.profile),
+            if (showGiftCards) _buildGiftCardModule(context, widget.profile),
 
           // --- MÓDULO Catálogo de Servicios ---
           _buildServicesModule(context, widget.profile),
@@ -150,10 +154,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 fit: BoxFit.cover,
                 // Placeholder mientras carga o si hay error
                 loadingBuilder: (context, child, loadingProgress) {
-                   if (loadingProgress == null) return child;
-                   // --- CORRECCIÓN: Deprecated withOpacity ---
-                   return Container(color: brandColor.withAlpha((255 * 0.5).round())); // Color base mientras carga
-                 },
+                    if (loadingProgress == null) return child;
+                    return Container(color: brandColor.withAlpha((255 * 0.5).round())); // Color base mientras carga
+                   },
                 errorBuilder: (_, __, ___) => Container(color: brandColor), // Color base si falla
               )
             else // Si no hay logo, usar el color de marca como fondo
@@ -161,7 +164,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
             // Filtro de desenfoque y gradiente oscuro para legibilidad del título
             BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3), // Desenfoque más sutil
+              filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3), // CORREGIDO: Quitado 'ui.'
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -178,7 +181,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
               ),
             ),
              // Eslogan opcional sobre la imagen de fondo (si se define)
-            if (profile.slogan != null && profile.slogan!.isNotEmpty)
+             if (profile.slogan != null && profile.slogan!.isNotEmpty)
               Positioned(
                 bottom: 60, // Posición estimada sobre el título
                 left: 16,
@@ -193,8 +196,8 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                     fontWeight: FontWeight.w500,
                     shadows: const [Shadow(color: Colors.black87, blurRadius: 6)],
                   ),
-                   maxLines: 2,
-                   overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                 ),
               ),
           ],
@@ -205,14 +208,13 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
   // --- MÓDULO 1.5: CTA Principal ---
   Widget _buildPrimaryCtaModule(BuildContext context, ProviderProfileModel profile) {
-     final String ratingText = profile.averageRating != null
+      final String ratingText = profile.averageRating != null
         ? profile.averageRating!.toStringAsFixed(1) // Muestra 1 decimal
         : '-.-'; // Placeholder si no hay rating
         final String reviewCountText = profile.reviewCount != null && profile.reviewCount! > 0
         ? '(${profile.reviewCount} Reseñas)'
         : '(Sin Reseñas)';
-    // --- FIN DEL CAMBIO ---
-
+    
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
@@ -263,7 +265,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
     );
   }
 
-  // --- MÓDULO 2: Información y Contacto (ACTUALIZADO CON URL_LAUNCHER) ---
+  // --- MÓDULO 2: Información y Contacto (ACTUALIZADO CON CRM) ---
   Widget _buildInfoModule(BuildContext context, ProviderProfileModel profile, bool showWelcome) {
     return SliverToBoxAdapter(
       child: Padding(
@@ -281,12 +283,11 @@ class _CatalogLayoutState extends State<CatalogLayout> {
             const SizedBox(height: 16),
 
             // --- Módulo de Bienvenida (Texto o Video) ---
-            // Se muestra aquí si está habilitado
             if (showWelcome) ...[
-               _buildWelcomeContent(context, profile),
-               const SizedBox(height: 24), // Espacio después del módulo de bienvenida
-               const Divider(color: Colors.white24),
-               const SizedBox(height: 24),
+              _buildWelcomeContent(context, profile), // MÉTODO FALTANTE AHORA ESTÁ AQUÍ
+              const SizedBox(height: 24), // Espacio después del módulo de bienvenida
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 24),
             ],
 
             // --- Datos de Contacto (Horario, Dirección, Botones) ---
@@ -301,13 +302,11 @@ class _CatalogLayoutState extends State<CatalogLayout> {
               _InfoRow(
                 icon: Icons.location_on_outlined,
                 text: profile.address!,
-                // TODO: Hacer que al tocar abra el mapa?
-                // onTap: () { /* Lógica para abrir mapas */ },
               ),
               const SizedBox(height: 24),
             ],
 
-            // Botones de Contacto (AHORA FUNCIONALES)
+            // Botones de Contacto (AHORA CAPTURAN LEAD)
             Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
@@ -316,11 +315,12 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                   IconButton.filled(
                     onPressed: () {
                       final Uri launchUri = Uri(scheme: 'tel', path: profile.phone!);
-                      _launchUrlHelper(launchUri, context, 'No se pudo iniciar la llamada');
+                      // Captura el lead antes de llamar
+                      _launchUrlAndCaptureLead(launchUri, context, 'catalogo_telefono');
                     },
                     icon: const Icon(Icons.phone_outlined),
                     style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
-                    tooltip: 'Llamar a ${profile.phone}', // Tooltip útil
+                    tooltip: 'Llamar a ${profile.phone}',
                   ),
                   const SizedBox(width: 16),
                 ],
@@ -328,36 +328,31 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty) ...[
                   IconButton.filled(
                     onPressed: () {
-                      // Formatear número quitando caracteres no numéricos y añadiendo '+' si falta
                       final cleanNumber = profile.whatsapp!.replaceAll(RegExp(r'[^\d]'), '');
-                      // Asumimos que si no empieza con código de país, es local (ej. Argentina +54)
-                      // Esta lógica puede necesitar ajustes según tus datos
                       final formattedNumber = cleanNumber.startsWith('54') ? '+$cleanNumber' : '+54$cleanNumber';
                       final Uri launchUri = Uri.parse('https://wa.me/$formattedNumber');
-                      _launchUrlHelper(launchUri, context, 'No se pudo abrir WhatsApp');
+                      // Captura el lead antes de abrir WhatsApp
+                      _launchUrlAndCaptureLead(launchUri, context, 'catalogo_whatsapp');
                     },
-                    icon: const Icon(Icons.chat_bubble_outline), // TODO: Usar ícono de WhatsApp
+                    icon: const Icon(Icons.chat_bubble_outline), 
                     style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
-                    tooltip: 'WhatsApp: ${profile.whatsapp}', // Tooltip útil
+                    tooltip: 'WhatsApp: ${profile.whatsapp}',
                   ),
                   const SizedBox(width: 16),
                 ],
-                 // Podrías añadir Email aquí
-                 if (profile.contactEmail.isNotEmpty) ...[
-                   IconButton.filled(
-                      onPressed: () {
-                        final Uri launchUri = Uri(
-                           scheme: 'mailto',
-                           path: profile.contactEmail,
-                           // queryParameters: { 'subject': 'Consulta desde Servicly' } // Opcional
-                        );
-                        _launchUrlHelper(launchUri, context, 'No se pudo abrir el cliente de correo');
-                      },
-                      icon: const Icon(Icons.email_outlined),
-                      style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
-                      tooltip: 'Email: ${profile.contactEmail}',
-                    ),
-                 ],
+                // Botón Email
+                if (profile.contactEmail.isNotEmpty) ...[
+                  IconButton.filled(
+                    onPressed: () {
+                      final Uri launchUri = Uri(scheme: 'mailto', path: profile.contactEmail);
+                      // Captura el lead antes de abrir el correo
+                      _launchUrlAndCaptureLead(launchUri, context, 'catalogo_email');
+                    },
+                    icon: const Icon(Icons.email_outlined),
+                    style: IconButton.styleFrom(backgroundColor: const Color(0xFF2D2D5A), foregroundColor: Colors.white),
+                    tooltip: 'Email: ${profile.contactEmail}',
+                  ),
+                ],
               ],
             ),
           ],
@@ -370,7 +365,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
   Widget _buildWelcomeContent(BuildContext context, ProviderProfileModel profile) {
     // --- Opción 1: Mostrar TEXTO ---
     if (profile.welcomeModuleType == 'text') {
-       if (profile.welcomeMessage.isEmpty) return const SizedBox.shrink(); // No mostrar nada si está vacío
+        if (profile.welcomeMessage.isEmpty) return const SizedBox.shrink(); // No mostrar nada si está vacío
       return Text(
         profile.welcomeMessage,
         style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.4), // Mejorar legibilidad
@@ -379,26 +374,26 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
     // --- Opción 2: Mostrar VIDEO ---
     if (profile.welcomeModuleType == 'video' && profile.welcomeVideoUrl != null && profile.welcomeVideoUrl!.isNotEmpty) {
-     // Distinguir entre URL externa (YouTube/Vimeo) y subida
-     bool isExternalUrl = profile.welcomeVideoUrl!.startsWith('http'); // Simplificación
-     bool isUploadedVideo = profile.welcomeVideoSourceType == 'upload';
+      // Distinguir entre URL externa (YouTube/Vimeo) y subida
+      bool isExternalUrl = profile.welcomeVideoUrl!.startsWith('http'); // Simplificación
+      bool isUploadedVideo = profile.welcomeVideoSourceType == 'upload';
 
-     if (isUploadedVideo && isExternalUrl) {
-       // Si es 'upload' pero la URL parece externa, usar el reproductor
-       return _WelcomeVideoPlayer(videoUrl: profile.welcomeVideoUrl!);
-     } else if (!isUploadedVideo && isExternalUrl) {
-       // Si es URL externa (YouTube/Vimeo) - Placeholder por ahora
-       return AspectRatio(
-         aspectRatio: 16 / 9,
-         child: Container(
-           decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)),
-           child: Center(child: Text('Reproductor de YouTube/Vimeo (Próximamente)\n${profile.welcomeVideoUrl}', textAlign: TextAlign.center, style: TextStyle(color: Colors.white54))),
-         ),
-       );
-     } else {
-       // Si no es URL válida o no coincide el tipo, no mostrar nada o un error
-       return const SizedBox.shrink();
-     }
+      if (isUploadedVideo && isExternalUrl) {
+        // Si es 'upload' pero la URL parece externa, usar el reproductor
+        return _WelcomeVideoPlayer(videoUrl: profile.welcomeVideoUrl!);
+      } else if (!isUploadedVideo && isExternalUrl) {
+        // Si es URL externa (YouTube/Vimeo) - Placeholder por ahora
+        return AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)),
+            child: Center(child: Text('Reproductor de YouTube/Vimeo (Próximamente)\n${profile.welcomeVideoUrl}', textAlign: TextAlign.center, style: TextStyle(color: Colors.white54))),
+          ),
+        );
+      } else {
+        // Si no es URL válida o no coincide el tipo, no mostrar nada o un error
+        return const SizedBox.shrink();
+      }
     }
     return const SizedBox.shrink();
   }
@@ -406,40 +401,40 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
   // --- MÓDULO Promociones (Placeholder) ---
   Widget _buildPromotionsModule(BuildContext context, ProviderProfileModel profile) {
-     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Promociones',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 120, // Altura ejemplo
-              decoration: BoxDecoration(
-                color: const Color(0xFF2D2D5A),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Text('Módulo de Promociones (Próximamente)', style: TextStyle(color: Colors.white70)),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
+      return SliverToBoxAdapter(
+       child: Padding(
+         padding: const EdgeInsets.all(16.0),
+         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
+           children: [
+             Text(
+               'Promociones',
+               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                     fontWeight: FontWeight.bold,
+                     color: Colors.white,
+                   ),
+             ),
+             const SizedBox(height: 16),
+             Container(
+               height: 120, // Altura ejemplo
+               decoration: BoxDecoration(
+                 color: const Color(0xFF2D2D5A),
+                 borderRadius: BorderRadius.circular(12),
+               ),
+               child: const Center(
+                 child: Text('Módulo de Promociones (Próximamente)', style: TextStyle(color: Colors.white70)),
+               ),
+             )
+           ],
+         ),
+       ),
+     );
+   }
 
 
   // --- MÓDULO 4: Portafolio (Implementado) ---
   Widget _buildPortfolioModule(BuildContext context, ProviderProfileModel profile) {
-     final firestoreService = context.read<FirestoreService>(); // Necesitamos el servicio
+      final firestoreService = context.read<FirestoreService>(); // Necesitamos el servicio
 
     // Usaremos un SliverList que contiene el título, el selector y la cuadrícula
     return SliverList(
@@ -469,39 +464,42 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
         // --- Cuadrícula de Ítems del Portafolio ---
         StreamBuilder<List<PortfolioItemModel>>(
-          // Usar el stream de ítems, filtrando por la categoría seleccionada
+          // CORREGIDO: Usamos el método antiguo con Stream y suprimimos la advertencia
+          // ignore: deprecated_member_use_from_same_package
           stream: firestoreService.getPortfolioItemsStream(
               profile.providerId,
               _selectedPortfolioCategoryId ?? ''),
           builder: (context, snapshot) {
-             // Mostrar loading solo si hay una categoría seleccionada (no para "Todos")
-            if (snapshot.connectionState == ConnectionState.waiting && _selectedPortfolioCategoryId != null) {
+              // Mostrar loading solo si hay una categoría seleccionada (no para "Todos")
+             if (snapshot.connectionState == ConnectionState.waiting && _selectedPortfolioCategoryId != null) {
               return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Colors.white54)));
-            }
-            if (snapshot.hasError) {
+             }
+             if (snapshot.hasError) {
               return Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text('Error al cargar portafolio: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)),
               );
-            }
-            // Mostrar mensaje si no hay ítems en la categoría seleccionada (o en "Todos")
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+             }
+             // Mostrar mensaje si no hay ítems en la categoría seleccionada (o en "Todos")
+             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               // Verificamos si existen categorías en general antes de mostrar el mensaje
               return StreamBuilder<List<PortfolioCategoryModel>>(
-                 stream: firestoreService.getPortfolioCategoriesStream(profile.providerId),
-                 builder: (context, catSnapshot) {
-                   // Solo muestra "No hay ítems" si SÍ existen categorías en el portafolio
-                   if (catSnapshot.hasData && catSnapshot.data!.isNotEmpty) {
-                     return const Padding(
-                       padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 48.0), // Más padding vertical
-                       child: Center(child: Text('No hay fotos o videos en esta categoría.', style: TextStyle(color: Colors.white54, fontSize: 16))),
-                     );
-                   }
-                   // Si no hay categorías, este módulo no debería mostrar nada (ni el selector)
-                   return const SizedBox.shrink();
-                 }
+                  // CORREGIDO: Usamos el método antiguo con Stream y suprimimos la advertencia
+                  // ignore: deprecated_member_use_from_same_package
+                  stream: firestoreService.getPortfolioCategoriesStream(profile.providerId),
+                  builder: (context, catSnapshot) {
+                    // Solo muestra "No hay ítems" si SÍ existen categorías en el portafolio
+                    if (catSnapshot.hasData && catSnapshot.data!.isNotEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 48.0), // Más padding vertical
+                        child: Center(child: Text('No hay fotos o videos en esta categoría.', style: TextStyle(color: Colors.white54, fontSize: 16))),
+                      );
+                    }
+                    // Si no hay categorías, este módulo no debería mostrar nada (ni el selector)
+                    return const SizedBox.shrink();
+                  }
               );
-            }
+             }
 
             // --- Mostrar la Cuadrícula ---
             final items = snapshot.data!;
@@ -531,35 +529,35 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
   // --- MÓDULO Gift Cards (Placeholder) ---
   Widget _buildGiftCardModule(BuildContext context, ProviderProfileModel profile) {
-     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tarjetas de Regalo',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 120, // Altura ejemplo
-              decoration: BoxDecoration(
-                color: const Color(0xFF2D2D5A),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Text('Módulo de Gift Cards (Próximamente)', style: TextStyle(color: Colors.white70)),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
+      return SliverToBoxAdapter(
+       child: Padding(
+         padding: const EdgeInsets.all(16.0),
+         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
+           children: [
+             Text(
+               'Tarjetas de Regalo',
+               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                     fontWeight: FontWeight.bold,
+                     color: Colors.white,
+                   ),
+             ),
+             const SizedBox(height: 16),
+             Container(
+               height: 120, // Altura ejemplo
+               decoration: BoxDecoration(
+                 color: const Color(0xFF2D2D5A),
+                 borderRadius: BorderRadius.circular(12),
+               ),
+               child: const Center(
+                 child: Text('Módulo de Gift Cards (Próximamente)', style: TextStyle(color: Colors.white70)),
+               ),
+             )
+           ],
+         ),
+       ),
+     );
+   }
 
 
   // --- MÓDULO Catálogo de Servicios ---
@@ -592,7 +590,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
           stream: productService.getProducts(profile.providerId,
               categoryId: _selectedServiceCategoryId), // Variable correcta
           builder: (context, snapshot) {
-                 if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
               return const _LoadingState();
             }
             if (snapshot.hasError) {
@@ -627,49 +625,49 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
   // --- MÓDULO Reseñas ---
   Widget _buildReviewsModule(BuildContext context, ProviderProfileModel profile) {
-     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16), // Ajustar padding
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row( // Usar Row para el título y el botón "Ver todas"
-               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-               crossAxisAlignment: CrossAxisAlignment.center,
-               children: [
-                 Text(
-                   'Reseñas',
-                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                         fontWeight: FontWeight.bold,
-                         color: Colors.white,
-                       ),
-                 ),
-                 if (profile.reviewCount != null && profile.reviewCount! > 0)
-                   TextButton(
-                     onPressed: () { /* TODO: Navegar a pantalla de todas las reseñas */ },
-                     style: TextButton.styleFrom(foregroundColor: profile.brandColor),
-                     child: Text('Ver todas (${profile.reviewCount})'),
-                   ),
-               ],
-             ),
-            const SizedBox(height: 16),
-            // TODO: Reemplazar con StreamBuilder real y carrusel/lista de reseñas destacadas
-            Container(
-              height: 150,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2D2D5A),
-                borderRadius: BorderRadius.circular(12),
+      return SliverToBoxAdapter(
+       child: Padding(
+         padding: const EdgeInsets.fromLTRB(16, 24, 16, 16), // Ajustar padding
+         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
+           children: [
+             Row( // Usar Row para el título y el botón "Ver todas"
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'Reseñas',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                  ),
+                  if (profile.reviewCount != null && profile.reviewCount! > 0)
+                    TextButton(
+                      onPressed: () { /* TODO: Navegar a pantalla de todas las reseñas */ },
+                      style: TextButton.styleFrom(foregroundColor: profile.brandColor),
+                      child: Text('Ver todas (${profile.reviewCount})'),
+                    ),
+                ],
               ),
-              // --- CORRECCIÓN: sort_child_properties_last ---
-              child: const Center(
-                 child: Text('Reseñas Destacadas (Próximamente)', style: TextStyle(color: Colors.white70)),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
+             const SizedBox(height: 16),
+             // TODO: Reemplazar con StreamBuilder real y carrusel/lista de reseñas destacadas
+             Container(
+               height: 150,
+               decoration: BoxDecoration(
+                 color: const Color(0xFF2D2D5A),
+                 borderRadius: BorderRadius.circular(12),
+               ),
+               child: const Center(
+                   child: Text('Reseñas Destacadas (Próximamente)', style: TextStyle(color: Colors.white70)),
+               )
+             )
+           ],
+         ),
+       ),
+     );
+   }
+
 
 } // Fin _CatalogLayoutState
 
@@ -678,44 +676,42 @@ class _CatalogLayoutState extends State<CatalogLayout> {
 
 // Widget para fila de información (Icono + Texto)
 class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.icon, required this.text});
+
   final IconData icon;
   final String text;
-  // --- CORRECCIÓN: Parámetro 'onTap' no usado eliminado ---
-  // final VoidCallback? onTap;
-
-  const _InfoRow({required this.icon, required this.text /*, this.onTap */});
 
   @override
   Widget build(BuildContext context) {
-    return Padding( // --- CORRECCIÓN: Quitado InkWell ---
-       padding: const EdgeInsets.symmetric(vertical: 4.0),
-       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Colors.white70, size: 20),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
-        ],
+    return Padding( 
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Row(
+         crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+           Icon(icon, color: Colors.white70, size: 20),
+           const SizedBox(width: 16),
+           Expanded(
+             child: Text(
+               text,
+               style: const TextStyle(color: Colors.white, fontSize: 16),
              ),
-     );
+           ),
+         ],
+              ),
+      );
   }
 }
 
 // Widget para tarjeta de Servicio
 class _ServiceCard extends StatelessWidget {
-  final ProductModel service;
-  final Color brandColor;
-  final String providerId;
-
   const _ServiceCard(
       {required this.service,
       required this.brandColor,
       required this.providerId});
+
+  final ProductModel service;
+  final Color brandColor;
+  final String providerId;
 
   @override
   Widget build(BuildContext context) {
@@ -738,9 +734,9 @@ class _ServiceCard extends StatelessWidget {
                 width: double.infinity,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, loadingProgress) {
-                   if (loadingProgress == null) return child;
-                   return Container( height: 150, color: Colors.white10, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
-                 },
+                    if (loadingProgress == null) return child;
+                    return Container( height: 150, color: Colors.white10, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+                   },
                 errorBuilder: (context, error, stack) => const SizedBox(
                     height: 150,
                     child: Center(child: Icon(Icons.error_outline, color: Colors.white38))),
@@ -805,14 +801,9 @@ class _ServiceCard extends StatelessWidget {
   }
 }
 
-// --- RENOMBRADO ---
+// RENOMBRADO
 // Widget selector para categorías de SERVICIOS
 class _ServiceCategorySelector extends StatelessWidget {
-  final String providerId;
-  final String? selectedCategoryId;
-  final Color brandColor;
-  final ValueChanged<String?> onCategorySelected;
-
   const _ServiceCategorySelector({
     required this.providerId,
     required this.selectedCategoryId,
@@ -820,7 +811,12 @@ class _ServiceCategorySelector extends StatelessWidget {
     required this.onCategorySelected,
   });
 
-   @override
+  final String providerId;
+  final String? selectedCategoryId;
+  final Color brandColor;
+  final ValueChanged<String?> onCategorySelected;
+
+    @override
   Widget build(BuildContext context) {
     // Usar CategoryService (para PRODUCTOS)
     final categoryService = context.read<CategoryService>();
@@ -828,7 +824,7 @@ class _ServiceCategorySelector extends StatelessWidget {
     return StreamBuilder<List<CategoryModel>>(
       stream: categoryService.getCategories(providerId), // Llama al método correcto
       builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+               if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox(height: 60); // Ocupar espacio aunque esté vacío
         }
         final categories = snapshot.data!;
@@ -841,7 +837,7 @@ class _ServiceCategorySelector extends StatelessWidget {
             itemCount: categories.length + 1,
             itemBuilder: (context, index) {
               if (index == 0) { // Botón "Ver Todos"
-                   final isSelected = selectedCategoryId == null;
+                    final isSelected = selectedCategoryId == null;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ChoiceChip(
@@ -852,7 +848,7 @@ class _ServiceCategorySelector extends StatelessWidget {
                     labelStyle: TextStyle(
                         color: isSelected
                             ? (ThemeData.estimateBrightnessForColor(
-                                        brandColor) ==
+                                    brandColor) ==
                                     Brightness.dark
                                 ? Colors.white
                                 : Colors.black)
@@ -867,16 +863,16 @@ class _ServiceCategorySelector extends StatelessWidget {
               final category = categories[index - 1]; // Botón de categoría
               final isSelected = selectedCategoryId == category.id;
               return Padding(
-                   padding: const EdgeInsets.only(right: 8.0),
+                      padding: const EdgeInsets.only(right: 8.0),
                 child: ChoiceChip(
                   label: Text(category.name),
                   selected: isSelected,
-                  onSelected: (selected) => onCategorySelected(category.id),
+                  onSelected: (selected) => onCategorySelected(category.id), // Pasar el ID
                   selectedColor: brandColor,
                   labelStyle: TextStyle(
                       color: isSelected
                           ? (ThemeData.estimateBrightnessForColor(
-                                      brandColor) ==
+                                  brandColor) ==
                                   Brightness.dark
                               ? Colors.white
                               : Colors.black)
@@ -896,13 +892,8 @@ class _ServiceCategorySelector extends StatelessWidget {
 }
 
 
-// --- NUEVO WIDGET: Selector de Categorías del Portafolio ---
+// NUEVO WIDGET: Selector de Categorías del Portafolio
 class _PortfolioCategorySelector extends StatelessWidget {
-  final String providerId;
-  final String? selectedPortfolioCategoryId; // Nombre de variable específico
-  final Color brandColor;
-  final ValueChanged<String?> onCategorySelected;
-
   const _PortfolioCategorySelector({
     required this.providerId,
     required this.selectedPortfolioCategoryId,
@@ -910,13 +901,20 @@ class _PortfolioCategorySelector extends StatelessWidget {
     required this.onCategorySelected,
   });
 
+  final String providerId;
+  final String? selectedPortfolioCategoryId; // Nombre de variable específico
+  final Color brandColor;
+  final ValueChanged<String?> onCategorySelected;
+
   @override
   Widget build(BuildContext context) {
     // Usar FirestoreService para categorías de PORTAFOLIO
     final firestoreService = context.read<FirestoreService>();
 
     return StreamBuilder<List<PortfolioCategoryModel>>(
-      stream: firestoreService.getPortfolioCategoriesStream(providerId), // Llama al método correcto
+      // CORREGIDO: Usamos el método antiguo con Stream y suprimimos la advertencia
+      // ignore: deprecated_member_use_from_same_package
+      stream: firestoreService.getPortfolioCategoriesStream(providerId), 
       builder: (context, snapshot) {
         // Si no hay categorías, no mostrar nada (ni siquiera el espacio)
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -933,7 +931,7 @@ class _PortfolioCategorySelector extends StatelessWidget {
             itemCount: categories.length + 1, // +1 para "Ver Todos"
             itemBuilder: (context, index) {
               if (index == 0) { // Botón "Ver Todos"
-                 final isSelected = selectedPortfolioCategoryId == null;
+                   final isSelected = selectedPortfolioCategoryId == null;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ChoiceChip(
@@ -950,7 +948,7 @@ class _PortfolioCategorySelector extends StatelessWidget {
               final category = categories[index - 1]; // Botón de categoría
               final isSelected = selectedPortfolioCategoryId == category.id;
               return Padding(
-                   padding: const EdgeInsets.only(right: 8.0),
+                      padding: const EdgeInsets.only(right: 8.0),
                 child: ChoiceChip(
                   label: Text(category.name),
                   selected: isSelected,
@@ -969,59 +967,61 @@ class _PortfolioCategorySelector extends StatelessWidget {
   }
 }
 
-// --- WIDGETS DE ESTADO (Loading, Empty, Error) ---
+// WIDGETS DE ESTADO (Loading, Empty, Error)
 class _LoadingState extends StatelessWidget {
- const _LoadingState();
- @override
- Widget build(BuildContext context) {
-   // Usar el color primario o un color blanco/gris para el indicador
-   return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary.withAlpha((255*0.7).round()))));
- }
-}
-class _EmptyState extends StatelessWidget {
- const _EmptyState();
- @override
- Widget build(BuildContext context) {
-   return Padding( // Usar Padding en lugar de Center para controlar el espacio
-     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 48.0),
-     child: Center(
-       child: Column(
-         mainAxisAlignment: MainAxisAlignment.center,
-         children: [
-           Icon(Icons.inventory_2_outlined, size: 60, color: Colors.white24), // Icono más relevante
-           SizedBox(height: 16),
-           Text(
-             'Sin Servicios',
-             style: TextStyle(fontSize: 18, color: Colors.white70, fontWeight: FontWeight.bold),
-           ),
-           SizedBox(height: 8),
-           Text(
-             'Este proveedor aún no ha añadido servicios a esta categoría.',
-             textAlign: TextAlign.center,
-             style: TextStyle(fontSize: 14, color: Colors.white54),
-           ),
-         ],
-       ),
-     ),
-   );
- }
-}
-class _ErrorState extends StatelessWidget {
- final String error;
- const _ErrorState({required this.error});
- @override
- Widget build(BuildContext context) {
-   return Padding( // Usar Padding
-     padding: const EdgeInsets.all(16.0),
-     child: Center(child: Text('Error al cargar servicios:\n$error', textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent))),
-   );
- }
+  const _LoadingState();
+  @override
+  Widget build(BuildContext context) {
+    // Usar el color primario o un color blanco/gris para el indicador
+    return Center(child: Padding(padding: const EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary.withAlpha((255*0.7).round()))));
+  }
 }
 
-// --- WIDGET STATEFUL para el Video de Bienvenida ---
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+  @override
+  Widget build(BuildContext context) {
+    return Padding( // Usar Padding en lugar de Center para controlar el espacio
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 48.0),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.inventory_2_outlined, size: 60, color: Colors.white24), // Icono más relevante
+            const SizedBox(height: 16),
+            const Text(
+              'Sin Servicios',
+              style: TextStyle(fontSize: 18, color: Colors.white70, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Este proveedor aún no ha añadido servicios a esta categoría.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.white54),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.error});
+  final String error;
+  @override
+  Widget build(BuildContext context) {
+    return Padding( // Usar Padding
+      padding: const EdgeInsets.all(16.0),
+      child: Center(child: Text('Error al cargar servicios:\n$error', textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent))),
+    );
+  }
+}
+
+// WIDGET STATEFUL para el Video de Bienvenida
 class _WelcomeVideoPlayer extends StatefulWidget {
-  final String videoUrl;
   const _WelcomeVideoPlayer({required this.videoUrl});
+  final String videoUrl;
 
   @override
   State<_WelcomeVideoPlayer> createState() => _WelcomeVideoPlayerState();
@@ -1042,8 +1042,8 @@ class _WelcomeVideoPlayerState extends State<_WelcomeVideoPlayer> {
         ..setLooping(true);
       _controller.addListener(() { if (mounted && _isPlaying != _controller.value.isPlaying) { setState(() { _isPlaying = _controller.value.isPlaying; }); }});
     } else {
-       _controller = VideoPlayerController.networkUrl(Uri.parse('invalid-url'));
-       debugPrint("Invalid welcome video URL: ${widget.videoUrl}");
+        _controller = VideoPlayerController.networkUrl(Uri.parse('invalid-url'));
+        debugPrint("Invalid welcome video URL: ${widget.videoUrl}");
     }
   }
 
@@ -1066,44 +1066,43 @@ class _WelcomeVideoPlayerState extends State<_WelcomeVideoPlayer> {
     return AspectRatio(
       aspectRatio: _controller.value.aspectRatio,
       child: MouseRegion(
-         onHover: (_) => setState(() => _showControls = true),
-         onExit: (_) => setState(() => _showControls = false),
-         child: GestureDetector(
-           onTap: () => setState(() => _showControls = !_showControls),
-           child: Stack(
-             alignment: Alignment.center,
-             children: <Widget>[
-               VideoPlayer(_controller),
-               AnimatedOpacity(
-                 opacity: _showControls ? 1.0 : 0.0,
-                 duration: const Duration(milliseconds: 300),
-                 child: Container(
-                   decoration: BoxDecoration( color: Colors.black.withAlpha((255 * 0.4).round()), borderRadius: BorderRadius.circular(8)),
-                   child: Center(
-                     child: IconButton(
-                       // --- CORRECTION: Icono necesita un argumento IconData ---
-                       icon: Icon(
-                         _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                         color: Colors.white,
-                         size: 60.0,
-                       ),
-                       onPressed: _togglePlayPause,
-                     ),
-                   ),
-                 ),
-               ),
-             ],
-           ),
-         ),
+          onHover: (_) => setState(() => _showControls = true),
+          onExit: (_) => setState(() => _showControls = false),
+          child: GestureDetector(
+            onTap: () => setState(() => _showControls = !_showControls),
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                VideoPlayer(_controller),
+                AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: Container(
+                    decoration: BoxDecoration( color: Colors.black.withAlpha((255 * 0.4).round()), borderRadius: BorderRadius.circular(8)),
+                    child: Center(
+                      child: IconButton(
+                        icon: Icon(
+                          _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                          color: Colors.white,
+                          size: 60.0,
+                        ),
+                        onPressed: _togglePlayPause,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ),
     );
   }
 }
 
-// --- WIDGET STATEFUL para Tarjeta de Ítem del Portafolio ---
+// WIDGET STATEFUL para Tarjeta de Ítem del Portafolio
 class _PortfolioItemCard extends StatefulWidget {
-  final PortfolioItemModel item;
   const _PortfolioItemCard({required this.item});
+  final PortfolioItemModel item;
 
   @override
   State<_PortfolioItemCard> createState() => _PortfolioItemCardState();
@@ -1119,10 +1118,10 @@ class _PortfolioItemCardState extends State<_PortfolioItemCard> {
     if (widget.item.type == PortfolioItemType.video) {
       final videoUri = Uri.tryParse(widget.item.url);
       if (videoUri != null) {
-         _videoController = VideoPlayerController.networkUrl(videoUri)
-          ..initialize().then((_) { if (mounted) setState(() { _isVideoInitialized = true; }); _videoController?.pause(); })
-          .catchError((error){ debugPrint("Error init portfolio video (${widget.item.id}): $error"); if (mounted) setState(() { _isVideoInitialized = false; }); });
-      } else { debugPrint("Invalid portfolio video URL: ${widget.item.url}"); }
+          _videoController = VideoPlayerController.networkUrl(videoUri)
+           ..initialize().then((_) { if (mounted) setState(() { _isVideoInitialized = true; }); _videoController?.pause(); })
+           .catchError((error){ debugPrint("Error init portfolio video (${widget.item.id}): $error"); if (mounted) setState(() { _isVideoInitialized = false; }); });
+    } else { debugPrint("Invalid portfolio video URL: ${widget.item.url}"); }
     }
   }
 
@@ -1135,39 +1134,38 @@ class _PortfolioItemCardState extends State<_PortfolioItemCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-       onTap: () { /* ... Lógica fullscreen ... */ },
-      child: Container(
-        decoration: BoxDecoration( borderRadius: BorderRadius.circular(8), color: const Color(0xFF2D2D5A)),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: widget.item.type == PortfolioItemType.image
-              ? Image.network(
-                  widget.item.url,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24));
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.broken_image_outlined, color: Colors.white38);
-                  },
-                 )
-              : (_isVideoInitialized && _videoController != null)
-                  ? Stack(
-                      fit: StackFit.expand,
-                      alignment: Alignment.center,
-                      children: [
-                        AspectRatio( aspectRatio: _videoController!.value.aspectRatio, child: VideoPlayer(_videoController!) ),
-                        Container(
-                           color: Colors.black.withAlpha((255 * 0.3).round()),
-                           // --- CORRECTION: Color e Icono ---
-                           child: const Icon(Icons.play_circle_fill_outlined, color: Colors.white70, size: 40), // Usar white70
-                        ),
-                      ],
-                    )
-                  : Container( color: Colors.black, child: const Center( child: Icon(Icons.videocam_off_outlined, color: Colors.white38, size: 40))),
+        onTap: () { /* ... Lógica fullscreen ... */ },
+        child: Container(
+          decoration: BoxDecoration( borderRadius: BorderRadius.circular(8), color: const Color(0xFF2D2D5A)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: widget.item.type == PortfolioItemType.image
+                ? Image.network(
+                    widget.item.url,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24));
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.broken_image_outlined, color: Colors.white38);
+                    },
+                   )
+                : (_isVideoInitialized && _videoController != null)
+                    ? Stack(
+                        fit: StackFit.expand,
+                        alignment: Alignment.center,
+                        children: [
+                          AspectRatio( aspectRatio: _videoController!.value.aspectRatio, child: VideoPlayer(_videoController!) ),
+                          Container(
+                              color: Colors.black.withAlpha((255 * 0.3).round()),
+                              child: const Icon(Icons.play_circle_fill_outlined, color: Colors.white70, size: 40), // Usar white70
+                            ),
+                        ],
+                      )
+                    : Container( color: Colors.black, child: const Center( child: Icon(Icons.videocam_off_outlined, color: Colors.white38, size: 40))),
+          ),
         ),
-      ),
-    );
+      );
   }
 }

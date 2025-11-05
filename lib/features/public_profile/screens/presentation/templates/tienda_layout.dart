@@ -7,20 +7,25 @@
 // public-facing storefront.
 // ---------------------------------
 
-import 'dart:ui';
+import 'dart:ui'; // CORREGIDO: Importar ImageFilter directamente
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:proveedor_servicly_app/core/models/category_model.dart';
+import 'package:url_launcher/url_launcher.dart'; 
+
+// --- MODELOS Y SERVICIOS DEL CORE ---
+// NOTA: ASUMIMOS QUE ESTAS SON LAS RUTAS CORRECTAS DE SU CORE
+import 'package:proveedor_servicly_app/core/models/category_model.dart'; // CORREGIDO
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/core/services/category_service.dart';
+import 'package:proveedor_servicly_app/core/services/category_service.dart'; // CORREGIDO
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/cart/screens/cart_screen.dart';
+// --- Módulo CRM ---
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 
 /// Un widget de layout que muestra el perfil de un proveedor con un estilo de "tienda".
-/// Ahora con capacidad de filtrar productos por categoría.
 class TiendaLayout extends StatefulWidget {
   final String providerId;
   final ProviderProfileModel profile;
@@ -38,6 +43,38 @@ class TiendaLayout extends StatefulWidget {
 class _TiendaLayoutState extends State<TiendaLayout> {
   // Estado para mantener la categoría seleccionada. `null` significa "todos".
   String? _selectedCategoryId;
+
+  // --- FUNCIÓN ASÍNCRONA para lanzar URLs y CAPTURAR LEAD ---
+  Future<void> _launchUrlAndCaptureLead(Uri url, BuildContext context, String source) async {
+    // 1. Intentar registrar el Lead (Capturar intención de compra)
+    try {
+      final crmRepository = context.read<CrmRepository>();
+      await crmRepository.captureLeadFromPublicProfile(
+        email: null, 
+        nombreCompleto: 'Visitante Tienda', 
+        source: source,
+        providerId: widget.providerId,
+        telefono: null,
+      );
+    } catch (e) {
+      debugPrint("Error al capturar Lead desde Tienda: $e");
+    }
+
+    // 2. Lanzar la URL
+    if (await canLaunchUrl(url)) {
+      await launchUrl(
+        url,
+        mode: url.scheme == 'https' && url.host.contains('wa.me')
+            ? LaunchMode.externalApplication
+            : LaunchMode.platformDefault,
+      );
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo abrir ${url.scheme}.')));
+      }
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +102,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
             ),
           ),
           
-          // --- NUEVO WIDGET: Barra de selección de categorías ---
+          // --- Barra de selección de categorías ---
           _CategorySelector(
             providerId: widget.providerId,
             selectedCategoryId: _selectedCategoryId,
@@ -105,7 +142,22 @@ class _TiendaLayoutState extends State<TiendaLayout> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final product = products[index];
-                      return _ProductCard(product: product, brandColor: brandColor);
+                      // PASAR FUNCIÓN DE CONTACTO ACTUALIZADA AL CARD DE PRODUCTO
+                      return _ProductCard(
+                        product: product, 
+                        brandColor: brandColor,
+                        onContact: (contactType) {
+                          if (contactType == 'whatsapp' && widget.profile.whatsapp != null && widget.profile.whatsapp!.isNotEmpty) {
+                            final cleanNumber = widget.profile.whatsapp!.replaceAll(RegExp(r'[^\d]'), '');
+                            // Simplificación para formar un número de WhatsApp
+                            final formattedNumber = cleanNumber.startsWith('+') ? cleanNumber : '+$cleanNumber'; 
+                            final Uri launchUri = Uri.parse('https://wa.me/$formattedNumber?text=Hola,%20estoy%20interesado%20en%20el%20producto:%20${product.name}');
+                            _launchUrlAndCaptureLead(launchUri, context, 'tienda_whatsapp');
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El proveedor no tiene configurado WhatsApp.')));
+                          }
+                        }
+                      );
                     },
                     childCount: products.length,
                   ),
@@ -118,6 +170,8 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     );
   }
 
+  // --- MÉTODOS DE CONSTRUCCIÓN Y WIDGETS AUXILIARES ---
+  
   Widget _buildSliverAppBar(BuildContext context, ProviderProfileModel profile, Color brandColor) {
     final appBarTextColor = ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark
         ? Colors.white
@@ -153,7 +207,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
                 errorBuilder: (_, __, ___) => Container(color: brandColor),
               ),
             BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), // CORREGIDO: Quitado 'ui.'
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -174,7 +228,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
   }
 }
 
-/// --- WIDGETS ---
+// --- WIDGETS AUXILIARES MOVIDOS FUERA DEL STATE ---
 
 class _CategorySelector extends StatelessWidget {
   final String providerId;
@@ -191,7 +245,8 @@ class _CategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categoryService = context.read<CategoryService>();
+    // CORREGIDO: Ahora el tipo CategoryService y CategoryModel se resuelve
+    final categoryService = context.read<CategoryService>(); 
 
     return StreamBuilder<List<CategoryModel>>(
       stream: categoryService.getCategories(providerId),
@@ -251,11 +306,13 @@ class _CategorySelector extends StatelessWidget {
   }
 }
 
+// Nota: Se ha actualizado para incluir el callback de contacto
 class _ProductCard extends StatelessWidget {
   final ProductModel product;
   final Color brandColor;
+  final ValueChanged<String> onContact;
 
-  const _ProductCard({required this.product, required this.brandColor});
+  const _ProductCard({required this.product, required this.brandColor, required this.onContact}); 
 
   @override
   Widget build(BuildContext context) {
@@ -271,7 +328,7 @@ class _ProductCard extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
         child: InkWell(
-          onTap: () => _showProductDetailDialog(context, product, brandColor),
+          onTap: () => _showProductDetailDialog(context, product, brandColor, onContact), // PASAR CALLBACK
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -356,7 +413,8 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-void _showProductDetailDialog(BuildContext context, ProductModel product, Color brandColor) {
+// Función para mostrar el detalle del producto (Se mantiene fuera de las clases para reuso)
+void _showProductDetailDialog(BuildContext context, ProductModel product, Color brandColor, ValueChanged<String> onContact) {
   int quantity = 1;
 
   showDialog(
@@ -446,6 +504,26 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        // --- BOTÓN DE CONTACTO ESPECÍFICO ---
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop(); // Cerrar diálogo primero
+                              // Llama a la función de contacto con la fuente "whatsapp"
+                              onContact('whatsapp'); 
+                            },
+                            icon: const Icon(Icons.chat_bubble_outline), // Usar icono de chat/whatsapp
+                            label: const Text('Contactar por WhatsApp'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: brandColor,
+                              side: BorderSide(color: brandColor, width: 2),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        // --- FIN BOTÓN DE CONTACTO ---
                       ],
                     ),
                   ),
@@ -484,6 +562,7 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
     },
   );
 }
+
 
 class _CartBadge extends StatelessWidget {
   const _CartBadge({required this.brandColor});
@@ -535,29 +614,23 @@ class _CartBadge extends StatelessWidget {
   }
 }
 
-// --- WIDGETS DE ESTADO ---
+// --- WIDGETS DE ESTADO (Loading, Empty, Error) ---
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
   @override
   Widget build(BuildContext context) {
-    return SliverPadding(
-      padding: const EdgeInsets.all(16),
+    return const SliverPadding(
+      padding: EdgeInsets.all(16),
       sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 300,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           childAspectRatio: 0.8,
         ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) => Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF2D2D5A).withAlpha(128), // 0.5 opacity
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          childCount: 4,
-        ),
+        delegate: SliverChildListDelegate.fixed([
+          Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54)),
+        ]),
       ),
     );
   }
@@ -605,4 +678,3 @@ class _ErrorState extends StatelessWidget {
     );
   }
 }
-

@@ -8,13 +8,17 @@ import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 
 // Pantalla modal para la creación manual de Leads o Clientes.
 class ContactFormScreen extends StatelessWidget {
-  const ContactFormScreen({super.key});
+  // ELIMINAMOS LA LECTURA DEL REPOSITORIO DESDE EL MÉTODO CREATE
+  // Y LO ACEPTAMOS COMO PARÁMETRO REQUERIDO.
+  final CrmRepository crmRepository;
+
+  const ContactFormScreen({required this.crmRepository, super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Inyectamos el ViewModel del formulario, dependiendo del Repositorio
+    // Inyectamos el ViewModel del formulario, pasando el Repositorio ACEPTADO
     return ChangeNotifierProvider(
-      create: (context) => ContactFormViewModel(context.read<CrmRepository>()),
+      create: (context) => ContactFormViewModel(crmRepository), // <-- Repositorio inyectado aquí
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Añadir Nuevo Contacto', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -23,6 +27,8 @@ class ContactFormScreen extends StatelessWidget {
         ),
         body: Consumer<ContactFormViewModel>(
           builder: (context, viewModel, child) {
+            // ... (resto del cuerpo del formulario, que es funcionalmente correcto)
+            // CÓDIGO DEL CUERPO DEL FORMULARIO:
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(

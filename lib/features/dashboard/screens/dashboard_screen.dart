@@ -1,42 +1,29 @@
-// --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 25/10/2025 // Updated date
-// Style: Cyber Glow
-// This screen was refactored into a "Digital Hub" dashboard, styled with the
-// "Cyber Glow" aesthetic. It features a dynamic header, metrics section,
-// interactive module cards, shimmer loading skeleton, and responsive grid layout.
-// --- MODIFICACIÓN: 26/10/2025 ---
-// Refactored to act as the main app "Shell" with a BottomNavigationBar.
-// The original dashboard content is now in the `_ProviderHomeTab` widget.
-// ---------------------------------
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import 'package:flutter/foundation.dart' show listEquals;
+import 'dart:ui' as ui; // Importación para ImageFilter y PathMetric
 
-// --- Modelos y Servicios ---
-// Asegúrate de que las rutas de importación sean correctas para tu proyecto
+// --- Importaciones de Modelos y Servicios ---
 import '../../../core/models/user_model.dart';
 import '../../../core/models/module_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/firestore_service.dart';
+
+// --- Importaciones de Módulos ---
 import 'package:proveedor_servicly_app/features/catalogo/modules/modules_screen.dart';
 import '../../profile/screens/create_profile_screen.dart';
 import '../../public_profile/screens/public_profile_screen.dart';
 import '../../public_profile/screens/presentation/screens/select_profile_template_screen.dart';
-// Asegúrate de importar ManageStoreScreen desde su ubicación correcta
 import '../../manage_store/presentation/screens/manage_store_screen.dart';
-// Asegúrate de importar AgendaScreen desde su ubicación correcta
 import '../../agenda/presentation/screens/agenda_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
-
-// *** CORRECCIÓN ***
-// Import duplicado y con error de sintaxis eliminado y reemplazado por este.
 import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
-
-// --- CAMBIO DE IMPORTACIÓN ---
-// Importamos la nueva pantalla con la ruta corregida
 import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
+
+// --- IMPORTACIONES CRM ---
+import 'package:proveedor_servicly_app/features/crm/data/repositories/screens/client_management_screen.dart';
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; // NECESARIO PARA LA INYECCIÓN
 
 // Importar DottedBorder si está en un archivo separado, si no, mantenerlo abajo.
 // import 'package:dotted_border/dotted_border.dart'; // Si decides usar el paquete
@@ -55,8 +42,8 @@ const Map<String, IconData> _iconMap = {
   'visibility_outlined': Icons.visibility_outlined,
   'storefront_outlined': Icons.storefront_outlined,
   'agenda': Icons.calendar_month_outlined, // Icono añadido para agenda
-  // AÑADIDO: Icono para el catálogo
   'auto_stories_outlined': Icons.auto_stories_outlined,
+  'client_management': Icons.groups_2_outlined, // Icono CRM
 };
 
 /// La pantalla principal y dashboard para el usuario proveedor.
@@ -304,14 +291,8 @@ class _OpportunitiesTab extends StatelessWidget {
 }
 
 // ===================================================================
-// --- PESTAÑA 3: CONFIGURACIÓN (Placeholder) ---
+// --- WIDGETS AUXILIARES ---
 // ===================================================================
-
-// ¡ELIMINADO! La clase _SettingsTab se eliminó porque era código
-// no utilizado (Error 4). El BottomNavBar usa SettingsScreen.
-
-// --- TODOS TUS WIDGETS PERSONALIZADOS (_DashboardHeader, _ProfileCompletionBanner, etc.) ---
-// --- SE MANTIENEN EXACTAMENTE IGUAL ---
 
 class _DashboardHeader extends StatelessWidget {
   final UserModel userModel;
@@ -320,12 +301,7 @@ class _DashboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = context.read<AuthService>();
-    // Esta línea es la que reportaba 'dead_code'. La lógica es correcta
-    // ya que userModel.displayName SÍ es nullable. Ignoramos el lint.
-
-    // *** CORRECCIÓN ***
-    // Añadido 'ignore' para suprimir el aviso incorrecto del linter.
-    // ignore: dead_code
+    // Lógica corregida para businessName y displayName
     final businessName = userModel.personalization['businessName'] as String? ?? userModel.displayName;
     const accentColor = Color(0xFF00BFFF);
 
@@ -426,7 +402,7 @@ class _ProfileCompletionBanner extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5), // Usamos ui.ImageFilter
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -665,9 +641,16 @@ class _ModulesGrid extends StatelessWidget {
         // --- CORRECCIÓN: Pasar el parámetro 'user' requerido ---
         destination = AgendaScreen(user: user);
         break;
-      case 'clients':
-        // destination = ClientsScreen(user: user);
+
+      // --- AÑADIDO EL MÓDULO CRM CON INYECCIÓN DE PROVIDER ---
+      case 'client-management':
+        // Solución: Antes de navegar, inyectamos el CrmRepository en el nuevo contexto
+        destination = Provider<CrmRepository>(
+          create: (_) => CrmRepository(), // Creamos la instancia del Repositorio
+          child: const ClientManagementScreen(),
+        );
         break;
+      // ----------------------------
 
       // *** CORRECCIÓN ***
       // AÑADIDO EL CASE PARA EL NUEVO MÓDULO DE FINANZAS
@@ -679,8 +662,7 @@ class _ModulesGrid extends StatelessWidget {
     }
 
     if (destination != null) {
-      // 'destination' es Widget?, pero el builder espera Widget.
-      // *** CORRECCIÓN *** // Usamos el operador '!' porque ya comprobamos que no es nulo.
+      // Usamos el operador '!' porque ya comprobamos que no es nulo.
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Navegación para "$moduleId" no implementada.')));
@@ -868,7 +850,7 @@ class _DottedPainter extends CustomPainter {
       final double totalDashPatternLength = dashLength + gapLength;
 
       if (totalDashPatternLength > 0) {
-        for (PathMetric pathMetric in path.computeMetrics()) {
+        for (ui.PathMetric pathMetric in path.computeMetrics()) {
           double distance = 0.0; // <<-- reset distance per metric
           while (distance < pathMetric.length) {
             final double end = (distance + dashLength).clamp(0.0, pathMetric.length);
@@ -949,23 +931,23 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
               sliver: SliverToBoxAdapter(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
-                          const SizedBox(height: 8),
-                          _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
-                        ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
+                            const SizedBox(height: 8),
+                            _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
+                          ],
+                        ),
                       ),
-                    ),
-                    _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
-                  ],
+                      _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
+                    ],
+                  ),
                 ),
-              ),
             ),
             // Placeholder para Métricas
             SliverPadding(
@@ -1030,4 +1012,3 @@ class _SlidingGradientTransform extends GradientTransform {
     return Matrix4.translationValues(translationX, 0.0, 0.0);
   }
 }
-

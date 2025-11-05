@@ -7,6 +7,7 @@ import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 class CrmRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   // Asume que el usuario ya está autenticado y tenemos su UID
+  // TODO: Manejar la inicialización asíncrona de FirebaseAuth correctamente.
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? 'default_user_id'; 
 
   // Referencia a la colección 'clientes' para el usuario actual
@@ -18,24 +19,20 @@ class CrmRepository {
     _firestore.collection('users').doc(_userId);
 
 
-  // Stream 1: Clientes Activos (Pestaña Clientes) - Usado por ClientListViewModel
+  // Stream 1: Clientes Activos (Pestaña Clientes)
   Stream<List<Cliente>> getClientesActivos({String? searchTerm, bool isPro = false}) {
-    // 1. Filtrar solo por clientes activos
     Query query = _clientesRef.where('estadoCRM', isEqualTo: CrmEstado.clienteActivo.name);
-    
-    // 2. Obtener el snapshot en tiempo real y mapear a la lista de Clientes
     return query.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Cliente.fromFirestore(doc)).toList();
     });
   }
 
-  // Stream 2: Leads (Pestaña Leads) - Usado por LeadListViewModel
+  // Stream 2: Leads (Pestaña Leads)
   Stream<List<Cliente>> getLeadsStream({String? searchTerm, bool isPro = false}) {
     List<String> leadStates = isPro 
       ? [CrmEstado.leadNuevo.name, CrmEstado.contactado.name, CrmEstado.cotizado.name, CrmEstado.lead.name]
-      : [CrmEstado.lead.name]; // Solo el estado básico en Free
+      : [CrmEstado.lead.name]; 
 
-    // Usamos whereIn para filtrar por múltiples estados de Lead
     Query query = _clientesRef.where('estadoCRM', whereIn: leadStates);
     
     return query.snapshots().map((snapshot) {
@@ -43,63 +40,86 @@ class CrmRepository {
     });
   }
   
-  // Stream 3: Configuración del Usuario (Usado por ambos ViewModels para Free/Pro y límite)
+  // Stream 3: Configuración del Usuario
   Stream<Map<String, dynamic>> getUserConfigStream() {
-    // Escucha el documento de usuario para obtener el plan ('free'/'pro') y el contador
     return _userDocRef.snapshots().map((doc) => doc.data() as Map<String, dynamic>? ?? {});
   }
 
 
-  // Método para convertir un Lead a Cliente (Conversión Manual)
+  // --- MÉTODOS DE ACTUALIZACIÓN DEL PIPELINE ---
+
+  // Método para convertir un Lead a Cliente (Conversión Manual o Automática)
   Future<void> convertLeadToClient(String leadId) async {
     final clientRef = _clientesRef.doc(leadId);
-
-    // Actualiza el estado a CLIENTE_ACTIVO
     await clientRef.update({
       'estadoCRM': CrmEstado.clienteActivo.name,
-      'ultimaInteraccion': FieldValue.serverTimestamp(), // Actualizar la interacción
     });
   }
   
-  // NUEVO MÉTODO: Actualiza el estado del Lead en el pipeline de ventas
+  // Método para actualizar el estado del Lead en el pipeline (Solo Pro)
   Future<void> updateLeadStatus(String leadId, CrmEstado newStatus) async {
-    final leadRef = _clientesRef.doc(leadId);
-    
-    // Solo actualizamos el estado CRM y la última interacción
-    await leadRef.update({
+    await _clientesRef.doc(leadId).update({
       'estadoCRM': newStatus.name,
-      'ultimaInteraccion': FieldValue.serverTimestamp(), 
     });
   }
+  
+  // --- MÉTODO CLAVE: CAPTURA DE LEADS PÚBLICOS ---
 
-
-  // Método para crear un nuevo Cliente o Lead (Desde ContactFormScreen)
+  // Crea un Lead o Cliente manualmente (desde el formulario interno)
   Future<void> createCliente(Map<String, dynamic> data) async {
-    // Implementación sencilla para crear un nuevo documento
     await _clientesRef.add({
       ...data,
       'fechaAlta': FieldValue.serverTimestamp(),
       'ultimaInteraccion': FieldValue.serverTimestamp(),
       'montoTotalFacturado': 0.0,
       'etiquetas': [],
-      'notasInternas': '', // Campo inicial para las notas
+      'notasInternas': '',
+    });
+  }
+  
+  /// Registra un Lead automáticamente desde una interacción pública (e.g., clic en WhatsApp).
+  /// Esta funcionalidad es clave para la versión Pro.
+  Future<void> captureLeadFromPublicProfile({
+    required String? email, 
+    required String? nombreCompleto, 
+    required String source, // e.g., 'tienda_whatsapp', 'catalogo_telefono'
+    required String providerId, // ID del proveedor que recibe el lead
+    String? telefono,
+  }) async {
+    // 1. Determinar el estado inicial del Lead (Asumimos 'LEAD_NUEVO' para Pros, 'LEAD' para Free)
+    // Nota: El estado real debería determinarse con una consulta al plan del proveedor, 
+    // pero por simplicidad de la captura asíncrona, usamos una lógica básica.
+    final estado = source.contains('whatsapp') || source.contains('email') ? CrmEstado.leadNuevo.name : CrmEstado.lead.name;
+    
+    // 2. Crear el documento del Lead
+    await _clientesRef.add({
+      'nombreCompleto': nombreCompleto ?? 'Visitante Anónimo',
+      'email': email ?? '',
+      'telefono': telefono ?? '',
+      'estadoCRM': estado,
+      'fechaAlta': FieldValue.serverTimestamp(),
+      'ultimaInteraccion': FieldValue.serverTimestamp(),
+      'source': source,
+      // Campos Pro inicializados
+      'montoTotalFacturado': 0.0,
+      'etiquetas': ['public_lead', source.split('_').first], // Etiquetar automáticamente la fuente
+      'notasInternas': 'Capturado automáticamente el: ${Timestamp.now().toDate().toIso8601String()} desde $source.',
     });
   }
 
-  // Método para obtener el conteo total de clientes y leads (necesario para el límite Free)
+  // --- MÉTODOS DE DETALLE PRO ---
+  
   Future<int> getClienteCount() async {
     final snapshot = await _clientesRef.count().get();
     return snapshot.count ?? 0;
   }
 
-  // Actualiza la lista de etiquetas de un cliente
   Future<void> updateClientTags(String clientId, List<String> tags) async {
     await _clientesRef.doc(clientId).update({
       'etiquetas': tags,
     });
   }
 
-  // Actualiza las notas internas de un cliente
   Future<void> updateClientNotes(String clientId, String notes) async {
     await _clientesRef.doc(clientId).update({
       'notasInternas': notes,

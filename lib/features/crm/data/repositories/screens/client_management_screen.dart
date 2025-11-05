@@ -9,10 +9,8 @@ import 'package:proveedor_servicly_app/features/crm/presentation/providers/clien
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; 
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/client_detail_screen.dart'; 
 import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_list_tab.dart';
-import 'package:proveedor_servicly_app/features/crm/presentation/screens/contact_form_screen.dart'; // NUEVA PANTALLA
+import 'package:proveedor_servicly_app/features/crm/presentation/screens/contact_form_screen.dart'; // PANTALLA A NAVEGAR
 
-// --- WIDGETS AUXILIARES (omito la definición de ClientListItem y FreeLimitBar por ser muy largas) ---
-// (ASUMIR QUE ClientListItem y FreeLimitBar ESTÁN AQUÍ)
 // --- WIDGETS AUXILIARES (Definidos aquí para que la pantalla sea self-contained) ---
 
 // Widget para el ítem de la lista, mostrando la distinción Free/Pro
@@ -66,6 +64,7 @@ class ClientListItem extends StatelessWidget {
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
+          // Navegación a la vista detallada
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => ClientDetailScreen(cliente: cliente),
@@ -184,6 +183,45 @@ class ClientsTab extends StatelessWidget {
   }
 }
 
+// Pestaña 2: Leads y Seguimiento (LeadsTab)
+class LeadsTab extends StatelessWidget {
+  const LeadsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Usamos Consumer para escuchar los cambios del ViewModel
+    return Consumer<LeadListViewModel>(
+      builder: (context, viewModel, child) {
+        // Placeholder para el contenido del LeadsTab, ya que el widget real está en otro archivo.
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.group_add, size: 80, color: Colors.blueGrey),
+              const SizedBox(height: 20),
+              Text(
+                viewModel.isProUser ? 'Gestión de Pipeline de Ventas' : 'Gestión Básica de Leads',
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                child: Text(
+                  viewModel.isProUser 
+                    ? 'Use el menú contextual (...) para mover Leads a través de los estados: Contactado, Cotizado, Cliente.'
+                    : 'La versión Free solo permite convertir directamente a Cliente Activo.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 // PANTALLA PRINCIPAL
 class ClientManagementScreen extends StatelessWidget {
   static const String routeName = '/client-management';
@@ -192,20 +230,24 @@ class ClientManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Inyectamos el Repositorio y los ViewModels en el árbol de widgets
+    // NOTA CLAVE: Ya NO leemos el Repositorio aquí. Ahora se lee desde el Dashboard
+    // y se pasa implícitamente al contexto de esta pantalla.
+
+    // La lectura del Repositorio es ahora implícita para los ViewModels
+    // dentro de este MultiProvider.
+
     return MultiProvider(
       providers: [
-        // 1. Proveedor del Repositorio (Singleton)
-        Provider(create: (_) => CrmRepository()),
-        
-        // 2. Proveedor del Cliente ViewModel (ChangeNotifier)
+        // 1. Proveedor del Cliente ViewModel (ChangeNotifier)
         ChangeNotifierProvider(
-          create: (context) => ClientListViewModel(context.read<CrmRepository>()),
+          // Lee el CrmRepository del contexto padre (inyectado por el Dashboard)
+          create: (context) => ClientListViewModel(context.read<CrmRepository>()), 
         ),
 
-        // 3. Proveedor del Lead ViewModel (ChangeNotifier)
+        // 2. Proveedor del Lead ViewModel (ChangeNotifier)
         ChangeNotifierProvider(
-          create: (context) => LeadListViewModel(context.read<CrmRepository>()),
+          // Lee el CrmRepository del contexto padre (inyectado por el Dashboard)
+          create: (context) => LeadListViewModel(context.read<CrmRepository>()), 
         ),
       ],
       child: DefaultTabController(
@@ -227,18 +269,23 @@ class ClientManagementScreen extends StatelessWidget {
             ),
           ),
           // El cuerpo del Scaffold es el TabBarView
-          body: TabBarView(
+          body: const TabBarView(
             children: [
-              const ClientsTab(), 
-              const LeadsTab(), // Usamos el widget LeadsTab importado
+              ClientsTab(), 
+              LeadsTab(), 
             ],
           ),
           // Botón flotante para la creación rápida de leads (Web/Mobile)
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () {
-               // ABRIR EL NUEVO FORMULARIO DE CONTACTO
+               // Leemos el Repositorio justo antes de navegar, AHORA ES SEGURO
+               final crmRepository = context.read<CrmRepository>();
+
                Navigator.of(context).push(
-                 MaterialPageRoute(builder: (context) => const ContactFormScreen()),
+                 MaterialPageRoute(
+                   // Pasamos el Repositorio a la nueva ruta
+                   builder: (context) => ContactFormScreen(crmRepository: crmRepository),
+                 ),
                );
             },
             label: const Text('Añadir Contacto'),

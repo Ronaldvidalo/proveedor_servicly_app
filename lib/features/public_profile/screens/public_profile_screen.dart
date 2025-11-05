@@ -5,27 +5,32 @@ import 'package:proveedor_servicly_app/core/models/public_profile_view_model.dar
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/tienda_layout.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/cv_layout.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/catalog_layout.dart';
-
+// Módulo CRM
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 
 /// La "mini-app" pública de un proveedor, visible para sus clientes.
-///
-/// Actúa como un director: obtiene los datos del perfil y decide qué plantilla/layout mostrar.
+/// Ahora actúa como el inyector del CrmRepository para la captura de Leads.
 class PublicProfileScreen extends StatelessWidget {
-  /// The unique ID of the provider whose profile will be displayed.
   final String providerId;
 
-  /// Creates an instance of [PublicProfileScreen].
-  ///
-  /// The [providerId] is required to fetch the correct profile.
   const PublicProfileScreen({super.key, required this.providerId});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => PublicProfileViewModel(
-        providerService: context.read<ProviderService>(),
-      )..fetchProfile(providerId),
+    // Inyectamos el Repositorio y el ViewModel para que las plantillas puedan acceder al CRM
+    return MultiProvider(
+      providers: [
+        // 1. Inyectar el ViewModel de Perfil
+        ChangeNotifierProvider(
+          create: (context) => PublicProfileViewModel(
+            providerService: context.read<ProviderService>(),
+          )..fetchProfile(providerId),
+        ),
+        // 2. Inyectar el Repositorio CRM (esencial para la captura de leads)
+        // Ya que el Dashboard no inyecta este Provider, lo hacemos aquí.
+        Provider(create: (_) => CrmRepository()), 
+      ],
       child: Consumer<PublicProfileViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
@@ -41,15 +46,8 @@ class PublicProfileScreen extends StatelessWidget {
 
           final profile = viewModel.profile!;
 
-          // --- EL CAMALEÓN: Elige qué layout construir ---
-          // Esta es la lógica central que decide qué UI mostrar.
-          //
-          // --- CORRECCIÓN ---
-          // Se cambió 'profile.profileType' por 'profile.publicProfileTemplate'
-          // para que coincida con el nombre del campo en Firestore.
-          switch (profile.profileType) {
-            // --- MODIFICACIÓN CLAVE ---
-            // Se añade el caso para la nueva plantilla de catálogo.
+          // --- CORRECCIÓN CLAVE: Usamos 'profile.profileType' en lugar de 'profile.publicProfileTemplate' ---
+          switch (profile.profileType) { 
             case 'catalog':
               return CatalogLayout(providerId: providerId, profile: profile);
             
@@ -59,7 +57,6 @@ class PublicProfileScreen extends StatelessWidget {
             case 'cv':
               return CvLayout(profile: profile);
             
-            // Un layout por defecto si la plantilla no se reconoce o es nula.
             default:
               return CvLayout(profile: profile);
           }
