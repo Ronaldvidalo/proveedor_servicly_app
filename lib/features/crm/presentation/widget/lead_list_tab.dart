@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart';
+import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 
 // El widget LeadsTab implementa la interfaz de usuario para la gestión de Leads.
 class LeadsTab extends StatelessWidget {
   const LeadsTab({super.key});
 
-  // Widget auxiliar para mostrar el bloqueo Pro en la parte inferior
+  // Widget auxiliar para mostrar un bloqueo de característica Pro
   Widget _buildProLock(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.only(top: 20, left: 16, right: 16),
@@ -19,12 +20,45 @@ class LeadsTab extends StatelessWidget {
     );
   }
 
+  // Widget que muestra el menú contextual para cambiar el estado de un Lead (PRO)
+  Widget _buildPipelineMenu(BuildContext context, LeadListViewModel viewModel, Cliente lead) {
+    final availableStates = viewModel.availableLeadPipelineStates;
+
+    return PopupMenuButton<CrmEstado>(
+      onSelected: (CrmEstado newStatus) {
+        viewModel.updateLeadStatus(lead.id, newStatus, context);
+      },
+      itemBuilder: (BuildContext context) {
+        // --- CORRECCIÓN CLAVE ---
+        // 1. Usamos .where para filtrar el estado actual.
+        // 2. Usamos .toList() con un cast explícito para asegurar el tipo.
+        return availableStates
+            .where((estado) => estado != lead.estadoCRM) // Quita el estado actual
+            .map((CrmEstado estado) {
+              return PopupMenuItem<CrmEstado>(
+                value: estado,
+                child: Text(
+                  'Mover a ${viewModel.getLeadStatusLabel(estado)}',
+                  style: TextStyle(
+                    color: (estado == CrmEstado.clienteActivo) ? Colors.green.shade700 : Colors.black,
+                    fontWeight: (estado == CrmEstado.clienteActivo) ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              );
+            }).toList(); // La inferencia es correcta aquí porque ya filtramos
+        // ------------------------
+      },
+      icon: const Icon(Icons.more_vert, size: 20),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    // Usamos Consumer para acceder al LeadListViewModel
     return Consumer<LeadListViewModel>(
       builder: (context, viewModel, child) {
-        // StreamBuilder para manejar los datos en tiempo real (Leads)
+        final isProUser = viewModel.isProUser;
+        
         return StreamBuilder<List<Cliente>>(
           stream: viewModel.filteredLeadsStream,
           builder: (context, snapshot) {
@@ -36,7 +70,6 @@ class LeadsTab extends StatelessWidget {
             }
 
             final leads = snapshot.data ?? [];
-            
             Widget content;
 
             if (leads.isEmpty) {
@@ -60,7 +93,21 @@ class LeadsTab extends StatelessWidget {
                 itemCount: leads.length,
                 itemBuilder: (context, index) {
                   final lead = leads[index];
-                  // Los leads son clientes con estado LEAD, LEAD_NUEVO, CONTACTADO, etc.
+                  
+                  // Decide qué trailing widget usar basado en el plan (Pro vs. Free)
+                  Widget trailingWidget = isProUser 
+                    ? _buildPipelineMenu(context, viewModel, lead)
+                    : ElevatedButton(
+                        onPressed: () => viewModel.convertLeadToClient(lead.id, context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero, // Para reducir el tamaño mínimo
+                        ),
+                        child: const Text('Convertir'),
+                      );
+
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -74,20 +121,12 @@ class LeadsTab extends StatelessWidget {
                       subtitle: Text(
                         'Estado: ${viewModel.getLeadStatusLabel(lead.estadoCRM)} - Teléfono: ${lead.telefono.isNotEmpty ? lead.telefono : 'N/A'}',
                       ),
-                      trailing: ElevatedButton(
-                        onPressed: () => viewModel.convertLeadToClient(lead.id, context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        child: const Text('Convertir'),
-                      ),
+                      trailing: trailingWidget,
                       onTap: () {
-                         // Aquí se navegaría a una pantalla de detalle de Lead, similar a ClientDetailScreen
-                        ScaffoldMessenger.of(context).showSnackBar(
-                           SnackBar(content: Text('Abriendo detalle del Lead ${lead.nombreCompleto}')),
-                        );
+                          // Navegación a la pantalla de detalle del Lead (similar a ClientDetailScreen)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Abriendo detalle del Lead ${lead.nombreCompleto}')),
+                          );
                       },
                     ),
                   );
@@ -99,7 +138,7 @@ class LeadsTab extends StatelessWidget {
             return Column(
               children: [
                 Expanded(child: content),
-                if (!viewModel.isProUser) _buildProLock(context),
+                if (!isProUser) _buildProLock(context),
                 const SizedBox(height: 16),
               ],
             );

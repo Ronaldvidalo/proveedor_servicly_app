@@ -7,7 +7,6 @@ import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 class CrmRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   // Asume que el usuario ya está autenticado y tenemos su UID
-  // TODO: Manejar la inicialización asíncrona de FirebaseAuth correctamente.
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? 'default_user_id'; 
 
   // Referencia a la colección 'clientes' para el usuario actual
@@ -58,10 +57,21 @@ class CrmRepository {
     // Actualiza el estado a CLIENTE_ACTIVO
     await clientRef.update({
       'estadoCRM': CrmEstado.clienteActivo.name,
-      // Opcional: Registrar la fecha de conversión
-      // 'fechaConversion': FieldValue.serverTimestamp(), 
+      'ultimaInteraccion': FieldValue.serverTimestamp(), // Actualizar la interacción
     });
   }
+  
+  // NUEVO MÉTODO: Actualiza el estado del Lead en el pipeline de ventas
+  Future<void> updateLeadStatus(String leadId, CrmEstado newStatus) async {
+    final leadRef = _clientesRef.doc(leadId);
+    
+    // Solo actualizamos el estado CRM y la última interacción
+    await leadRef.update({
+      'estadoCRM': newStatus.name,
+      'ultimaInteraccion': FieldValue.serverTimestamp(), 
+    });
+  }
+
 
   // Método para crear un nuevo Cliente o Lead (Desde ContactFormScreen)
   Future<void> createCliente(Map<String, dynamic> data) async {
@@ -81,8 +91,6 @@ class CrmRepository {
     final snapshot = await _clientesRef.count().get();
     return snapshot.count ?? 0;
   }
-
-  // --- NUEVOS MÉTODOS PARA FUNCIONALIDAD PRO ---
 
   // Actualiza la lista de etiquetas de un cliente
   Future<void> updateClientTags(String clientId, List<String> tags) async {

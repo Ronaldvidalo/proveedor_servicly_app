@@ -11,7 +11,6 @@ class LeadListViewModel extends ChangeNotifier {
   final CrmRepository _repository;
 
   // Simulación: Determinar si el usuario es Pro (debería venir de un servicio de Auth/Config)
-  // Nota: En una aplicación real, se usaría Provider/Riverpod para obtener el estado de la suscripción.
   final bool _isProUser = true; 
 
   String _searchTerm = '';
@@ -20,49 +19,73 @@ class LeadListViewModel extends ChangeNotifier {
 
   bool get isProUser => _isProUser;
 
+  // Define los estados de Lead disponibles para el pipeline de ventas (Solo Pro)
+  List<CrmEstado> get availableLeadPipelineStates {
+    // Si no es Pro, solo puede convertir a Cliente Activo (mediante el botón Convertir)
+    if (!_isProUser) return []; 
+    
+    return [
+      CrmEstado.leadNuevo,
+      CrmEstado.contactado,
+      CrmEstado.cotizado,
+      CrmEstado.clienteActivo, // Opción final para conversión manual
+    ];
+  }
+
   // Stream que obtiene la lista filtrada de Leads desde el Repositorio
   Stream<List<Cliente>> get filteredLeadsStream {
-    // Llama al método del repositorio que ya implementamos
     return _repository.getLeadsStream(searchTerm: _searchTerm, isPro: _isProUser);
   }
 
   void setSearchTerm(String term) {
     if (_searchTerm != term) {
       _searchTerm = term;
-      // Notificar a los widgets (Consumers) para que reconstruyan el StreamBuilder
       notifyListeners();
     }
   }
 
-  // --- Lógica de Conversión ---
+  // --- Lógica de Conversión y Actualización de Pipeline ---
 
-  // Método llamado desde la UI para convertir un Lead en Cliente
-  Future<void> convertLeadToClient(String leadId, BuildContext context) async {
+  // Método llamado desde la UI para cambiar el estado de un Lead
+  Future<void> updateLeadStatus(String leadId, CrmEstado newStatus, BuildContext context) async {
     try {
-      // 1. Llamar al repositorio para actualizar el estado en Firestore
-      await _repository.convertLeadToClient(leadId);
-
-      // 2. Mostrar mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🎉 ¡Lead convertido a Cliente Activo exitosamente!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (newStatus == CrmEstado.clienteActivo) {
+        // Usar la lógica de conversión existente si el destino es CLIENTE_ACTIVO
+        await _repository.convertLeadToClient(leadId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎉 ¡Lead convertido a Cliente Activo exitosamente!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // Mover el Lead a un nuevo estado del pipeline (Solo Pro)
+        await _repository.updateLeadStatus(leadId, newStatus);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lead movido a ${getLeadStatusLabel(newStatus)}'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
       
     } catch (e) {
-      // 3. Manejar errores
-      // En producción, aquí se usaría un logger y no solo print
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al convertir Lead: $e'),
+          content: Text('Error al actualizar el estado del Lead: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
+  
+  // El antiguo método de conversión ahora simplemente llama a updateLeadStatus
+  Future<void> convertLeadToClient(String leadId, BuildContext context) async {
+    await updateLeadStatus(leadId, CrmEstado.clienteActivo, context);
+  }
 
-  // --- Utilidades para la UI de Leads (Distinción Pro) ---
+
+  // --- Utilidades para la UI de Leads ---
 
   // Obtiene el color asociado al estado del Lead
   Color getLeadStatusColor(CrmEstado estado) {
@@ -80,7 +103,7 @@ class LeadListViewModel extends ChangeNotifier {
     }
   }
 
-  // Obtiene la etiqueta del estado
+  // Obtiene la etiqueta del estado (Human-readable label)
   String getLeadStatusLabel(CrmEstado estado) {
     switch (estado) {
       case CrmEstado.leadNuevo:
