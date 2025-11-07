@@ -33,6 +33,7 @@ import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 // --- Modelos y ViewModels ---
 import 'core/models/user_model.dart';
 import 'core/viewmodels/cart_provider.dart';
+import 'package:proveedor_servicly_app/core/services/order_service.dart';
 
 // --- UI ---
 import 'features/auth/widgets/auth_wrapper.dart';
@@ -100,6 +101,7 @@ class MyApp extends StatelessWidget {
         Provider<ProductService>(create: (_) => ProductService()),
         Provider<CategoryService>(create: (_) => CategoryService()),
         Provider<AgendaService>(create: (_) => AgendaService()),
+        Provider<OrderService>(create: (_) => OrderService()),
 
         // 2. FirestoreService (necesario para los demás)
         Provider<FirestoreService>(create: (_) => FirestoreService()),
