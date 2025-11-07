@@ -5,9 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-// ¡NUEVO! Importamos el modelo de perfil para usar los valores por defecto
-import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; 
-// --- CORRECCIÓN: Importación correcta de AuthWrapper ---
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 
 class BrandSettingsScreen extends StatefulWidget {
@@ -56,24 +54,22 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController = TextEditingController();
     _addressController = TextEditingController();
     _contactEmailController = TextEditingController();
-    _countryController = TextEditingController(); // Inicializar controller
+    _countryController = TextEditingController();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isInitialized) {
-      // Los datos de 'personalization' en el 'userModel' pueden estar vacíos
-      // si es la primera vez que el usuario entra aquí.
       final personalization = widget.user.personalization;
 
       _businessNameController.text = personalization['businessName'] as String? ?? widget.user.displayName ?? '';
       _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '¡Bienvenido a mi perfil!';
       _addressController.text = personalization['address'] as String? ?? '';
       _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
-      _countryController.text = personalization['country'] as String? ?? ''; // Asignar al controller
+      _countryController.text = personalization['country'] as String? ?? '';
 
-      _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'catalog'; // Default a 'catalog'
+      _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'catalog';
       _existingLogoUrl = personalization['logoUrl'] as String?;
 
       final hexColor = personalization['primaryColor'] as String?;
@@ -89,7 +85,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _welcomeMessageController.dispose();
     _addressController.dispose();
     _contactEmailController.dispose();
-    _countryController.dispose(); // Disponer del controller
+    _countryController.dispose();
     super.dispose();
   }
 
@@ -113,15 +109,17 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     final userModel = widget.user;
     String? newLogoUrl;
 
-    // Guardamos el context para usarlo después del await
     final navigator = Navigator.of(context);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
       // 1. Subir la imagen (si hay una nueva)
       if (_selectedImageFile != null) {
-        // Usamos la nueva ruta de 'catalogs'
-        final String storagePath = 'catalogs/${userModel.uid}/profile_logo.jpg';
+        
+        // --- MODIFICACIÓN 1: Nueva ruta de Storage ---
+        // Apunta a la nueva carpeta 'brandProfiles'
+        final String storagePath = 'brandProfiles/${userModel.uid}/profile_logo.jpg';
+        // --- FIN DE MODIFICACIÓN 1 ---
         
         // Borramos la imagen anterior si existía
         if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
@@ -136,32 +134,29 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
         );
       }
 
-      // 2. Preparar el mapa de datos para 'catalogs/{userId}'
+      // 2. Preparar el mapa de datos para 'brandProfiles'
       final hexColor = _selectedColor ?? const Color(0xFF00BFFF);
       final hexString = '#${hexColor.red.toRadixString(16).padLeft(2, '0')}'
                          '${hexColor.green.toRadixString(16).padLeft(2, '0')}'
                          '${hexColor.blue.toRadixString(16).padLeft(2, '0')}';
 
-      // Creamos el objeto de perfil con TODOS los datos (nuevos y por defecto)
-      // Usamos ProviderProfileModel para asegurar que todos los campos booleanos
-      // (showWelcomeModule, etc.) se inicialicen correctamente.
-      final newCatalogProfile = ProviderProfileModel(
+      // Usamos el modelo para asegurar todos los campos por defecto
+      final newBrandProfile = ProviderProfileModel(
         providerId: userModel.uid,
         businessName: _businessNameController.text.trim(),
         logoUrl: newLogoUrl ?? _existingLogoUrl ?? '',
         brandColor: _selectedColor ?? const Color(0xFF00BFFF),
-        activeModules: userModel.activeModules ?? [], // Hereda de user
+        activeModules: userModel.activeModules ?? [],
         profileType: _selectedFormat, // ¡USA EL FORMATO SELECCIONADO!
         contactEmail: _contactEmailController.text.trim(),
         address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        slogan: null, // El editor principal manejará esto
+        slogan: null,
         averageRating: 0, 
         reviewCount: 0, 
-        openingHours: null, // El editor principal manejará esto
-        phone: null, // El editor principal manejará esto
-        whatsapp: null, // El editor principal manejará esto
+        openingHours: null,
+        phone: null,
+        whatsapp: null,
         welcomeMessage: _welcomeMessageController.text.trim(),
-        // Valores por defecto para los booleanos
         showWelcomeModule: true,
         welcomeModuleType: 'text',
         showPortfolioModule: true,
@@ -172,26 +167,25 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
         showQuotesModule: false,
       );
       
-      // Convertimos el modelo a un mapa para guardarlo
-      final catalogData = newCatalogProfile.toMap();
+      final brandData = newBrandProfile.toMap();
       
       // Añadimos campos extra que no están en el modelo pero sí en el formulario
-      catalogData['country'] = _countryController.text.trim();
-      catalogData['primaryColor'] = hexString.toUpperCase();
-      // ¡IMPORTANTE! Aseguramos que el template se guarde en el mapa
-      catalogData['publicProfileTemplate'] = _selectedFormat;
+      brandData['country'] = _countryController.text.trim();
+      brandData['primaryColor'] = hexString.toUpperCase();
+      brandData['publicProfileTemplate'] = _selectedFormat;
 
 
-      // 3. Guardar los datos del perfil PÚBLICO en la colección 'catalogs'
-      await firestoreService.setCatalogData(userModel.uid, catalogData);
+      // --- MODIFICACIÓN 2: Nueva llamada al servicio de Firestore ---
+      // 3. Guardar los datos del perfil PÚBLICO en la nueva colección 'brandProfiles'
+      await firestoreService.setBrandProfile(userModel.uid, brandData);
+      // --- FIN DE MODIFICACIÓN 2 ---
 
       // 4. Actualizar el documento 'users' solo con datos de estado
       await firestoreService.updateUser(userModel.uid, {
         'isProfileComplete': true, 
         'publicProfileCreated': true, 
-        'publicProfileTemplate': _selectedFormat, // Guardamos la plantilla aquí también por si acaso
+        'publicProfileTemplate': _selectedFormat,
       });
-      // --- FIN DEL CAMBIO DE LÓGICA ---
       
       if (!mounted) return;
       _showSnackbar('¡Perfil público guardado con éxito!');
@@ -297,7 +291,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
                     ),
                     const SizedBox(height: 16),
-                     TextFormField(
+                    TextFormField(
                       controller: _countryController,
                       style: const TextStyle(color: Colors.white),
                       decoration: inputDecoration.copyWith(labelText: 'País'),
@@ -336,7 +330,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     );
   }
 
-  /// UI Polish: Un contenedor reutilizable para cada sección del formulario.
   Widget _buildSectionCard({required String title, String? subtitle, required List<Widget> children}) {
     const surfaceColor = Color(0xFF2D2D5A);
     return Container(
@@ -374,15 +367,15 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
           width: 80,
           height: 80,
           child: Stack(
-            clipBehavior: Clip.none, // Permitir que el botón sobresalga
+            clipBehavior: Clip.none,
             children: [
               Container(
-                width: 80, height: 80, // Asegurar tamaño
+                width: 80, height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   image: image != null ? DecorationImage(image: image, fit: BoxFit.cover) : null,
                   border: Border.all(color: const Color(0xFF00BFFF), width: 2),
-                   color: image == null ? Colors.white.withAlpha(20) : Colors.transparent, // Fondo si no hay imagen
+                   color: image == null ? Colors.white.withAlpha(20) : Colors.transparent,
                 ),
                 child: image == null ? const Center(child: Icon(Icons.business_rounded, size: 40, color: Colors.white70)) : null,
               ),
@@ -396,7 +389,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                     decoration: const BoxDecoration(
                       color: Color(0xFF00BFFF),
                       shape: BoxShape.circle,
-                       border: Border.fromBorderSide(BorderSide(color: Color(0xFF1A1A2E), width: 2)), // Borde para separar
+                       border: Border.fromBorderSide(BorderSide(color: Color(0xFF1A1A2E), width: 2)),
                     ),
                     child: const Icon(Icons.edit, size: 18, color: Colors.black), 
                   ),
@@ -453,7 +446,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
 
   void _showSnackbar(String message, {bool isError = false}) {
-      if (!mounted) return;
+     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
       backgroundColor: isError ? Colors.redAccent : Colors.green,

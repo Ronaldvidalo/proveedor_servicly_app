@@ -84,7 +84,7 @@ class ContactFormScreen extends StatelessWidget {
                       labelText: 'Estado CRM Inicial',
                       border: OutlineInputBorder(),
                     ),
-                    value: viewModel.estadoSeleccionado,
+                    initialValue: viewModel.estadoSeleccionado,
                     items: viewModel.availableStates.map((CrmEstado estado) {
                       return DropdownMenuItem<CrmEstado>(
                         value: estado,

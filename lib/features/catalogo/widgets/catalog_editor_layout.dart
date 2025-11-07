@@ -13,7 +13,6 @@ import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
 
 // Widgets Auxiliares
-import 'package:proveedor_servicly_app/features/catalogo/modules/_category_chip.dart';
 import 'package:proveedor_servicly_app/features/catalogo/modules/_portfolio_item_card.dart';
 import 'package:proveedor_servicly_app/features/catalogo/modules/module_settings_sheet.dart';
 

@@ -523,6 +523,11 @@ class FirestoreService {
              return <PortfolioItemModel>[];
          });
   }
+  // TU NUEVO MÉTODO
+Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
+  // Apunta a la nueva colección 'brandProfiles'
+  await _db.collection('brandProfiles').doc(uid).set(data, SetOptions(merge: true));
+}
 
   // (Aquí irían el resto de métodos obsoletos de portafolio: add, update, delete...)
 

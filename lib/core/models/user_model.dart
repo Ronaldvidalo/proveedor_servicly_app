@@ -21,17 +21,27 @@ class UserModel {
   /// Indica si el usuario ya ha completado la creación de su perfil público.
   /// Por defecto es `false`.
   final bool publicProfileCreated;
+
   /// Almacena el identificador de la plantilla seleccionada (ej: 'cv', 'tienda').
   /// Es `null` si el perfil no ha sido creado.
   final String? publicProfileTemplate;
+
+  // --- MODIFICACIÓN: CAMPOS DE LA RAÍZ (basado en tu Firestore) ---
+  final String? businessName;
+  final String? logoUrl;
 
   // --- DATOS DEL NEGOCIO (Gestionados por el Proveedor) ---
   /// Mapa flexible para almacenar toda la configuración de la marca y el perfil público.
   final Map<String, dynamic> personalization;
 
-  // --- GETTERS DE CONVENIENCIA ---
-  /// Acceso directo al nombre del negocio desde el mapa de personalización.
-  String? get displayName => personalization['businessName'] as String?;
+  // --- GETTERS DE CONVENIENCIA (¡CORREGIDOS!) ---
+  /// Acceso directo al nombre del negocio.
+  String? get displayName => businessName; // <-- CORREGIDO
+
+  /// Acceso directo a la URL de la foto de perfil.
+  /// La UI pide 'photoUrl', pero tu base de datos usa 'logoUrl'.
+  /// Este getter actúa como un "alias" para que funcione.
+  String? get photoUrl => logoUrl; // <-- CORREGIDO
 
   const UserModel({
     required this.uid,
@@ -45,6 +55,10 @@ class UserModel {
     // --- MODIFICACIÓN: Se añaden los nuevos campos al constructor ---
     this.publicProfileCreated = false,
     this.publicProfileTemplate,
+
+    // --- MODIFICACIÓN: AÑADIDOS AL CONSTRUCTOR ---
+    this.businessName,
+    this.logoUrl,
   });
 
   /// Convierte la instancia del modelo a un mapa para guardarlo en Firestore.
@@ -59,7 +73,11 @@ class UserModel {
       'activeModules': activeModules,
       'personalization': personalization,
       'publicProfileCreated': publicProfileCreated,
-      'publicProfileTemplate': publicProfileTemplate,
+      // --- ¡CORRECCIÓN DEL TYPO! ---
+      'publicProfileTemplate': publicProfileTemplate, // Era publicHrofileTemplate
+      // --- MODIFICACIÓN: AÑADIDOS AL JSON ---
+      'businessName': businessName,
+      'logoUrl': logoUrl,
     };
   }
 
@@ -77,8 +95,11 @@ class UserModel {
       // --- MODIFICACIÓN: Se leen los nuevos campos de forma segura ---
       publicProfileCreated: json['publicProfileCreated'] as bool? ?? false,
       publicProfileTemplate: json['publicProfileTemplate'] as String?,
+
+      // --- MODIFICACIÓN: LEER CAMPOS DE LA RAÍZ ---
+      businessName: json['businessName'] as String?,
+      logoUrl: json['logoUrl'] as String?,
     );
-    
   }
   factory UserModel.empty() {
     return UserModel(
@@ -90,9 +111,12 @@ class UserModel {
       activeModules: [],
       personalization: {}, // Mapa vacío
       planType: 'conecta', // Default al plan conecta (coincide con PermissionsService)
-      publicProfileCreated: false, 
+      publicProfileCreated: false,
       publicProfileTemplate: null, // Opcional: ser explícito
       createdAt: null, // Opcional: ser explícito
+      // --- MODIFICACIÓN: AÑADIDOS AL EMPTY ---
+      businessName: null,
+      logoUrl: null,
     );
   }
 
@@ -109,6 +133,9 @@ class UserModel {
     bool? publicProfileCreated,
     String? publicProfileTemplate,
     Map<String, dynamic>? personalization,
+    // --- MODIFICACIÓN: AÑADIDOS AL COPYWITH ---
+    String? businessName,
+    String? logoUrl,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -120,7 +147,11 @@ class UserModel {
       activeModules: activeModules ?? this.activeModules,
       personalization: personalization ?? this.personalization,
       publicProfileCreated: publicProfileCreated ?? this.publicProfileCreated,
-      publicProfileTemplate: publicProfileTemplate ?? this.publicProfileTemplate,
+      publicProfileTemplate:
+          publicProfileTemplate ?? this.publicProfileTemplate,
+      // --- MODIFICACIÓN: AÑADIDOS AL COPYWITH ---
+      businessName: businessName ?? this.businessName,
+      logoUrl: logoUrl ?? this.logoUrl,
     );
   }
 }

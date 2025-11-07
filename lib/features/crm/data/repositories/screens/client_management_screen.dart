@@ -8,7 +8,6 @@ import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.da
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/client_list_viewmodel.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; 
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/client_detail_screen.dart'; 
-import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_list_tab.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/contact_form_screen.dart'; // PANTALLA A NAVEGAR
 
 // --- WIDGETS AUXILIARES (Definidos aquí para que la pantalla sea self-contained) ---

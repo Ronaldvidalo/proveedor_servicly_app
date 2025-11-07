@@ -79,11 +79,12 @@ class AuthService {
   }
 
   /// Registra un nuevo usuario y crea su documento en Firestore.
+  // --- MODIFICACIÓN 1: Se eliminan 'role' y 'countryCode' de la firma ---
   Future<UserCredential> createUserWithEmailAndPassword({
     required String email,
     required String password,
-    required String role,
-    String? countryCode,
+    // required String role, // <-- ELIMINADO
+    // String? countryCode, // <-- ELIMINADO
   }) async {
     try {
       final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
@@ -92,9 +93,11 @@ class AuthService {
       );
 
       if (userCredential.user != null) {
+        // --- MODIFICACIÓN 2: Se crea un perfil mínimo ---
         final personalizationData = {
-          'country': countryCode,
-          'businessName': userCredential.user!.email,
+          // 'country' se establecerá en Onboarding
+          // 'country': null,
+          'businessName': userCredential.user!.email, // Un default temporal
         };
         final newUser = UserModel(
           uid: userCredential.user!.uid,
@@ -102,8 +105,8 @@ class AuthService {
           createdAt: Timestamp.now(),
           planType: 'free',
           activeModules: ['clients', 'agenda'],
-          role: role,
-          isProfileComplete: false,
+          role: null, // <-- ROL AHORA ES NULL (se elegirá en Onboarding)
+          isProfileComplete: false, // <-- CRÍTICO: Esto fuerza el Onboarding
           personalization: personalizationData,
         );
         await _firestoreService.createUser(newUser);
@@ -145,15 +148,16 @@ class AuthService {
       if (userCredential.user != null) {
         // Si es la primera vez que inicia sesión, creamos su documento
         if (userCredential.additionalUserInfo?.isNewUser == true) {
+          
+          // --- MODIFICACIÓN 3: Lógica de Google alineada ---
           final newUser = UserModel(
             uid: userCredential.user!.uid,
             email: userCredential.user!.email,
-            // displayName: userCredential.user!.displayName, // Se quita para que coincida con el constructor
             createdAt: Timestamp.now(),
             planType: 'free',
             activeModules: ['clients', 'agenda'],
-            role: 'client', 
-            isProfileComplete: false, 
+            role: null, // <-- ROL AHORA ES NULL (se elegirá en Onboarding)
+            isProfileComplete: false, // <-- CRÍTICO: Esto fuerza el Onboarding
             personalization: { 'businessName': userCredential.user!.displayName },
           );
           await _firestoreService.createUser(newUser);
@@ -184,4 +188,3 @@ class AuthService {
     await _firebaseAuth.signOut();
   }
 }
-

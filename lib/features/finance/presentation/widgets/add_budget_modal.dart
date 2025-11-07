@@ -14,7 +14,6 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/models/presupuesto_financiero_model.dart';
-import '../../data/repositories/finance_repository.dart';
 import '../providers/finance_providers.dart'; // Para leer los gastos existentes
 
 // Definición de categorías

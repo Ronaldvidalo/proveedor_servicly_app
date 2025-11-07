@@ -1,16 +1,16 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 18/10/2025
 // Style: Cyber Glow
-// This screen was refactored to include a card-based role selection
-// and a conditional country picker for providers, enhancing the
-// registration user experience.
+// This screen was refactored to handle only email/password auth.
+// Role and profile data collection was moved to OnboardingScreen
+// to improve the user experience.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import 'package:proveedor_servicly_app/core/models/country_model.dart';
-import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
+// import 'package:proveedor_servicly_app/core/models/country_model.dart'; // <--- ELIMINADO
+// import 'package:proveedor_servicly_app/core/services/marketplace_service.dart'; // <--- ELIMINADO
 import '../../../core/services/auth_service.dart';
 import 'dart:math' as math;
 
@@ -22,7 +22,8 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
+class _AuthScreenState extends State<AuthScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   var _authMode = AuthMode.login;
   final _emailController = TextEditingController();
@@ -33,8 +34,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   bool _isConfirmPasswordObscured = true;
   AnimationController? _animationController;
 
-  String _selectedRole = 'client';
-  String? _selectedCountryCode;
+  // --- MODIFICACIÓN: Se eliminan _selectedRole y _selectedCountryCode ---
 
   @override
   void initState() {
@@ -71,10 +71,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid || _isLoading) return;
 
-    if (_authMode == AuthMode.register && _selectedRole == 'provider' && _selectedCountryCode == null) {
-      _showErrorSnackbar('Debes seleccionar tu país para registrarte como proveedor.');
-      return;
-    }
+    // --- MODIFICACIÓN: Se elimina la validación de país ---
 
     setState(() => _isLoading = true);
     final authService = context.read<AuthService>();
@@ -82,23 +79,27 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
     try {
       if (_authMode == AuthMode.login) {
-        await authService.signInWithEmailAndPassword(email: _emailController.text.trim(), password: _passwordController.text.trim());
+        await authService.signInWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim());
       } else if (_authMode == AuthMode.register) {
+        
+        // --- MODIFICACIÓN: Se llama al servicio solo con email y password ---
         await authService.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
-          role: _selectedRole,
-          countryCode: _selectedCountryCode,
         );
+
       } else if (_authMode == AuthMode.forgotPassword) {
-        await authService.sendPasswordResetEmail(email: _emailController.text.trim());
+        await authService.sendPasswordResetEmail(
+            email: _emailController.text.trim());
         messenger.showSnackBar(const SnackBar(
           content: Text('Se ha enviado un enlace a tu correo.'),
           backgroundColor: Colors.green,
         ));
         _switchAuthMode(AuthMode.login);
       }
-      } on FirebaseAuthException catch (error) {
+    } on FirebaseAuthException catch (error) {
       _showErrorSnackbar(_handleAuthException(error));
     } catch (error) {
       _showErrorSnackbar('Ocurrió un error inesperado. Inténtalo de nuevo.');
@@ -139,15 +140,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
- Future<void> _signInWithGoogle() async {
+  Future<void> _signInWithGoogle() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     final authService = context.read<AuthService>();
     try {
       await authService.signInWithGoogle();
-
-      // --- CORRECCIÓN: Se han eliminado las líneas de Navigator.popUntil ---
-
     } catch (error) {
       if (!mounted) return;
       _showErrorSnackbar('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
@@ -179,33 +177,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildHeader(isLogin, isRegister, isForgotPassword, textTheme, surfaceColor, primaryColor),
+                  _buildHeader(isLogin, isRegister, isForgotPassword, textTheme,
+                      surfaceColor, primaryColor),
                   
-                  if (isRegister) ...[
-                    const SizedBox(height: 32),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _RoleSelectionCard(
-                            title: 'Soy Cliente',
-                            icon: Icons.shopping_bag_outlined,
-                            isSelected: _selectedRole == 'client',
-                            onTap: () => setState(() => _selectedRole = 'client'),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _RoleSelectionCard(
-                            title: 'Soy Proveedor',
-                            icon: Icons.store_mall_directory_outlined,
-                            isSelected: _selectedRole == 'provider',
-                            onTap: () => setState(() => _selectedRole = 'provider'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  // --- MODIFICACIÓN: Se elimina la UI de selección de rol ---
+                  
+                  // Se añade un SizedBox para mantener el espaciado
+                  const SizedBox(height: 32), 
 
                   _buildFormFields(isForgotPassword, isLogin, inputDecoration),
 
@@ -213,7 +191,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: _isLoading ? null : () => _switchAuthMode(AuthMode.forgotPassword),
+                        onPressed: _isLoading
+                            ? null
+                            : () => _switchAuthMode(AuthMode.forgotPassword),
                         child: const Text('¿Olvidaste tu contraseña?'),
                       ),
                     ),
@@ -241,22 +221,19 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   // --- MÉTODOS DE CONSTRUCCIÓN DE WIDGETS ---
 
-  Widget _buildFormFields(bool isForgotPassword, bool isLogin, InputDecoration inputDecoration) {
+  Widget _buildFormFields(
+      bool isForgotPassword, bool isLogin, InputDecoration inputDecoration) {
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       child: Column(
         children: [
-           if (_authMode == AuthMode.register && _selectedRole == 'provider') ...[
-            _CountrySelector(
-              initialCountryCode: _selectedCountryCode,
-              onChanged: (code) => setState(() => _selectedCountryCode = code),
-              inputDecoration: inputDecoration,
-            ),
-            const SizedBox(height: 16),
-          ],
+          // --- MODIFICACIÓN: Se elimina la UI de selección de país ---
+
           TextFormField(
             controller: _emailController,
-            decoration: inputDecoration.copyWith(labelText: 'Correo Electrónico', prefixIcon: const Icon(Icons.alternate_email_rounded)),
+            decoration: inputDecoration.copyWith(
+                labelText: 'Correo Electrónico',
+                prefixIcon: const Icon(Icons.alternate_email_rounded)),
             style: const TextStyle(color: Colors.white),
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
@@ -274,8 +251,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 labelText: 'Contraseña',
                 prefixIcon: Icons.lock_outline_rounded,
                 suffixIcon: IconButton(
-                  icon: Icon(_isPasswordObscured ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white70),
-                  onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
+                  icon: Icon(
+                      _isPasswordObscured
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                      color: Colors.white70),
+                  onPressed: () =>
+                      setState(() => _isPasswordObscured = !_isPasswordObscured),
                 ),
               ),
               style: const TextStyle(color: Colors.white),
@@ -295,7 +277,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildHeader(bool isLogin, bool isRegister, bool isForgotPassword, TextTheme textTheme, Color surfaceColor, Color primaryColor) {
+  Widget _buildHeader(bool isLogin, bool isRegister, bool isForgotPassword,
+      TextTheme textTheme, Color surfaceColor, Color primaryColor) {
     return Column(
       children: [
         Container(
@@ -311,8 +294,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
             ],
           ),
-          // --- CORRECCIÓN ---
-          // Se elimina el 'const' porque 'primaryColor' no es una constante.
           child: Icon(Icons.shield_moon_rounded, size: 60, color: primaryColor),
         ),
         const SizedBox(height: 32),
@@ -321,12 +302,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           transitionBuilder: (child, animation) => FadeTransition(
             opacity: animation,
             child: SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0, -0.5), end: Offset.zero).animate(animation),
+              position: Tween<Offset>(
+                      begin: const Offset(0, -0.5), end: Offset.zero)
+                  .animate(animation),
               child: child,
             ),
           ),
           child: Text(
-            isLogin ? 'Bienvenido de Nuevo' : (isRegister ? 'Crea tu Cuenta' : 'Recuperar Contraseña'),
+            isLogin
+                ? 'Bienvenido de Nuevo'
+                : (isRegister ? 'Crea tu Cuenta' : 'Recuperar Contraseña'),
             key: ValueKey(_authMode),
             style: textTheme.headlineLarge?.copyWith(
               fontWeight: FontWeight.bold,
@@ -338,7 +323,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ),
         const SizedBox(height: 8),
         Text(
-          isLogin ? 'Ingresa para continuar' : (isRegister ? 'Elige tu rol para empezar' : 'Ingresa tu correo para recibir un enlace'),
+          isLogin
+              ? 'Ingresa para continuar'
+              : (isRegister ? 'Ingresa tu correo y contraseña' : 'Ingresa tu correo para recibir un enlace'),
           style: textTheme.titleMedium?.copyWith(color: Colors.white70),
           textAlign: TextAlign.center,
         ),
@@ -346,7 +333,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildConfirmPasswordField(bool isHidden, InputDecoration inputDecoration) {
+  Widget _buildConfirmPasswordField(
+      bool isHidden, InputDecoration inputDecoration) {
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -358,14 +346,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 labelText: 'Confirmar Contraseña',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
-                  icon: Icon(_isConfirmPasswordObscured ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white70),
-                  onPressed: () => setState(() => _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
+                  icon: Icon(
+                      _isConfirmPasswordObscured
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                      color: Colors.white70),
+                  onPressed: () => setState(() =>
+                      _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
                 ),
               ),
               style: const TextStyle(color: Colors.white),
               obscureText: _isConfirmPasswordObscured,
               validator: (value) {
-                if (_authMode == AuthMode.register && value != _passwordController.text) {
+                if (_authMode == AuthMode.register &&
+                    value != _passwordController.text) {
                   return 'Las contraseñas no coinciden.';
                 }
                 return null;
@@ -374,7 +368,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildSubmitButton(bool isLogin, bool isRegister, Color primaryColor) {
+  Widget _buildSubmitButton(
+      bool isLogin, bool isRegister, Color primaryColor) {
     String buttonText;
     if (isLogin) {
       buttonText = 'Ingresar';
@@ -391,12 +386,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         style: FilledButton.styleFrom(
           backgroundColor: primaryColor,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           foregroundColor: Colors.black,
         ),
         child: _isLoading
-            ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.black))
-            : Text(buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child:
+                    CircularProgressIndicator(strokeWidth: 3, color: Colors.black))
+            : Text(buttonText,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black)),
       ),
     );
   }
@@ -407,31 +411,35 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         const Expanded(child: Divider(color: Colors.white24, thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Text('O', style: textTheme.bodySmall?.copyWith(color: Colors.white70)),
+          child: Text('O',
+              style: textTheme.bodySmall?.copyWith(color: Colors.white70)),
         ),
         const Expanded(child: Divider(color: Colors.white24, thickness: 1)),
       ],
     );
   }
-  
+
   Widget _buildGoogleSignInButton(Color surfaceColor) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: _isLoading ? null : _signInWithGoogle,
         icon: const GoogleLogo(),
-        label: const Text('Continuar con Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text('Continuar con Google',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.white,
           side: const BorderSide(color: Colors.white24),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
   }
 
-  Widget _buildSwitchAuthModeButton(bool isLogin, bool isForgotPassword, Color primaryColor) {
+  Widget _buildSwitchAuthModeButton(
+      bool isLogin, bool isForgotPassword, Color primaryColor) {
     if (isForgotPassword) {
       return TextButton.icon(
         onPressed: _isLoading ? null : () => _switchAuthMode(AuthMode.login),
@@ -439,9 +447,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         label: const Text('Volver a Ingresar'),
       );
     }
-    
+
     return TextButton(
-      onPressed: _isLoading ? null : () => _switchAuthMode(isLogin ? AuthMode.register : AuthMode.login),
+      onPressed: _isLoading
+          ? null
+          : () =>
+              _switchAuthMode(isLogin ? AuthMode.register : AuthMode.login),
       style: TextButton.styleFrom(
         foregroundColor: primaryColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -473,11 +484,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }) {
     const primaryColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF222244);
-    
+
     return InputDecoration(
       labelText: labelText,
       labelStyle: const TextStyle(color: Colors.white70),
-      prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: Colors.white70) : null,
+      prefixIcon:
+          prefixIcon != null ? Icon(prefixIcon, color: Colors.white70) : null,
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: surfaceColor,
@@ -503,115 +515,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
 // --- WIDGETS AUXILIARES ---
 
-class _RoleSelectionCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
+// --- MODIFICACIÓN: Se elimina _RoleSelectionCard ---
 
-  const _RoleSelectionCard({
-    required this.title,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
+// --- MODIFICACIÓN: Se elimina _CountrySelector ---
 
-  @override
-  Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: isSelected ? primaryColor.withAlpha(50) : surfaceColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? primaryColor : Colors.white24,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 32, color: isSelected ? primaryColor : Colors.white70),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white70,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CountrySelector extends StatelessWidget {
-  final String? initialCountryCode;
-  final ValueChanged<String?> onChanged;
-  final InputDecoration inputDecoration;
-
-  const _CountrySelector({this.initialCountryCode, required this.onChanged, required this.inputDecoration});
-
-  @override
-  Widget build(BuildContext context) {
-    return Provider<MarketplaceService>(
-      create: (_) => MarketplaceService(),
-      child: Consumer<MarketplaceService>(
-        builder: (context, marketplaceService, _) {
-          return StreamBuilder<List<CountryModel>>(
-            stream: marketplaceService.getCountries(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                 return InputDecorator(
-                  decoration: inputDecoration.copyWith(labelText: 'País'),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Cargando países...', style: TextStyle(color: Colors.white70)),
-                      SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                    ],
-                  ),
-                );
-              }
-
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return TextFormField(
-                  decoration: inputDecoration.copyWith(labelText: 'País (Error al cargar)'),
-                  enabled: false,
-                );
-              }
-
-              final countries = snapshot.data!;
-              final validInitialValue = countries.any((c) => c.id == initialCountryCode) ? initialCountryCode : null;
-
-              return DropdownButtonFormField<String>(
-                initialValue: validInitialValue,
-                onChanged: onChanged,
-                decoration: inputDecoration.copyWith(labelText: 'País del Proveedor'),
-                dropdownColor: const Color(0xFF2D2D5A),
-                style: const TextStyle(color: Colors.white),
-                items: countries.map((country) {
-                  return DropdownMenuItem(
-                    value: country.id,
-                    child: Text('${country.flag} ${country.name}'),
-                  );
-                }).toList(),
-                validator: (value) => value == null ? 'Debes seleccionar un país' : null,
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
 
 class GoogleLogo extends StatelessWidget {
   const GoogleLogo({super.key});
@@ -653,13 +560,16 @@ class _GoogleLogoPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
-    canvas.drawArc(rect, -math.pi / 2, math.pi * 0.9, false, paint..color = colors[0]);
-    canvas.drawArc(rect, math.pi * 0.4, math.pi * 0.6, false, paint..color = colors[1]);
-    canvas.drawArc(rect, math.pi, math.pi * 0.5, false, paint..color = colors[2]);
-    canvas.drawArc(rect, math.pi * 1.5, math.pi * 0.6, false, paint..color = colors[3]);
+    canvas.drawArc(
+        rect, -math.pi / 2, math.pi * 0.9, false, paint..color = colors[0]);
+    canvas.drawArc(
+        rect, math.pi * 0.4, math.pi * 0.6, false, paint..color = colors[1]);
+    canvas.drawArc(
+        rect, math.pi, math.pi * 0.5, false, paint..color = colors[2]);
+    canvas.drawArc(
+        rect, math.pi * 1.5, math.pi * 0.6, false, paint..color = colors[3]);
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

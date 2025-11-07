@@ -1,7 +1,7 @@
 // *** CORRECCIÓN ***
 // Ocultamos los nombres que entran en conflicto con el paquete 'provider'
 // 'ProviderScope' no está oculto, por lo que podemos seguir usándolo.
-import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider, StreamProvider, ChangeNotifierProvider;
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider, StreamProvider, ChangeNotifierProvider, Consumer;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -10,14 +10,15 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart'; // Importante para kDebugMode
-// import 'package:cloud_firestore/cloud_firestore.dart'; // No se usa en este archivo
 
 // --- Importaciones de Firebase ---
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
-// --- Tema de la App ---
-import 'shared/theme/theme.dart';
+// --- MODIFICACIÓN: TEMA DE LA APP ---
+// Importamos el NUEVO provider de tema
+import 'package:proveedor_servicly_app/providers/theme_provider.dart';
+// Se elimina la importación antigua: import 'shared/theme/theme.dart';
 
 // --- Servicios Core ---
 import 'core/services/auth_service.dart';
@@ -86,8 +87,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // --- MODIFICACIÓN: AÑADIMOS EL THEME PROVIDER ---
+        // Este provider debe estar en la lista para que el Consumer en DashboardScreen lo encuentre
+        ChangeNotifierProvider<ThemeProvider>(
+          create: (_) => ThemeProvider(),
+        ),
+
         // --- PROVEEDORES DE SERVICIOS (Singletons) ---
-        
+
         // 1. Servicios que no dependen de nada
         Provider<StorageService>(create: (_) => StorageService()),
         Provider<ProductService>(create: (_) => ProductService()),
@@ -109,11 +116,10 @@ class MyApp extends StatelessWidget {
         // ProviderService ahora DEPENDE de FirestoreService.
         // Usamos un ProxyProvider para "inyectar" FirestoreService.
         ProxyProvider<FirestoreService, ProviderService>(
-          update: (context, firestoreService, previousProviderService) => 
+          update: (context, firestoreService, previousProviderService) =>
               ProviderService(firestoreService: firestoreService),
         ),
         // La línea antigua "Provider<ProviderService>(create: (_) => ProviderService())," fue reemplazada.
-
 
         // --- PROVIDERS DE ESTADO (Streams Globales) ---
         StreamProvider<User?>(
@@ -165,16 +171,23 @@ class MyApp extends StatelessWidget {
           create: (_) => CartProvider(),
         ),
       ],
-      // --- El child de MultiProvider es tu MaterialApp ---
-      child: MaterialApp(
-        title: 'Servicly',
-        debugShowCheckedModeBanner: false,
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: ThemeMode.system,
-        home: const AuthWrapper(),
+      // --- MODIFICACIÓN: Envolvemos MaterialApp en un Consumer ---
+      // Esto permite que el tema de la app cambie cuando el ThemeProvider se lo indique.
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Servicly',
+            debugShowCheckedModeBanner: false,
+            // Usamos los temas definidos DENTRO del ThemeProvider
+            theme: ThemeProvider.lightTheme,
+            darkTheme: ThemeProvider.darkTheme,
+            // El modo (claro/oscuro) es controlado por el estado del provider
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const AuthWrapper(),
+          );
+        },
       ),
     );
   }
 }
-
