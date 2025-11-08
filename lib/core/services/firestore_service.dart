@@ -529,6 +529,25 @@ Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
   await _db.collection('brandProfiles').doc(uid).set(data, SetOptions(merge: true));
 }
 
+/// Obtiene un Stream del perfil de marca de un proveedor.
+  /// Devuelve 'null' si el documento aún no existe.
+  Stream<ProviderProfileModel?> getBrandProfile(String providerId) {
+    return _db
+        .collection('brandProfiles')
+        .doc(providerId)
+        .snapshots() // Escucha cambios en tiempo real
+        .map((doc) {
+      if (doc.exists && doc.data() != null) {
+        // Asumimos que tienes un factory 'fromFirestore' o 'fromMap'
+        // Ajusta esto si tu factory se llama diferente (ej: ProviderProfileModel.fromMap(doc.data()!, doc.id))
+        return ProviderProfileModel.fromFirestore(doc);
+      } else {
+        // Devuelve null si el perfil de marca aún no se ha creado
+        return null;
+      }
+    });
+  }
+
   // (Aquí irían el resto de métodos obsoletos de portafolio: add, update, delete...)
 
 } // Fin de la clase FirestoreService

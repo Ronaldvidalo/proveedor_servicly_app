@@ -8,8 +8,12 @@ import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 import 'order_detail_screen.dart'; // <-- Crearemos esta pantalla
 // --- FIN DE NUEVAS IMPORTACIONES ---
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
+import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
 import 'add_edit_product_screen.dart';
 import 'manage_categories_screen.dart';
+import 'all_products_screen.dart';
 
 // ... (Comentario UX/UI sin cambios) ...
 
@@ -38,10 +42,11 @@ class ManageStoreScreen extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           // --- SECCIÓN 1: Identidad de Marca (Placeholder) ---
-          _buildBrandIdentityPlaceholder(context, user),
+         _buildBrandIdentitySection(context, user),
+         
 
           // --- SECCIÓN 2: Ventas/Órdenes Pendientes (¡NUEVO!) ---
-          _buildSectionTitle('Ventas Pendientes de Verificación'),
+        _buildSectionTitle('Ventas Pendientes de Verificación'),
           _buildPendingOrdersSection(context, user),
 
           // --- SECCIÓN 3: Gestor de Contenido (Tu código anterior) ---
@@ -76,26 +81,149 @@ class ManageStoreScreen extends StatelessWidget {
   }
 
   // --- WIDGET PARA SECCIÓN 1 (PLACEHOLDER) ---
-  Widget _buildBrandIdentityPlaceholder(BuildContext context, UserModel user) {
-    // TODO: Construir la UI de Identidad de Marca
-    return SliverToBoxAdapter(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D2D5A),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(
-          child: Text(
-            'Sección 1: Identidad de Marca (Logo, Nombre, etc.)',
-            style: TextStyle(color: Colors.white70),
+Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
+    final firestoreService = context.read<FirestoreService>();
+    const surfaceColor = Color(0xFF2D2D5A);
+    const accentColor = Color(0xFF00BFFF);
+    
+    // --- ¡CORRECCIÓN! ---
+    // Definimos el color aquí para que el método pueda "verlo".
+    const backgroundColor = Color(0xFF1A1A2E); 
+    // --- FIN DE CORRECCIÓN ---
+
+    // Usamos un StreamBuilder para obtener los datos de 'brandProfiles'
+    return StreamBuilder<ProviderProfileModel?>(
+      stream: firestoreService.getBrandProfile(user.uid),
+      builder: (context, snapshot) {
+        // --- Estado de Carga ---
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return SliverToBoxAdapter(
+            child: Container(
+              height: 120, // Altura del widget final
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                  child: CircularProgressIndicator(color: accentColor)),
+            ),
+          );
+        }
+
+        // --- Estado de Error o Sin Datos ---
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          // Muestra un widget "roto" o "vacío"
+          return SliverToBoxAdapter(
+            child: Container(
+              // ... (código de error sin cambios)
+              height: 120,
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.redAccent),
+              ),
+              child: const Center(
+                child: Text(
+                  'No se pudo cargar tu perfil de marca. Intenta editarlo para crearlo.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+            ),
+          );
+        }
+
+        // --- Estado de Éxito ---
+        final brandProfile = snapshot.data!;
+
+        return SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: accentColor.withAlpha(100)),
+            ),
+            child: Row(
+              children: [
+                // 1. Logo
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: backgroundColor, // <-- AHORA FUNCIONA
+                  backgroundImage: brandProfile.logoUrl.isNotEmpty
+                      ? NetworkImage(brandProfile.logoUrl)
+                      : null,
+                  child: brandProfile.logoUrl.isEmpty
+                      ? const Icon(Icons.business_rounded,
+                          size: 30, color: accentColor)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                
+                // 2. Textos (Nombre y Eslogan)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        brandProfile.businessName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        // Esta línea (con ??) es correcta, ignora la advertencia
+                        brandProfile.welcomeMessage ?? 'Añade un eslogan', 
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // 3. Botón de Editar
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, color: accentColor),
+                  tooltip: 'Editar Perfil de Marca',
+                  onPressed: () {
+                    // Navega a la pantalla que ya construimos
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => BrandSettingsScreen(
+                        user: user,
+                        
+                        // --- ¡MODIFICACIÓN! ---
+                        // Ya no pasamos initialTemplateId,
+                        // pasamos el perfil completo.
+                        brandProfile: brandProfile,
+                        // initialTemplateId: brandProfile.profileType, <-- ELIMINADO
+                        // --- FIN DE MODIFICACIÓN ---
+                      ),
+                    ));
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
-
+   
   // --- WIDGET PARA SECCIÓN 2 (¡NUEVO!) ---
   Widget _buildPendingOrdersSection(BuildContext context, UserModel user) {
     final orderService = context.read<OrderService>();
@@ -169,41 +297,73 @@ class ManageStoreScreen extends StatelessWidget {
                       style: const TextStyle(color: Colors.redAccent))));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SliverToBoxAdapter(child: _EmptyState()); // Tu empty state
+          // Si no hay productos, NO mostramos el botón "Ver todo"
+          return const SliverToBoxAdapter(child: _EmptyState());
         }
 
         final products = snapshot.data!;
         
-        // El Grid de 2x4
-        return SliverPadding(
-          padding: const EdgeInsets.all(16.0),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4, // <-- Tal como pediste
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.85,
+        // --- ¡MODIFICACIÓN! ---
+        // Usamos un SliverMainAxisGroup para agrupar
+        // la grilla Y el botón en un solo bloque.
+        return SliverMainAxisGroup(
+          slivers: [
+            // 1. El Grid de 2x4 (tu código original)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4, // <-- Tal como pediste
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.85,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final product = products[index];
+                    return _ProductCard(
+                      product: product,
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => AddEditProductScreen(
+                            user: user,
+                            productToEdit: product,
+                          ),
+                        ));
+                      },
+                    );
+                  },
+                  childCount: products.length,
+                ),
+              ),
             ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final product = products[index];
-                return _ProductCard(
-                  product: product,
-                  onTap: () {
+            
+            // 2. ¡NUEVO BOTÓN! (Reemplaza el TODO)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0), // Espacio
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.list_alt_rounded, size: 20),
+                  label: const Text('Ver/Gestionar todos los productos'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00BFFF), // accentColor
+                    backgroundColor: const Color(0xFF2D2D5A).withAlpha(150), // surfaceColor
+                    side: const BorderSide(color: Color(0xFF2D2D5A)), // surfaceColor
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(fontWeight: FontWeight.bold)
+                  ),
+                  onPressed: () {
                     Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AddEditProductScreen(
-                        user: user,
-                        productToEdit: product,
-                      ),
+                      // Navegamos a la nueva pantalla
+                      builder: (_) => AllProductsScreen(user: user),
                     ));
                   },
-                );
-              },
-              childCount: products.length,
+                ),
+              ),
             ),
-          ),
+            // --- FIN DE LA MODIFICACIÓN ---
+          ],
         );
-        // TODO: Añadir el botón "Ver/Gestionar todo" aquí
       },
     );
   }

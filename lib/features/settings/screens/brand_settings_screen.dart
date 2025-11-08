@@ -11,11 +11,13 @@ import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 class BrandSettingsScreen extends StatefulWidget {
   final UserModel user;
   final String? initialTemplateId;
+  final ProviderProfileModel? brandProfile;
 
   const BrandSettingsScreen({
     super.key,
     required this.user,
     this.initialTemplateId,
+    this.brandProfile,
   });
 
   @override
@@ -61,24 +63,54 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isInitialized) {
-      final personalization = widget.user.personalization;
+      
+      // --- ¡LÓGICA REFACTORIZADA! ---
+      
+      // 1. Define las fuentes de datos.
+      final brand = widget.brandProfile; // Datos "frescos" de brandProfiles
+      final personalization = widget.user.personalization; // Datos "viejos" de users
+      
+      // 2. Rellena los campos, priorizando 'brand'
+      _businessNameController.text = brand?.businessName ?? 
+                                     personalization['businessName'] as String? ?? 
+                                     widget.user.displayName ?? '';
+      
+      _welcomeMessageController.text = brand?.welcomeMessage ?? 
+                                       personalization['welcomeMessage'] as String? ?? 
+                                       '¡Bienvenido a mi perfil!';
+      
+      _addressController.text = brand?.address ?? 
+                                personalization['address'] as String? ?? '';
+      
+      _contactEmailController.text = brand?.contactEmail ?? 
+                                     personalization['contactEmail'] as String? ?? 
+                                     widget.user.email ?? '';
+      
+      // 'country' lo guardamos en brandData (un Map), no en el modelo directo
+      _countryController.text = (brand != null ? (brand.toMap()['country'] as String? ?? '') : null) ??
+                                (personalization['country'] as String? ?? '');
 
-      _businessNameController.text = personalization['businessName'] as String? ?? widget.user.displayName ?? '';
-      _welcomeMessageController.text = personalization['welcomeMessage'] as String? ?? '¡Bienvenido a mi perfil!';
-      _addressController.text = personalization['address'] as String? ?? '';
-      _contactEmailController.text = personalization['contactEmail'] as String? ?? widget.user.email ?? '';
-      _countryController.text = personalization['country'] as String? ?? '';
+      // 3. Define la plantilla seleccionada
+      // Prioridad: 1. Perfil existente, 2. Plantilla inicial (del modal), 3. Plantilla en 'user'
+      _selectedFormat = brand?.profileType ?? 
+                        widget.initialTemplateId ?? 
+                        widget.user.publicProfileTemplate ?? 
+                        'catalog'; // Default final
 
-      _selectedFormat = widget.initialTemplateId ?? widget.user.publicProfileTemplate ?? 'catalog';
-      _existingLogoUrl = personalization['logoUrl'] as String?;
+      // 4. Define el logo y color
+      _existingLogoUrl = brand?.logoUrl ?? personalization['logoUrl'] as String?;
 
-      final hexColor = personalization['primaryColor'] as String?;
+      // 'primaryColor' lo guardamos en brandData (un Map)
+      final hexColor = (brand != null ? (brand.toMap()['primaryColor'] as String? ?? null) : null) ??
+                       (personalization['primaryColor'] as String?);
+                       
       _selectedColor = _colorFromHex(hexColor) ?? const Color(0xFF00BFFF);
+      // --- FIN DE LA LÓGICA REFACTORIZADA ---
 
       _isInitialized = true;
     }
   }
-
+  
   @override
   void dispose() {
     _businessNameController.dispose();
