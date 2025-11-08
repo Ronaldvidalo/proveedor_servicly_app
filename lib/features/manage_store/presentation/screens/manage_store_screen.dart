@@ -6,7 +6,7 @@ import 'package:proveedor_servicly_app/core/services/product_service.dart';
 // --- ¡NUEVAS IMPORTACIONES! ---
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
-import 'order_detail_screen.dart'; // <-- Crearemos esta pantalla
+import 'order_detail_screen.dart'; 
 // --- FIN DE NUEVAS IMPORTACIONES ---
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
@@ -14,6 +14,14 @@ import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_
 import 'add_edit_product_screen.dart';
 import 'manage_categories_screen.dart';
 import 'all_products_screen.dart';
+import 'add_edit_video_screen.dart';
+
+// --- ¡IMPORTACIONES CORREGIDAS! ---
+import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
+import 'package:proveedor_servicly_app/core/services/video_service.dart';
+import 'video_manager_screen.dart';
+// --- FIN DE CORRECCIÓN ---
+
 
 // ... (Comentario UX/UI sin cambios) ...
 
@@ -42,11 +50,10 @@ class ManageStoreScreen extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           // --- SECCIÓN 1: Identidad de Marca (Placeholder) ---
-         _buildBrandIdentitySection(context, user),
-         
+          _buildBrandIdentitySection(context, user),
 
           // --- SECCIÓN 2: Ventas/Órdenes Pendientes (¡NUEVO!) ---
-        _buildSectionTitle('Ventas Pendientes de Verificación'),
+          _buildSectionTitle('Ventas Pendientes de Verificación'),
           _buildPendingOrdersSection(context, user),
 
           // --- SECCIÓN 3: Gestor de Contenido (Tu código anterior) ---
@@ -57,7 +64,7 @@ class ManageStoreScreen extends StatelessWidget {
 
           // --- SECCIÓN 4: Gestor de Promoción (Videos - Placeholder) ---
           _buildSectionTitle('Mis Videos Promocionales'),
-          _buildVideoPromoPlaceholder(context, user),
+          _buildVideoPromoSection(context, user),
 
           // Añadimos un espacio al final para que el FAB no tape el contenido
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -81,14 +88,14 @@ class ManageStoreScreen extends StatelessWidget {
   }
 
   // --- WIDGET PARA SECCIÓN 1 (PLACEHOLDER) ---
-Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
+  Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
     final firestoreService = context.read<FirestoreService>();
     const surfaceColor = Color(0xFF2D2D5A);
     const accentColor = Color(0xFF00BFFF);
-    
+
     // --- ¡CORRECCIÓN! ---
     // Definimos el color aquí para que el método pueda "verlo".
-    const backgroundColor = Color(0xFF1A1A2E); 
+    const backgroundColor = Color(0xFF1A1A2E);
     // --- FIN DE CORRECCIÓN ---
 
     // Usamos un StreamBuilder para obtener los datos de 'brandProfiles'
@@ -163,7 +170,7 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
                       : null,
                 ),
                 const SizedBox(width: 16),
-                
+
                 // 2. Textos (Nombre y Eslogan)
                 Expanded(
                   child: Column(
@@ -182,7 +189,7 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
                       const SizedBox(height: 4),
                       Text(
                         // Esta línea (con ??) es correcta, ignora la advertencia
-                        brandProfile.welcomeMessage ?? 'Añade un eslogan', 
+                        brandProfile.welcomeMessage ?? 'Añade un eslogan',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -205,7 +212,7 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => BrandSettingsScreen(
                         user: user,
-                        
+
                         // --- ¡MODIFICACIÓN! ---
                         // Ya no pasamos initialTemplateId,
                         // pasamos el perfil completo.
@@ -223,7 +230,7 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
       },
     );
   }
-   
+
   // --- WIDGET PARA SECCIÓN 2 (¡NUEVO!) ---
   Widget _buildPendingOrdersSection(BuildContext context, UserModel user) {
     final orderService = context.read<OrderService>();
@@ -302,7 +309,7 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
         }
 
         final products = snapshot.data!;
-        
+
         // --- ¡MODIFICACIÓN! ---
         // Usamos un SliverMainAxisGroup para agrupar
         // la grilla Y el botón en un solo bloque.
@@ -337,7 +344,7 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
                 ),
               ),
             ),
-            
+
             // 2. ¡NUEVO BOTÓN! (Reemplaza el TODO)
             SliverToBoxAdapter(
               child: Padding(
@@ -346,12 +353,14 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
                   icon: const Icon(Icons.list_alt_rounded, size: 20),
                   label: const Text('Ver/Gestionar todos los productos'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF00BFFF), // accentColor
-                    backgroundColor: const Color(0xFF2D2D5A).withAlpha(150), // surfaceColor
-                    side: const BorderSide(color: Color(0xFF2D2D5A)), // surfaceColor
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold)
-                  ),
+                      foregroundColor: const Color(0xFF00BFFF), // accentColor
+                      backgroundColor:
+                          const Color(0xFF2D2D5A).withAlpha(150), // surfaceColor
+                      side: const BorderSide(
+                          color: Color(0xFF2D2D5A)), // surfaceColor
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle:
+                          const TextStyle(fontWeight: FontWeight.bold)),
                   onPressed: () {
                     Navigator.of(context).push(MaterialPageRoute(
                       // Navegamos a la nueva pantalla
@@ -369,23 +378,102 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
   }
 
   // --- WIDGET PARA SECCIÓN 4 (PLACEHOLDER) ---
-  Widget _buildVideoPromoPlaceholder(BuildContext context, UserModel user) {
-    // TODO: Construir la UI de Videos Promocionales
-    return SliverToBoxAdapter(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D2D5A),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(
-          child: Text(
-            'Sección 4: Gestor de Videos Promocionales',
-            style: TextStyle(color: Colors.white70),
-          ),
-        ),
-      ),
+ Widget _buildVideoPromoSection(BuildContext context, UserModel user) {
+    final videoService = context.read<VideoService>();
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
+    return StreamBuilder<List<VideoShowcaseModel>>(
+      stream: videoService.getVideoShowcasesByProvider(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SliverToBoxAdapter(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(color: accentColor),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return SliverToBoxAdapter(
+            // ... (código de error sin cambios)
+          );
+        }
+
+        // --- ¡MODIFICADO! ---
+        // Ya no comprobamos si está vacío aquí,
+        // lo hacemos en el builder de la lista.
+        final videos = snapshot.data ?? [];
+        // --- FIN MODIFICACIÓN ---
+
+        return SliverMainAxisGroup(
+          slivers: [
+            // 1. Carrusel Horizontal de Videos + Botón de Añadir
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 150, // Altura del carrusel
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  
+                  // --- ¡MODIFICACIÓN! ---
+                  // +1 para el botón de "Añadir"
+                  itemCount: videos.length + 1, 
+                  // --- FIN MODIFICACIÓN ---
+                  
+                  itemBuilder: (context, index) {
+                    
+                    // --- ¡NUEVA LÓGICA! ---
+                    if (index == videos.length) {
+                      // Si es el último item, muestra la tarjeta de "Añadir"
+                      return _AddVideoCard(
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => AddEditVideoScreen(user: user),
+                          ));
+                        },
+                      );
+                    }
+                  
+                    // --- FIN NUEVA LÓGICA ---
+
+                    // Si no, muestra la tarjeta de video normal
+                    final video = videos[index];
+                    return _VideoCard(video: video);
+                  },
+                ),
+              ),
+            ),
+            
+            // 2. Botón "Gestionar Todo" (Solo aparece si tienes videos)
+            if (videos.isNotEmpty) // <-- ¡MODIFICADO!
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.video_library_rounded, size: 20),
+                    label: const Text('Ver/Gestionar todos los videos'),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: accentColor,
+                        backgroundColor: surfaceColor.withAlpha(150),
+                        side: const BorderSide(color: surfaceColor),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        textStyle:
+                            const TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => VideoManagerScreen(user: user),
+                      ));
+                    },
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -405,9 +493,11 @@ Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
       ),
     );
   }
-}
+} // --- FIN DE LA CLASE ManageStoreScreen ---
 
-// --- WIDGETS DE PRODUCTO (Tu código sin cambios) ---
+
+// --- WIDGETS AUXILIARES (AHORA FUERA DE LA CLASE) ---
+
 class _CategoryManagerCard extends StatelessWidget {
   // ... (Tu código de _CategoryManagerCard va aquí, sin cambios)
   final UserModel user;
@@ -684,6 +774,244 @@ class _OrderCard extends StatelessWidget {
               builder: (_) => OrderDetailScreen(order: order),
             ));
           },
+        ),
+      ),
+    );
+  }
+}
+
+// --- ¡NUEVO WIDGET AUXILIAR PARA LA TARJETA DE VIDEO! ---
+// --- ¡MOVIDO A SU LUGAR CORRECTO! ---
+class _VideoCard extends StatelessWidget {
+  final VideoShowcaseModel video;
+  const _VideoCard({required this.video});
+
+  @override
+  Widget build(BuildContext context) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    const accentColor = Color(0xFF00BFFF);
+
+    return GestureDetector(
+      onTap: () {
+        // TODO: Navegar al editor de video (AddEditVideoScreen)
+        // Navigator.of(context).push(MaterialPageRoute(
+        //   builder: (_) => AddEditVideoScreen(user: user, videoToEdit: video),
+        // ));
+      },
+      child: Container(
+        width: 120, // Ancho de la tarjeta
+        margin: const EdgeInsets.only(right: 12.0),
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+          image: video.thumbnailUrl.isNotEmpty
+              ? DecorationImage(
+                  image: NetworkImage(video.thumbnailUrl),
+                  fit: BoxFit.cover,
+                )
+              : null,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Overlay oscuro
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withAlpha(178)], // <-- CORREGIDO
+                ),
+              ),
+            ),
+            // Icono de Play
+            const Center(
+              child: Icon(Icons.play_circle_outline_rounded,
+                  color: Colors.white70, size: 40),
+            ),
+            // Título del video
+            Positioned(
+              bottom: 8,
+              left: 8,
+              right: 8,
+              child: Text(
+                video.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // Indicador de "Promocionado" (¡Lógica de negocio!)
+            if (video.isPromoted)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'PROMO',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    }
+}
+
+Widget _buildVideoPromoSection(BuildContext context, UserModel user) {
+    final videoService = context.read<VideoService>();
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
+    return StreamBuilder<List<VideoShowcaseModel>>(
+      stream: videoService.getVideoShowcasesByProvider(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SliverToBoxAdapter(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(color: accentColor),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return SliverToBoxAdapter(
+            // ... (código de error sin cambios)
+          );
+        }
+
+        // --- ¡MODIFICADO! ---
+        // Ya no comprobamos si está vacío aquí,
+        // lo hacemos en el builder de la lista.
+        final videos = snapshot.data ?? [];
+        // --- FIN MODIFICACIÓN ---
+
+        return SliverMainAxisGroup(
+          slivers: [
+            // 1. Carrusel Horizontal de Videos + Botón de Añadir
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 150, // Altura del carrusel
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  
+                  // --- ¡MODIFICACIÓN! ---
+                  // +1 para el botón de "Añadir"
+                  itemCount: videos.length + 1, 
+                  // --- FIN MODIFICACIÓN ---
+                  
+                  itemBuilder: (context, index) {
+                    
+                    // --- ¡NUEVA LÓGICA! ---
+                    if (index == videos.length) {
+                      // Si es el último item, muestra la tarjeta de "Añadir"
+                      return _AddVideoCard(
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => AddEditVideoScreen(user: user),
+                          ));
+                        },
+                      );
+                    }
+                    // --- FIN NUEVA LÓGICA ---
+
+                    // Si no, muestra la tarjeta de video normal
+                    final video = videos[index];
+                    return _VideoCard(video: video);
+                  },
+                ),
+              ),
+            ),
+            
+            // 2. Botón "Gestionar Todo" (Solo aparece si tienes videos)
+            if (videos.isNotEmpty) // <-- ¡MODIFICADO!
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.video_library_rounded, size: 20),
+                    label: const Text('Ver/Gestionar todos los videos'),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: accentColor,
+                        backgroundColor: surfaceColor.withAlpha(150),
+                        side: const BorderSide(color: surfaceColor),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        textStyle:
+                            const TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => VideoManagerScreen(user: user),
+                      ));
+                    },
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+// --- ¡NUEVO WIDGET AUXILIAR PARA AÑADIR VIDEOS! ---
+class _AddVideoCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddVideoCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 120, // Mismo ancho que _VideoCard
+        margin: const EdgeInsets.only(right: 12.0),
+        decoration: BoxDecoration(
+          color: surfaceColor.withAlpha(100), // Más sutil
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: accentColor.withAlpha(150), // Borde Cyber Glow
+            width: 2,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline_rounded,
+                color: accentColor, size: 40),
+            const SizedBox(height: 8),
+            const Text(
+              'Añadir\nVideo',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -15,6 +15,11 @@ import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
 
+import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
+import 'package:proveedor_servicly_app/core/services/video_service.dart';
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/video_player_screen.dart';
+
+
 /// La pantalla principal para los usuarios con rol 'cliente'.
 /// Actúa como el "Hub de Descubrimiento" para explorar perfiles.
 class HomeScreen extends StatelessWidget {
@@ -26,6 +31,7 @@ class HomeScreen extends StatelessWidget {
     return Provider<MarketplaceService>(
       create: (_) => MarketplaceService(),
       child: const _HomeView(),
+      
     );
   }
 }
@@ -80,6 +86,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
     final authService = context.read<AuthService>();
     final marketplaceService = context.read<MarketplaceService>();
     final selectedProfileType = _getSelectedProfileType();
+    final videoService = context.read<VideoService>();
 
     // --- Paleta "Cyber Glow" ---
     const backgroundColor = Color(0xFF1A1A2E);
@@ -152,7 +159,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
           
           // --- CORRECCIÓN: Sección de Destacados Reincorporada ---
           _buildSectionTitle(context, 'Destacados'),
-          _buildFeaturedSection(context, marketplaceService),
+          _buildVideoShowcasesSection(context, videoService),
 
           // --- Filtro por Categoría (Chips) ---
           _buildSectionTitle(context, 'Filtrar por Rubro'),
@@ -219,39 +226,46 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
   }
 
   /// --- CORRECCIÓN: Widget para la sección (Opcional) "Destacados" ---
-  Widget _buildFeaturedSection(BuildContext context, MarketplaceService service) {
-    const surfaceColor = Color(0xFF2D2D5A);
-    const accentColor = Color(0xFF00BFFF);
-    
-    // Placeholder - Idealmente, usarías un StreamBuilder aquí con 'getFeaturedProviders'
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 180, // Altura de las tarjetas destacadas
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          itemCount: 3, // Número de placeholders
-          itemBuilder: (context, index) {
-            return Container(
-              width: 280, // Ancho de las tarjetas destacadas
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: accentColor.withOpacity(0.3)),
-              ),
-              child: Center(
-                child: Text(
-                  'Destacado ${index + 1}',
-                   style: const TextStyle(color: Colors.white70)
-                )
-              ), // Placeholder
+  Widget _buildVideoShowcasesSection(BuildContext context, VideoService service) {
+  const accentColor = Color(0xFF00BFFF);
+
+  return SliverToBoxAdapter(
+    child: SizedBox(
+      height: 180, // Altura para las tarjetas de video
+      child: StreamBuilder<List<VideoShowcaseModel>>(
+        // ¡Usamos el método para videos PROMOCIONADOS!
+        stream: service.getPromotedVideos(), 
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: SizedBox(height: 30, width: 30, child: CircularProgressIndicator(strokeWidth: 3, color: accentColor)),
             );
-          },
-        ),
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            // No es un error si no hay videos, solo no mostramos nada.
+            return const Center(child: Text('No hay promociones hoy.', style: TextStyle(color: Colors.white70)));
+          }
+
+          final videoShowcases = snapshot.data!;
+
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: videoShowcases.length,
+            itemBuilder: (context, index) {
+              final showcase = videoShowcases[index];
+              // Usamos un nuevo widget de tarjeta
+              return _ClientVideoShowcaseCard(showcase: showcase); 
+            },
+          );
+        },
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildCategoryFilter(BuildContext context, MarketplaceService service) {
     const accentColor = Color(0xFF00BFFF);
@@ -507,3 +521,88 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+class _ClientVideoShowcaseCard extends StatelessWidget {
+  final VideoShowcaseModel showcase;
+
+  const _ClientVideoShowcaseCard({required this.showcase});
+
+  @override
+  Widget build(BuildContext context) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    const accentColor = Color(0xFF00BFFF); // Para el icono de play o borde
+
+    return GestureDetector(
+      onTap: () {
+        // --- ¡ACCIÓN! ---
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => VideoPlayerScreen(videoShowcase: showcase),
+        ));
+      },
+      child: Container(
+        width: 250, // Ancho de la tarjeta de video
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accentColor.withOpacity(0.3), width: 1),
+          boxShadow: [
+            BoxShadow(color: accentColor.withOpacity(0.15), blurRadius: 8, spreadRadius: 1)
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // --- Miniatura del Video ---
+              if (showcase.thumbnailUrl.isNotEmpty)
+                Image.network(
+                  showcase.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: surfaceColor.withOpacity(0.5),
+                    child: const Center(child: Icon(Icons.videocam_off, size: 40, color: Colors.white38)),
+                  ),
+                )
+              else
+                Container(
+                  color: surfaceColor.withOpacity(0.5),
+                  child: const Center(child: Icon(Icons.videocam, size: 40, color: Colors.white70)),
+                ),
+
+              // --- Overlay Gradiente y Botón de Play ---
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.black.withOpacity(0.2), Colors.black.withOpacity(0.6)],
+                  ),
+                ),
+              ),
+              Center(
+                child: Icon(Icons.play_circle_filled, size: 60, color: accentColor.withAlpha(200)),
+              ),
+              // --- Título del Video ---
+              Positioned(
+                bottom: 12,
+                left: 12,
+                right: 12,
+                child: Text(
+                  showcase.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
