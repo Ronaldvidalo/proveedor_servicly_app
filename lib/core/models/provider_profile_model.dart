@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 // Para debugPrint
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
-///
-/// Este modelo es inmutable y contiene toda la información necesaria
-/// para construir la [PublicProfileScreen] y las tarjetas del marketplace.
 class ProviderProfileModel {
   /// El identificador único del proveedor.
   final String providerId;
@@ -39,6 +36,13 @@ class ProviderProfileModel {
   final String? phone;
   final String? whatsapp;
 
+  // --- ¡NUEVOS CAMPOS DE REDES! ---
+  final String? website;
+  final String? instagram;
+  final String? facebook;
+  final String? tiktok;
+  // --- FIN NUEVOS CAMPOS ---
+
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
   final String welcomeModuleType; // 'text' o 'video'
@@ -51,11 +55,8 @@ class ProviderProfileModel {
   final bool showReviewsModule;
   final bool showPromotionsModule;
   final bool showGiftCardModule;
-
-  // --- ¡NUEVOS CAMPOS AÑADIDOS! ---
   final bool showBookingModule; // Módulo "Agendar Cita"
   final bool showQuotesModule; // Módulo de Presupuestos
-
 
   /// Crea una instancia de [ProviderProfileModel].
   const ProviderProfileModel({
@@ -74,6 +75,11 @@ class ProviderProfileModel {
     this.openingHours,
     this.phone,
     this.whatsapp,
+    // --- ¡AÑADIDOS AL CONSTRUCTOR! ---
+    this.website,
+    this.instagram,
+    this.facebook,
+    this.tiktok,
     // Welcome module fields
     required this.welcomeMessage,
     this.showWelcomeModule = true,
@@ -84,9 +90,7 @@ class ProviderProfileModel {
     this.showPortfolioModule = true,
     this.showReviewsModule = true,
     this.showPromotionsModule = true, // Default true
-    this.showGiftCardModule = true,  // Default true
-
-    // --- ¡AÑADIDOS AL CONSTRUCTOR! ---
+    this.showGiftCardModule = true, // Default true
     this.showBookingModule = true, // Activo por defecto
     this.showQuotesModule = false, // Inactivo por defecto
   });
@@ -102,11 +106,8 @@ class ProviderProfileModel {
     final reviewsModule = personalization['reviewsModule'] as Map<String, dynamic>? ?? {};
     final promotionsModule = personalization['promotionsModule'] as Map<String, dynamic>? ?? {};
     final giftCardModule = personalization['giftCardModule'] as Map<String, dynamic>? ?? {};
-    
-    // --- ¡NUEVO! Leer módulos de Presupuesto y Agendar Cita ---
     final bookingModule = personalization['bookingModule'] as Map<String, dynamic>? ?? {};
     final quotesModule = personalization['quotesModule'] as Map<String, dynamic>? ?? {};
-
 
     return ProviderProfileModel(
       providerId: doc.id,
@@ -114,9 +115,7 @@ class ProviderProfileModel {
       logoUrl: personalization['logoUrl'] as String? ?? '',
       brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
-
       profileType: data['publicProfileTemplate'] as String? ?? 'social',
-
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
       address: personalization['address'] as String?,
 
@@ -127,6 +126,12 @@ class ProviderProfileModel {
       openingHours: personalization['openingHours'] as String?,
       phone: personalization['phone'] as String?,
       whatsapp: personalization['whatsapp'] as String?,
+
+      // --- ¡AÑADIDOS AL FACTORY! ---
+      website: personalization['website'] as String?,
+      instagram: personalization['instagram'] as String?,
+      facebook: personalization['facebook'] as String?,
+      tiktok: personalization['tiktok'] as String?,
 
       // Leer campos del módulo de bienvenida
       showWelcomeModule: welcomeModule['show'] as bool? ?? true,
@@ -140,10 +145,8 @@ class ProviderProfileModel {
       showReviewsModule: reviewsModule['show'] as bool? ?? true,
       showPromotionsModule: promotionsModule['show'] as bool? ?? true,
       showGiftCardModule: giftCardModule['show'] as bool? ?? true,
-      
-      // --- ¡AÑADIDOS AL FACTORY! ---
-      showBookingModule: bookingModule['show'] as bool? ?? true, // Activo por defecto
-      showQuotesModule: quotesModule['show'] as bool? ?? false, // Inactivo por defecto
+      showBookingModule: bookingModule['show'] as bool? ?? true,
+      showQuotesModule: quotesModule['show'] as bool? ?? false,
     );
   }
 
@@ -164,6 +167,11 @@ class ProviderProfileModel {
     String? openingHours,
     String? phone,
     String? whatsapp,
+    // --- ¡AÑADIDOS AL COPYWITH! ---
+    String? website,
+    String? instagram,
+    String? facebook,
+    String? tiktok,
     // Welcome module
     String? welcomeMessage,
     bool? showWelcomeModule,
@@ -175,8 +183,6 @@ class ProviderProfileModel {
     bool? showReviewsModule,
     bool? showPromotionsModule,
     bool? showGiftCardModule,
-
-    // --- ¡AÑADIDOS AL COPYWITH! ---
     bool? showBookingModule,
     bool? showQuotesModule,
   }) {
@@ -189,13 +195,17 @@ class ProviderProfileModel {
       profileType: profileType ?? this.profileType,
       contactEmail: contactEmail ?? this.contactEmail,
       address: address ?? this.address,
-      // Usar nuevos valores o los existentes
       slogan: slogan ?? this.slogan,
       averageRating: averageRating ?? this.averageRating,
       reviewCount: reviewCount ?? this.reviewCount,
       openingHours: openingHours ?? this.openingHours,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
+      // --- ¡AÑADIDOS AL COPYWITH! ---
+      website: website ?? this.website,
+      instagram: instagram ?? this.instagram,
+      facebook: facebook ?? this.facebook,
+      tiktok: tiktok ?? this.tiktok,
       // Welcome module
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
@@ -207,13 +217,11 @@ class ProviderProfileModel {
       showReviewsModule: showReviewsModule ?? this.showReviewsModule,
       showPromotionsModule: showPromotionsModule ?? this.showPromotionsModule,
       showGiftCardModule: showGiftCardModule ?? this.showGiftCardModule,
-
-      // --- ¡AÑADIDOS AL COPYWITH! ---
       showBookingModule: showBookingModule ?? this.showBookingModule,
       showQuotesModule: showQuotesModule ?? this.showQuotesModule,
     );
   }
-  
+
   /// Convierte este objeto ProviderProfileModel de nuevo a un Map anidado,
   /// listo para ser guardado en el campo 'personalization' de Firestore.
   Map<String, dynamic> toMap() {
@@ -221,7 +229,7 @@ class ProviderProfileModel {
       // Campos planos en 'personalization'
       'businessName': businessName,
       'logoUrl': logoUrl,
-      'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2), // Convierte Color a Hex RRGGBB
+      'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2),
       'contactEmail': contactEmail,
       'address': address,
       'slogan': slogan,
@@ -230,10 +238,13 @@ class ProviderProfileModel {
       'openingHours': openingHours,
       'phone': phone,
       'whatsapp': whatsapp,
-      
-      // --- Módulos Anidados ---
+      // --- ¡AÑADIDOS AL TOMAP! ---
+      'website': website,
+      'instagram': instagram,
+      'facebook': facebook,
+      'tiktok': tiktok,
 
-      // Módulo de Bienvenida
+      // --- Módulos Anidados ---
       'welcomeModule': {
         'show': showWelcomeModule,
         'type': welcomeModuleType,
@@ -241,39 +252,24 @@ class ProviderProfileModel {
         'video_url': welcomeVideoUrl,
         'video_source_type': welcomeVideoSourceType,
       },
-      
-      // Módulo de Portafolio
       'portfolioModule': {
         'show': showPortfolioModule,
       },
-      
-      // Módulo de Reseñas
       'reviewsModule': {
         'show': showReviewsModule,
       },
-      
-      // Módulo de Promociones
       'promotionsModule': {
         'show': showPromotionsModule,
       },
-      
-      // Módulo de Gift Cards
       'giftCardModule': {
         'show': showGiftCardModule,
       },
-      
-      // --- ¡AÑADIDOS AL TOMAP! ---
-      
-      // Módulo de Agendar Cita
       'bookingModule': {
         'show': showBookingModule,
       },
-
-      // Módulo de Presupuestos
       'quotesModule': {
         'show': showQuotesModule,
       },
-      
     };
   }
 } // Fin de la clase ProviderProfileModel

@@ -92,21 +92,16 @@ class ManageStoreScreen extends StatelessWidget {
     final firestoreService = context.read<FirestoreService>();
     const surfaceColor = Color(0xFF2D2D5A);
     const accentColor = Color(0xFF00BFFF);
-
-    // --- ¡CORRECCIÓN! ---
-    // Definimos el color aquí para que el método pueda "verlo".
     const backgroundColor = Color(0xFF1A1A2E);
-    // --- FIN DE CORRECCIÓN ---
 
-    // Usamos un StreamBuilder para obtener los datos de 'brandProfiles'
     return StreamBuilder<ProviderProfileModel?>(
       stream: firestoreService.getBrandProfile(user.uid),
       builder: (context, snapshot) {
-        // --- Estado de Carga ---
+        // --- Estado de Carga (Sin cambios) ---
         if (snapshot.connectionState == ConnectionState.waiting) {
           return SliverToBoxAdapter(
             child: Container(
-              height: 120, // Altura del widget final
+              height: 120, 
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: surfaceColor,
@@ -118,12 +113,10 @@ class ManageStoreScreen extends StatelessWidget {
           );
         }
 
-        // --- Estado de Error o Sin Datos ---
+        // --- ESTADO DE ERROR (IMAGEN 1) - ¡MODIFICADO! ---
         if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-          // Muestra un widget "roto" o "vacío"
           return SliverToBoxAdapter(
             child: Container(
-              // ... (código de error sin cambios)
               height: 120,
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(16),
@@ -132,18 +125,39 @@ class ManageStoreScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.redAccent),
               ),
-              child: const Center(
-                child: Text(
-                  'No se pudo cargar tu perfil de marca. Intenta editarlo para crearlo.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70),
-                ),
+              // --- ¡MEJORA DE UX AÑADIDA! ---
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'No se pudo cargar tu perfil de marca. Intenta editarlo para crearlo.',
+                      textAlign: TextAlign.left,
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Botón de Editar (¡como pediste!)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: accentColor, size: 30),
+                    tooltip: 'Crear Perfil de Marca',
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => BrandSettingsScreen(
+                          user: user,
+                          brandProfile: null, 
+                        ),
+                      ));
+                    },
+                  ),
+                ],
               ),
+              // --- FIN DE MEJORA ---
             ),
           );
         }
 
-        // --- Estado de Éxito ---
+        // --- ESTADO DE ÉXITO (IMAGEN 2) - ¡CORREGIDO! ---
         final brandProfile = snapshot.data!;
 
         return SliverToBoxAdapter(
@@ -160,7 +174,7 @@ class ManageStoreScreen extends StatelessWidget {
                 // 1. Logo
                 CircleAvatar(
                   radius: 30,
-                  backgroundColor: backgroundColor, // <-- AHORA FUNCIONA
+                  backgroundColor: backgroundColor,
                   backgroundImage: brandProfile.logoUrl.isNotEmpty
                       ? NetworkImage(brandProfile.logoUrl)
                       : null,
@@ -170,7 +184,7 @@ class ManageStoreScreen extends StatelessWidget {
                       : null,
                 ),
                 const SizedBox(width: 16),
-
+                
                 // 2. Textos (Nombre y Eslogan)
                 Expanded(
                   child: Column(
@@ -188,7 +202,8 @@ class ManageStoreScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        // Esta línea (con ??) es correcta, ignora la advertencia
+                        // --- ¡LECTURA CORREGIDA! ---
+                        // Leemos el campo aplanado 'welcomeMessage'
                         brandProfile.welcomeMessage ?? 'Añade un eslogan',
                         style: const TextStyle(
                           color: Colors.white70,
@@ -208,17 +223,10 @@ class ManageStoreScreen extends StatelessWidget {
                   icon: const Icon(Icons.edit_outlined, color: accentColor),
                   tooltip: 'Editar Perfil de Marca',
                   onPressed: () {
-                    // Navega a la pantalla que ya construimos
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => BrandSettingsScreen(
                         user: user,
-
-                        // --- ¡MODIFICACIÓN! ---
-                        // Ya no pasamos initialTemplateId,
-                        // pasamos el perfil completo.
                         brandProfile: brandProfile,
-                        // initialTemplateId: brandProfile.profileType, <-- ELIMINADO
-                        // --- FIN DE MODIFICACIÓN ---
                       ),
                     ));
                   },

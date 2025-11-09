@@ -33,6 +33,15 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _contactEmailController;
   late TextEditingController _countryController;
   late String _selectedFormat;
+  
+  // --- ¡NUEVOS CONTROLADORES! ---
+  late TextEditingController _phoneController;
+  late TextEditingController _whatsappController;
+  late TextEditingController _websiteController;
+  late TextEditingController _instagramController;
+  late TextEditingController _facebookController;
+  late TextEditingController _tiktokController;
+  // --- FIN NUEVOS CONTROLADORES ---
 
   bool _isLoading = false;
   XFile? _selectedImageFile;
@@ -57,60 +66,64 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _addressController = TextEditingController();
     _contactEmailController = TextEditingController();
     _countryController = TextEditingController();
+    
+    // --- ¡NUEVOS CONTROLADORES! ---
+    _phoneController = TextEditingController();
+    _whatsappController = TextEditingController();
+    _websiteController = TextEditingController();
+    _instagramController = TextEditingController();
+    _facebookController = TextEditingController();
+    _tiktokController = TextEditingController();
+    // --- FIN NUEVOS CONTROLADORES ---
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isInitialized) {
-      
-      // --- ¡LÓGICA REFACTORIZADA! ---
-      
-      // 1. Define las fuentes de datos.
-      final brand = widget.brandProfile; // Datos "frescos" de brandProfiles
-      final personalization = widget.user.personalization; // Datos "viejos" de users
-      
-      // 2. Rellena los campos, priorizando 'brand'
-      _businessNameController.text = brand?.businessName ?? 
-                                     personalization['businessName'] as String? ?? 
-                                     widget.user.displayName ?? '';
-      
-      _welcomeMessageController.text = brand?.welcomeMessage ?? 
-                                       personalization['welcomeMessage'] as String? ?? 
-                                       '¡Bienvenido a mi perfil!';
-      
-      _addressController.text = brand?.address ?? 
-                                personalization['address'] as String? ?? '';
-      
-      _contactEmailController.text = brand?.contactEmail ?? 
-                                     personalization['contactEmail'] as String? ?? 
-                                     widget.user.email ?? '';
-      
-      // 'country' lo guardamos en brandData (un Map), no en el modelo directo
-      _countryController.text = (brand != null ? (brand.toMap()['country'] as String? ?? '') : null) ??
-                                (personalization['country'] as String? ?? '');
+      final brand = widget.brandProfile;
+      final personalization = widget.user.personalization;
 
-      // 3. Define la plantilla seleccionada
-      // Prioridad: 1. Perfil existente, 2. Plantilla inicial (del modal), 3. Plantilla en 'user'
-      _selectedFormat = brand?.profileType ?? 
-                        widget.initialTemplateId ?? 
-                        widget.user.publicProfileTemplate ?? 
-                        'catalog'; // Default final
+      // Rellena los campos del formulario
+      _businessNameController.text = brand?.businessName ??
+          personalization['businessName'] as String? ??
+          widget.user.displayName ?? '';
 
-      // 4. Define el logo y color
-      _existingLogoUrl = brand?.logoUrl ?? personalization['logoUrl'] as String?;
+      _welcomeMessageController.text = brand?.welcomeMessage ??
+          personalization['welcomeMessage'] as String? ??
+          '¡Bienvenido a mi perfil!';
 
-      // 'primaryColor' lo guardamos en brandData (un Map)
-      final hexColor = (brand != null ? (brand.toMap()['primaryColor'] as String? ?? null) : null) ??
-                       (personalization['primaryColor'] as String?);
-                       
-      _selectedColor = _colorFromHex(hexColor) ?? const Color(0xFF00BFFF);
-      // --- FIN DE LA LÓGICA REFACTORIZADA ---
+      _addressController.text =
+          brand?.address ?? personalization['address'] as String? ?? '';
+
+      _contactEmailController.text = brand?.contactEmail ??
+          personalization['contactEmail'] as String? ??
+          widget.user.email ?? '';
+
+      _countryController.text =
+          personalization['country'] as String? ?? '';
+
+      // --- ¡NUEVOS CAMPOS LEÍDOS! ---
+      _phoneController.text = brand?.phone ?? '';
+      _whatsappController.text = brand?.whatsapp ?? '';
+      _websiteController.text = brand?.website ?? '';
+      _instagramController.text = brand?.instagram ?? '';
+      _facebookController.text = brand?.facebook ?? '';
+      _tiktokController.text = brand?.tiktok ?? '';
+      // --- FIN NUEVOS CAMPOS ---
+
+      _selectedFormat = brand?.profileType ??
+          widget.initialTemplateId ??
+          widget.user.publicProfileTemplate ??
+          'catalog';
+
+      _existingLogoUrl = brand?.logoUrl;
+      _selectedColor = brand?.brandColor ?? const Color(0xFF00BFFF);
 
       _isInitialized = true;
     }
   }
-  
+
   @override
   void dispose() {
     _businessNameController.dispose();
@@ -118,6 +131,16 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _addressController.dispose();
     _contactEmailController.dispose();
     _countryController.dispose();
+    
+    // --- ¡NUEVOS CONTROLADORES! ---
+    _phoneController.dispose();
+    _whatsappController.dispose();
+    _websiteController.dispose();
+    _instagramController.dispose();
+    _facebookController.dispose();
+    _tiktokController.dispose();
+    // --- FIN NUEVOS CONTROLADORES ---
+    
     super.dispose();
   }
 
@@ -131,7 +154,6 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     }
   }
 
-  // --- ¡FUNCIÓN DE GUARDADO MODIFICADA! ---
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
     setState(() => _isLoading = true);
@@ -142,94 +164,130 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     String? newLogoUrl;
 
     final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
-      // 1. Subir la imagen (si hay una nueva)
+      // 1. Subir la imagen
       if (_selectedImageFile != null) {
-        
-        // --- MODIFICACIÓN 1: Nueva ruta de Storage ---
-        // Apunta a la nueva carpeta 'brandProfiles'
         final String storagePath = 'brandProfiles/${userModel.uid}/profile_logo.jpg';
-        // --- FIN DE MODIFICACIÓN 1 ---
-        
-        // Borramos la imagen anterior si existía
         if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
-           try { await storageService.deleteFileByUrl(_existingLogoUrl!); }
-           catch(e) { debugPrint("No se pudo borrar logo anterior: $e"); }
+          try {
+            await storageService.deleteFileByUrl(_existingLogoUrl!);
+          } catch (e) {
+            debugPrint("No se pudo borrar logo anterior: $e");
+          }
         }
-
         newLogoUrl = await storageService.uploadFileWithProgress(
           File(_selectedImageFile!.path),
           storagePath,
-          (progress) { /* Callback de progreso (opcional) */ },
+          (progress) {},
         );
       }
 
-      // 2. Preparar el mapa de datos para 'brandProfiles'
+      // 2. Preparar el color
       final hexColor = _selectedColor ?? const Color(0xFF00BFFF);
-      final hexString = '#${hexColor.red.toRadixString(16).padLeft(2, '0')}'
-                         '${hexColor.green.toRadixString(16).padLeft(2, '0')}'
-                         '${hexColor.blue.toRadixString(16).padLeft(2, '0')}';
+      final hexString = '#${hexColor.value.toRadixString(16).substring(2).toUpperCase()}';
 
-      // Usamos el modelo para asegurar todos los campos por defecto
-      final newBrandProfile = ProviderProfileModel(
-        providerId: userModel.uid,
-        businessName: _businessNameController.text.trim(),
-        logoUrl: newLogoUrl ?? _existingLogoUrl ?? '',
-        brandColor: _selectedColor ?? const Color(0xFF00BFFF),
-        activeModules: userModel.activeModules ?? [],
-        profileType: _selectedFormat, // ¡USA EL FORMATO SELECCIONADO!
-        contactEmail: _contactEmailController.text.trim(),
-        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        slogan: null,
-        averageRating: 0, 
-        reviewCount: 0, 
-        openingHours: null,
-        phone: null,
-        whatsapp: null,
-        welcomeMessage: _welcomeMessageController.text.trim(),
-        showWelcomeModule: true,
-        welcomeModuleType: 'text',
-        showPortfolioModule: true,
-        showReviewsModule: true,
-        showPromotionsModule: false,
-        showGiftCardModule: false,
-        showBookingModule: true,
-        showQuotesModule: false,
-      );
+      // 3. Obtener el 'brand' existente
+      final brand = widget.brandProfile;
+
+      // 4. Crear los mapas de módulos, respetando los valores 'show' existentes
+      final Map<String, dynamic> welcomeModule = {
+        'show': brand?.showWelcomeModule ?? true,
+        'type': brand?.welcomeModuleType ?? 'text',
+        'text_content': _welcomeMessageController.text.trim(),
+        'video_url': brand?.welcomeVideoUrl,
+        'video_source_type': brand?.welcomeVideoSourceType,
+      };
       
-      final brandData = newBrandProfile.toMap();
-      
-      // Añadimos campos extra que no están en el modelo pero sí en el formulario
-      brandData['country'] = _countryController.text.trim();
-      brandData['primaryColor'] = hexString.toUpperCase();
-      brandData['publicProfileTemplate'] = _selectedFormat;
+      final Map<String, dynamic> portfolioModule = {'show': brand?.showPortfolioModule ?? true};
+      final Map<String, dynamic> reviewsModule = {'show': brand?.showReviewsModule ?? true};
+      final Map<String, dynamic> bookingModule = {'show': brand?.showBookingModule ?? true};
+      final Map<String, dynamic> promotionsModule = {'show': brand?.showPromotionsModule ?? false};
+      final Map<String, dynamic> giftCardModule = {'show': brand?.showGiftCardModule ?? false};
+      final Map<String, dynamic> quotesModule = {'show': brand?.showQuotesModule ?? false};
 
-
-      // --- MODIFICACIÓN 2: Nueva llamada al servicio de Firestore ---
-      // 3. Guardar los datos del perfil PÚBLICO en la nueva colección 'brandProfiles'
-      await firestoreService.setBrandProfile(userModel.uid, brandData);
-      // --- FIN DE MODIFICACIÓN 2 ---
-
-      // 4. Actualizar el documento 'users' solo con datos de estado
-      await firestoreService.updateUser(userModel.uid, {
-        'isProfileComplete': true, 
-        'publicProfileCreated': true, 
+      // 5. Crear el mapa de datos principal (alineado con tu modelo original)
+      final Map<String, dynamic> brandData = {
+        // --- CAMPOS PLANOS ---
+        'businessName': _businessNameController.text.trim(),
+        'logoUrl': newLogoUrl ?? _existingLogoUrl ?? '',
         'publicProfileTemplate': _selectedFormat,
+        'contactEmail': _contactEmailController.text.trim(),
+        'address': _addressController.text.trim(),
+        'primaryColor': hexString,
+        'slogan': _welcomeMessageController.text.trim(),
+        'welcomeMessage': _welcomeMessageController.text.trim(),
+
+        // --- ¡NUEVOS CAMPOS GUARDADOS! ---
+        'phone': _phoneController.text.trim(),
+        'whatsapp': _whatsappController.text.trim(),
+        'website': _websiteController.text.trim(),
+        'instagram': _instagramController.text.trim(),
+        'facebook': _facebookController.text.trim(),
+        'tiktok': _tiktokController.text.trim(),
+        // --- FIN NUEVOS CAMPOS ---
+
+        // --- CAMPOS ANIDADOS (personalization) ---
+        // Tu 'ProviderProfileModel.fromFirestore' lee de 'personalization',
+        // así que guardamos los datos allí también para consistencia.
+        'personalization': {
+          'businessName': _businessNameController.text.trim(),
+          'logoUrl': newLogoUrl ?? _existingLogoUrl ?? '',
+          'primaryColor': hexString,
+          'contactEmail': _contactEmailController.text.trim(),
+          'address': _addressController.text.trim(),
+          'slogan': _welcomeMessageController.text.trim(),
+          'country': _countryController.text.trim(),
+          
+          // --- ¡NUEVOS CAMPOS GUARDADOS (anidados)! ---
+          'phone': _phoneController.text.trim(),
+          'whatsapp': _whatsappController.text.trim(),
+          'website': _websiteController.text.trim(),
+          'instagram': _instagramController.text.trim(),
+          'facebook': _facebookController.text.trim(),
+          'tiktok': _tiktokController.text.trim(),
+          
+          // Guardamos los mapas de módulos dentro de personalization
+          'welcomeModule': welcomeModule,
+          'portfolioModule': portfolioModule,
+          'reviewsModule': reviewsModule,
+          'bookingModule': bookingModule,
+          'promotionsModule': promotionsModule,
+          'giftCardModule': giftCardModule,
+          'quotesModule': quotesModule,
+
+          // Mantenemos los otros campos
+          'averageRating': brand?.averageRating ?? 0,
+          'reviewCount': brand?.reviewCount ?? 0,
+          'openingHours': brand?.openingHours,
+        },
+        
+        // Campos de nivel superior
+        'activeModules': brand?.activeModules ?? ['clients', 'agenda'],
+      };
+
+      // 6. Guardar en 'brandProfiles'
+      await firestoreService.setBrandProfile(userModel.uid, brandData);
+
+      // 7. Actualizar 'users'
+      await firestoreService.updateUser(userModel.uid, {
+        'isProfileComplete': true,
+        'publicProfileCreated': true,
+        'publicProfileTemplate': _selectedFormat,
+        'personalization.country': _countryController.text.trim(),
+        'personalization.businessName': _businessNameController.text.trim(),
       });
-      
+
       if (!mounted) return;
       _showSnackbar('¡Perfil público guardado con éxito!');
-      
-      // Navegamos de vuelta al AuthWrapper
+
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const AuthWrapper()),
         (route) => false,
       );
 
     } catch (e) {
-      if(mounted) _showSnackbar('Error al guardar la configuración: $e', isError: true);
+      if (mounted) _showSnackbar('Error al guardar la configuración: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -242,14 +300,13 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
     const surfaceColor = Color(0xFF2D2D5A);
 
     final inputDecoration = InputDecoration(
-      filled: true,
-      fillColor: surfaceColor,
-      labelStyle: const TextStyle(color: Colors.white70),
-      hintStyle: const TextStyle(color: Colors.white38),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: accentColor, width: 2)),
-      errorStyle: TextStyle(color: Colors.redAccent.shade100)
-    );
+        filled: true,
+        fillColor: surfaceColor,
+        labelStyle: const TextStyle(color: Colors.white70),
+        hintStyle: const TextStyle(color: Colors.white38),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor, width: 2)), 
+        errorStyle: TextStyle(color: Colors.redAccent.shade100));
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -284,55 +341,63 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 ),
                 const SizedBox(height: 24),
                 _buildSectionCard(
-                  title: 'Formato de Perfil Público',
-                  subtitle: 'Elige cómo verán tus clientes tu página de presentación.',
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedFormat, 
-                      decoration: inputDecoration.copyWith(labelText: 'Formato de Perfil'),
-                      dropdownColor: surfaceColor,
-                      style: const TextStyle(color: Colors.white),
-                      items: const [
-                        DropdownMenuItem(value: 'catalog', child: Text('Catálogo de Servicios')),
-                        DropdownMenuItem(value: 'store', child: Text('Tienda de Servicios')),
-                        DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) setState(() => _selectedFormat = value);
-                      },
-                      validator: (value) => value == null ? 'Selecciona un formato' : null,
-                    ),
-                  ]
-                ),
+                    title: 'Formato de Perfil Público',
+                    subtitle: 'Elige cómo verán tus clientes tu página de presentación.',
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedFormat,
+                        decoration: inputDecoration.copyWith(labelText: 'Formato de Perfil'),
+                        dropdownColor: surfaceColor,
+                        style: const TextStyle(color: Colors.white),
+                        items: const [
+                          DropdownMenuItem(value: 'catalog', child: Text('Catálogo de Servicios')),
+                          DropdownMenuItem(value: 'store', child: Text('Tienda de Servicios')),
+                          DropdownMenuItem(value: 'cv', child: Text('CV Simple')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) setState(() => _selectedFormat = value);
+                        },
+                        validator: (value) => value == null ? 'Selecciona un formato' : null,
+                      ),
+                    ]),
                 const SizedBox(height: 24),
                 _buildSectionCard(
-                  title: 'Contenido del Perfil',
+                    title: 'Contenido del Perfil',
+                    children: [
+                      TextFormField(
+                        controller: _welcomeMessageController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: inputDecoration.copyWith(labelText: 'Mensaje de Bienvenida o Eslogan'),
+                        maxLength: 150,
+                        maxLines: 3,
+                        minLines: 1,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _addressController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _countryController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: inputDecoration.copyWith(labelText: 'País'),
+                      ),
+                    ]),
+                
+                // --- ¡NUEVA SECCIÓN DE CONTACTO Y REDES! ---
+                const SizedBox(height: 24),
+                _buildSectionCard(
+                  title: 'Contacto y Redes Sociales',
                   children: [
-                    TextFormField(
-                      controller: _welcomeMessageController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: inputDecoration.copyWith(labelText: 'Mensaje de Bienvenida o Eslogan'),
-                      maxLength: 150,
-                      maxLines: 3, 
-                      minLines: 1,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _addressController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura'),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _countryController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: inputDecoration.copyWith(labelText: 'País'),
-                    ),
-                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _contactEmailController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: inputDecoration.copyWith(labelText: 'Email de Contacto Público'),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Email de Contacto Público',
+                        prefixIcon: const Icon(Icons.email_outlined, color: Colors.white70),
+                      ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
                         if (value != null && value.isNotEmpty && (!value.contains('@') || !value.contains('.'))) {
@@ -341,8 +406,72 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _phoneController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Teléfono de Contacto (Opcional)',
+                        prefixIcon: const Icon(Icons.phone_outlined, color: Colors.white70),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _whatsappController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'WhatsApp (Opcional)',
+                        prefixIcon: const Icon(Icons.message_outlined, color: Colors.white70),
+                        hintText: 'Ej: 54911...'
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _websiteController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Página Web (Opcional)',
+                        prefixIcon: const Icon(Icons.language_outlined, color: Colors.white70),
+                        hintText: 'https://...'
+                      ),
+                      keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _instagramController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Instagram (Opcional)',
+                        prefixIcon: const Icon(Icons.photo_camera_outlined, color: Colors.white70),
+                        hintText: 'ej: tuusuario (sin @)'
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _facebookController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Facebook (Opcional)',
+                        prefixIcon: const Icon(Icons.facebook_outlined, color: Colors.white70),
+                        hintText: 'ej: tuusuario'
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _tiktokController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'TikTok (Opcional)',
+                        prefixIcon: const Icon(Icons.music_note_outlined, color: Colors.white70),
+                        hintText: 'ej: @tuusuario'
+                      ),
+                    ),
                   ]
                 ),
+                // --- FIN DE NUEVA SECCIÓN ---
+
                 const SizedBox(height: 48),
                 SizedBox(
                   height: 50,
@@ -402,28 +531,29 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 80, height: 80,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   image: image != null ? DecorationImage(image: image, fit: BoxFit.cover) : null,
                   border: Border.all(color: const Color(0xFF00BFFF), width: 2),
-                   color: image == null ? Colors.white.withAlpha(20) : Colors.transparent,
+                  color: image == null ? Colors.white.withAlpha(20) : Colors.transparent,
                 ),
                 child: image == null ? const Center(child: Icon(Icons.business_rounded, size: 40, color: Colors.white70)) : null,
               ),
               Positioned(
-                bottom: -4, 
+                bottom: -4,
                 right: -4,
                 child: GestureDetector(
                   onTap: _pickImage,
                   child: Container(
-                    padding: const EdgeInsets.all(6), 
+                    padding: const EdgeInsets.all(6),
                     decoration: const BoxDecoration(
                       color: Color(0xFF00BFFF),
                       shape: BoxShape.circle,
-                       border: Border.fromBorderSide(BorderSide(color: Color(0xFF1A1A2E), width: 2)),
+                      border: Border.fromBorderSide(BorderSide(color: Color(0xFF1A1A2E), width: 2)),
                     ),
-                    child: const Icon(Icons.edit, size: 18, color: Colors.black), 
+                    child: const Icon(Icons.edit, size: 18, color: Colors.black),
                   ),
                 ),
               ),
@@ -461,12 +591,8 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
-                  border: isSelected
-                      ? Border.all(color: Colors.white, width: 3)
-                      : null,
-                  boxShadow: isSelected
-                      ? [BoxShadow(color: color.withAlpha(178), blurRadius: 10)]
-                      : [],
+                  border: isSelected ? Border.all(color: Colors.white, width: 3) : null,
+                  boxShadow: isSelected ? [BoxShadow(color: color.withAlpha(178), blurRadius: 10)] : [],
                 ),
                 child: isSelected ? const Icon(Icons.check, color: Colors.black, size: 24) : null,
               ),
@@ -478,7 +604,7 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
 
   void _showSnackbar(String message, {bool isError = false}) {
-     if (!mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
       backgroundColor: isError ? Colors.redAccent : Colors.green,
@@ -491,16 +617,14 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
   Color? _colorFromHex(String? hexColor) {
     if (hexColor == null || hexColor.isEmpty) return null;
     final hexCode = hexColor.replaceAll('#', '');
-    if (hexCode.length >= 6) {
-      final validHexCode = hexCode.length == 6 ? 'FF$hexCode' : (hexCode.length == 8 ? hexCode : null);
-       if (validHexCode != null) {
-         try {
-           return Color(int.parse(validHexCode, radix: 16));
-         } catch (e) {
-           return null;
-         }
+    if (hexCode.length == 6) {
+      final validHexCode = 'FF$hexCode';
+       try {
+         return Color(int.parse(validHexCode, radix: 16));
+       } catch (e) {
+         return null;
        }
     }
     return null;
   }
-}
+} // --- ¡FIN DE LA CLASE _BrandSettingsScreenState! ---
