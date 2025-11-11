@@ -9,6 +9,7 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
+import 'package:proveedor_servicly_app/core/models/category_model.dart';
 
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 14/10/2025
@@ -22,11 +23,13 @@ import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 class AddEditProductScreen extends StatefulWidget {
   final UserModel user;
   final ProductModel? productToEdit;
+  final CategoryModel? preselectedCategory;
 
   const AddEditProductScreen({
     super.key,
     required this.user,
     this.productToEdit,
+    this.preselectedCategory,
   });
 
   @override
@@ -41,11 +44,13 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   late final TextEditingController _promoPriceController;
   late final TextEditingController _promoTextController;
   late final TextEditingController _quantityController; // --- NUEVO ---
+  
 
   DateTime? _expiryDate;
   XFile? _mainImageFile; // --- MODIFICADO: Renombrado para claridad
   bool _isUploading = false;
   String? _selectedCategoryId;
+  
 
   // --- NUEVO: Estado para la galería multimedia ---
   // Esta lista contendrá mapas que representan los medios.
@@ -66,7 +71,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _promoPriceController = TextEditingController(text: product?.promoPrice?.toString() ?? '');
     _promoTextController = TextEditingController(text: product?.promoText ?? '');
     _expiryDate = product?.expiryDate?.toDate();
-    _selectedCategoryId = product?.categoryId;
+    _selectedCategoryId = product?.categoryId ?? widget.preselectedCategory?.id;
 
     // --- NUEVO ---
     _quantityController = TextEditingController(text: product?.quantity?.toString() ?? '');

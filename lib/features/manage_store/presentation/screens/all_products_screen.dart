@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/models/category_model.dart';
 
 /// Esta pantalla mostrará la lista COMPLETA de productos del proveedor,
 /// permitiendo una gestión avanzada (búsqueda, filtros, etc.).
 class AllProductsScreen extends StatelessWidget {
   final UserModel user;
-  const AllProductsScreen({super.key, required this.user});
+  final CategoryModel? categoryFilter;
+
+  const AllProductsScreen({super.key, required this.user,this.categoryFilter});
+  
 
   @override
   Widget build(BuildContext context) {

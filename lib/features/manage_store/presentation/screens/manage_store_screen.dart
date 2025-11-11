@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:ui'; // Para PathMetric
+import 'package:flutter/foundation.dart' show listEquals; // Para listEquals
+
+// --- Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
-// --- ¡NUEVAS IMPORTACIONES! ---
+import 'package:url_launcher/url_launcher.dart';
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
-import 'order_detail_screen.dart'; 
-// --- FIN DE NUEVAS IMPORTACIONES ---
+import 'order_detail_screen.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
@@ -15,25 +18,115 @@ import 'add_edit_product_screen.dart';
 import 'manage_categories_screen.dart';
 import 'all_products_screen.dart';
 import 'add_edit_video_screen.dart';
-
-// --- ¡IMPORTACIONES CORREGIDAS! ---
 import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
 import 'package:proveedor_servicly_app/core/services/video_service.dart';
 import 'video_manager_screen.dart';
-// --- FIN DE CORRECCIÓN ---
-
-
-// ... (Comentario UX/UI sin cambios) ...
+// --- NUEVO IMPORT ---
+import 'package:proveedor_servicly_app/core/services/category_service.dart';
+import 'package:proveedor_servicly_app/core/models/category_model.dart';
+import 'package:proveedor_servicly_app/widgets/ProductCardRefactor.dart';
+import 'package:proveedor_servicly_app/widgets/VideoCard.dart';
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/video_player_screen.dart';
 
 class ManageStoreScreen extends StatelessWidget {
   final UserModel user;
 
   const ManageStoreScreen({super.key, required this.user});
 
+  /// Para lanzar URLs
+  Future<void> _launchURL(String url) async {
+    String launchableUrl = url;
+    if (!url.startsWith('http://') &&
+        !url.startsWith('https://') &&
+        !url.startsWith('tel:') &&
+        !url.startsWith('mailto:') &&
+        !url.startsWith('https://wa.me/')) {
+      launchableUrl = 'https://$url';
+    }
+    final Uri uri = Uri.parse(launchableUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error al lanzar $url: $e');
+    }
+  }
+
+  // --- Método para mostrar el panel de contactos ---
+  void _showContactSheet(BuildContext context, ProviderProfileModel brandProfile) {
+    const surfaceColor = Color(0xFF2D2D5A);
+    // const accentColor = Color(0xFF00BFFF); // No se usa aquí
+
+    final List<Widget> contactChips = [
+      if (brandProfile.phone != null && brandProfile.phone!.isNotEmpty)
+        _InfoChip(icon: Icons.phone_outlined, label: brandProfile.phone!, onTap: () => _launchURL('tel:${brandProfile.phone!}')),
+      if (brandProfile.whatsapp != null && brandProfile.whatsapp!.isNotEmpty)
+        _InfoChip(icon: Icons.message_outlined, label: brandProfile.whatsapp!, onTap: () => _launchURL('https://wa.me/${brandProfile.whatsapp!}')),
+      if (brandProfile.contactEmail.isNotEmpty)
+        _InfoChip(icon: Icons.email_outlined, label: brandProfile.contactEmail, onTap: () => _launchURL('mailto:${brandProfile.contactEmail}')),
+      if (brandProfile.website != null && brandProfile.website!.isNotEmpty)
+        _InfoChip(icon: Icons.language_outlined, label: 'Web', onTap: () => _launchURL(brandProfile.website!)),
+      if (brandProfile.instagram != null && brandProfile.instagram!.isNotEmpty)
+        _InfoChip(icon: IconsKE.instagram, label: 'Instagram', onTap: () => _launchURL('https://instagram.com/${brandProfile.instagram!}')),
+      if (brandProfile.facebook != null && brandProfile.facebook!.isNotEmpty)
+        _InfoChip(icon: Icons.facebook_outlined, label: 'Facebook', onTap: () => _launchURL('https://facebook.com/${brandProfile.facebook!}')),
+      if (brandProfile.tiktok != null && brandProfile.tiktok!.isNotEmpty)
+        _InfoChip(icon: Icons.music_note_outlined, label: 'TikTok', onTap: () => _launchURL('https://tiktok.com/${brandProfile.tiktok!}')),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: surfaceColor,
+      barrierColor: Colors.black.withAlpha(128),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Información de Contacto',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  )
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (contactChips.isEmpty)
+                const Text(
+                  'No has añadido información de contacto pública. Edita tu perfil de marca para añadirla.',
+                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                )
+              else
+                Wrap(
+                  spacing: 10.0,
+                  runSpacing: 10.0,
+                  children: contactChips,
+                ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
+    // CORRECCIÓN: 'accentColor' no se usaba aquí, eliminado.
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -42,217 +135,56 @@ class ManageStoreScreen extends StatelessWidget {
         backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: const [],
       ),
-      // --- ¡ESTRUCTURA DEL BODY MODIFICADA! ---
-      // Ya no es un StreamBuilder, es un CustomScrollView
-      // que contendrá MÚLTIPLES StreamBuilders.
       body: CustomScrollView(
         slivers: [
-          // --- SECCIÓN 1: Identidad de Marca (Placeholder) ---
-          _buildBrandIdentitySection(context, user),
+          // --- SECCIÓN 1: Identidad de Marca (Compacta con Acordeón) ---
+          _BrandHeaderCard(
+            user: user, 
+            onShowContacts: (brandProfile) {
+              _showContactSheet(context, brandProfile);
+            }
+          ),
 
-          // --- SECCIÓN 2: Ventas/Órdenes Pendientes (¡NUEVO!) ---
-          _buildSectionTitle('Ventas Pendientes de Verificación'),
+          // --- SECCIÓN 2: Ventas/Órdenes Pendientes (Carrusel) ---
+          _buildSectionTitle('Ventas Pendientes', false),
           _buildPendingOrdersSection(context, user),
 
-          // --- SECCIÓN 3: Gestor de Contenido (Tu código anterior) ---
-          _buildSectionTitle('Gestor de Contenido'),
-          // Mantenemos tu tarjeta de Categorías
-          SliverToBoxAdapter(child: _CategoryManagerCard(user: user)),
-          _buildProductsSection(context, user),
-
-          // --- SECCIÓN 4: Gestor de Promoción (Videos - Placeholder) ---
-          _buildSectionTitle('Mis Videos Promocionales'),
+          // --- SECCIÓN 3: Gestor de Promoción (Videos) ---
+          _buildSectionTitle('Mis Videos Promocionales', false),
           _buildVideoPromoSection(context, user),
 
-          // Añadimos un espacio al final para que el FAB no tape el contenido
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          // --- SECCIÓN 4: Gestor de Catálogo (Compacto) ---
+          _buildSectionTitle('Mi Catálogo', false),
+        _buildManageCategoriesCard(context, user),
+
+          // --- SECCIÓN 5: Productos (Grilla Responsiva) ---
+          _buildProductsByCategoriesSection(context, user),
+
+          // --- SECCIÓN 4C: TARJETA 'VER TODOS' (NUEVA POSICIÓN: DEBAJO) ---
+        const SliverToBoxAdapter(child: SizedBox(height: 20)), // Espacio antes
+        _buildViewAllCard(context, user), // <-- AHORA VA AQUÍ (DEBAJO)              
+
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // Por ahora, solo añade productos.
-          // En el futuro, lo convertiremos en un "Speed Dial"
-          // para añadir Productos, Videos, Categorías, etc.
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => AddEditProductScreen(user: user),
-          ));
-        },
-        label: const Text('Añadir Producto'),
-        icon: const Icon(Icons.add),
-        backgroundColor: accentColor,
-        foregroundColor: Colors.black,
-      ),
     );
   }
 
-  // --- WIDGET PARA SECCIÓN 1 (PLACEHOLDER) ---
-  Widget _buildBrandIdentitySection(BuildContext context, UserModel user) {
-    final firestoreService = context.read<FirestoreService>();
-    const surfaceColor = Color(0xFF2D2D5A);
-    const accentColor = Color(0xFF00BFFF);
-    const backgroundColor = Color(0xFF1A1A2E);
-
-    return StreamBuilder<ProviderProfileModel?>(
-      stream: firestoreService.getBrandProfile(user.uid),
-      builder: (context, snapshot) {
-        // --- Estado de Carga (Sin cambios) ---
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return SliverToBoxAdapter(
-            child: Container(
-              height: 120, 
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                  child: CircularProgressIndicator(color: accentColor)),
-            ),
-          );
-        }
-
-        // --- ESTADO DE ERROR (IMAGEN 1) - ¡MODIFICADO! ---
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-          return SliverToBoxAdapter(
-            child: Container(
-              height: 120,
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.redAccent),
-              ),
-              // --- ¡MEJORA DE UX AÑADIDA! ---
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'No se pudo cargar tu perfil de marca. Intenta editarlo para crearlo.',
-                      textAlign: TextAlign.left,
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Botón de Editar (¡como pediste!)
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, color: accentColor, size: 30),
-                    tooltip: 'Crear Perfil de Marca',
-                    onPressed: () {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => BrandSettingsScreen(
-                          user: user,
-                          brandProfile: null, 
-                        ),
-                      ));
-                    },
-                  ),
-                ],
-              ),
-              // --- FIN DE MEJORA ---
-            ),
-          );
-        }
-
-        // --- ESTADO DE ÉXITO (IMAGEN 2) - ¡CORREGIDO! ---
-        final brandProfile = snapshot.data!;
-
-        return SliverToBoxAdapter(
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accentColor.withAlpha(100)),
-            ),
-            child: Row(
-              children: [
-                // 1. Logo
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: backgroundColor,
-                  backgroundImage: brandProfile.logoUrl.isNotEmpty
-                      ? NetworkImage(brandProfile.logoUrl)
-                      : null,
-                  child: brandProfile.logoUrl.isEmpty
-                      ? const Icon(Icons.business_rounded,
-                          size: 30, color: accentColor)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                
-                // 2. Textos (Nombre y Eslogan)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        brandProfile.businessName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        // --- ¡LECTURA CORREGIDA! ---
-                        // Leemos el campo aplanado 'welcomeMessage'
-                        brandProfile.welcomeMessage ?? 'Añade un eslogan',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // 3. Botón de Editar
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: accentColor),
-                  tooltip: 'Editar Perfil de Marca',
-                  onPressed: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => BrandSettingsScreen(
-                        user: user,
-                        brandProfile: brandProfile,
-                      ),
-                    ));
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // --- WIDGET PARA SECCIÓN 2 (¡NUEVO!) ---
+  // --- WIDGET PARA SECCIÓN 2 (Ventas) ---
   Widget _buildPendingOrdersSection(BuildContext context, UserModel user) {
     final orderService = context.read<OrderService>();
+    const accentColor = Color(0xFF00BFFF);
 
     return StreamBuilder<List<OrderModel>>(
       stream: orderService.getPendingOrders(user.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // Muestra un loader pequeño
           return const SliverToBoxAdapter(
             child: Center(
               child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(color: Color(0xFF00BFFF)),
+                padding: EdgeInsets.symmetric(vertical: 24.0),
+                child: CircularProgressIndicator(color: accentColor),
               ),
             ),
           );
@@ -266,230 +198,207 @@ class ManageStoreScreen extends StatelessWidget {
           );
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          // Muestra un mensaje amigable
-          return const SliverToBoxAdapter(
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
-                child: Text('🎉 ¡No tienes ventas pendientes por verificar!',
-                    style: TextStyle(color: Colors.white70)),
-              ),
-            ),
-          );
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
         }
 
         final pendingOrders = snapshot.data!;
 
-        // Si hay datos, muestra una lista
+        return SliverToBoxAdapter(
+          child: SizedBox(
+            height: 100, 
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              itemCount: pendingOrders.length,
+              itemBuilder: (context, index) {
+                final order = pendingOrders[index];
+                return _OrderCard(order: order);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  // --- WIDGET PARA SECCIÓN 4 (Contenido) ---
+  Widget _buildManageCategoriesCard(BuildContext context, UserModel user) {
+  const accentColor = Color(0xFF00BFFF);
+  const surfaceColor = Color(0xFF2D2D5A);
+  
+  return SliverToBoxAdapter(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: _SmallActionCard(
+        title: 'Categorías',
+        icon: Icons.category_outlined,
+        accentColor: accentColor,
+        surfaceColor: surfaceColor,
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ManageCategoriesScreen(user: user),
+          ));
+        },
+      ),
+    ),
+  );
+}
+Widget _buildViewAllCard(BuildContext context, UserModel user) {
+  const accentColor = Color(0xFF00BFFF);
+  const surfaceColor = Color(0xFF2D2D5A);
+  
+  return SliverToBoxAdapter(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: _SmallActionCard(
+        title: 'Ver Todos',
+        icon: Icons.list_alt_rounded,
+        accentColor: accentColor,
+        surfaceColor: surfaceColor,
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => AllProductsScreen(user: user),
+          ));
+        },
+      ),
+    ),
+  );
+}
+
+
+// --- WIDGET PARA SECCIÓN 3 (Videos) - ¡CORREGIDO! ---
+Widget _buildVideoPromoSection(BuildContext context, UserModel user) {
+  final videoService = context.read<VideoService>();
+  const accentColor = Color(0xFF00BFFF);
+
+  return StreamBuilder<List<VideoShowcaseModel>>(
+    stream: videoService.getVideoShowcasesByProvider(user.uid),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const SliverToBoxAdapter(
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24.0),
+              child: CircularProgressIndicator(color: accentColor),
+            ),
+          ),
+        );
+      }
+      if (snapshot.hasError) {
+        return SliverToBoxAdapter(
+            child: Center(
+                child: Text('Error al cargar videos: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.redAccent))));
+      }
+
+      final videos = snapshot.data ?? [];
+
+      // --- ¡LÓGICA DE UX CORREGIDA! ---
+      return SliverToBoxAdapter(
+        child: SizedBox(
+          height: 150,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            // +1 para el botón de Añadir (siempre)
+            // +1 para "Gestionar" (solo si hay videos)
+            itemCount: videos.length + 1 + (videos.isNotEmpty ? 1 : 0),
+            itemBuilder: (context, index) {
+              // 1. Botón de Añadir (Siempre primero)
+              if (index == 0) {
+                return _AddVideoCard(onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AddEditVideoScreen(user: user),
+                  ));
+                });
+              }
+
+              // 2. Botón de Gestionar (Al final, solo si hay videos)
+              if (videos.isNotEmpty && index == videos.length + 1) {
+                return _ManageAllVideosCard(onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => VideoManagerScreen(user: user),
+                  ));
+                });
+              }
+
+              // 3. Tarjetas de Video (Ajustamos el índice)
+              final video = videos[index - 1];
+
+              // CORRECCIÓN CLAVE: Cerrar correctamente el VideoCard
+              return VideoCard(
+                video: video,
+                brandColor: accentColor, // Requerido
+                onPlayTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => VideoPlayerScreen(videoShowcase: video),
+                    ));
+                  },
+                onEditTap: () {
+                  // Opcional: Navegación a edición para el proveedor
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AddEditVideoScreen(
+                      user: user,
+                      videoToEdit: video,
+                    ),
+                  ));
+                }, // <--- ¡Esta coma es esencial!
+              ); 
+            },
+          ),
+        ),
+      );
+    },
+  );
+}
+
+  // --- WIDGET PARA SECCIÓN 5 (Productos por Categoría) ---
+  Widget _buildProductsByCategoriesSection(BuildContext context, UserModel user) {
+    final categoryService = context.read<CategoryService>();
+    final productService = context.read<ProductService>(); // Obtenido aquí
+
+    return StreamBuilder<List<CategoryModel>>(
+      stream: categoryService.getCategories(user.uid), 
+      builder: (context, categorySnapshot) {
+        if (categorySnapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingSkeleton(); 
+        }
+        if (categorySnapshot.hasError) {
+          return SliverToBoxAdapter(
+              child: Center(
+                  child: Text('Error: ${categorySnapshot.error}',
+                      style: const TextStyle(color: Colors.redAccent))));
+        }
+        
+        final categories = categorySnapshot.data ?? [];
+
+        if (categories.isEmpty) {
+          return const SliverToBoxAdapter(child: _EmptyState());
+        }
+
         return SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              final order = pendingOrders[index];
-              return _OrderCard(order: order); // <-- ¡Nuevo widget de tarjeta!
+              final category = categories[index];
+              return _ProductCarousel(
+                category: category,
+                user: user,
+                productService: productService, // Pasa el servicio
+              );
             },
-            childCount: pendingOrders.length,
+            childCount: categories.length,
           ),
         );
       },
     );
   }
 
-  // --- WIDGET PARA SECCIÓN 3 (Tu código movido) ---
-  Widget _buildProductsSection(BuildContext context, UserModel user) {
-    final productService = context.read<ProductService>();
-
-    // Usamos el plan del 2x4 que definiste (limit: 8)
-    return StreamBuilder<List<ProductModel>>(
-      stream: productService.getProducts(user.uid, limit: 8), // <-- Límite
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _LoadingSkeleton(); // Tu skeleton original
-        }
-        if (snapshot.hasError) {
-          return SliverToBoxAdapter(
-              child: Center(
-                  child: Text('Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.redAccent))));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          // Si no hay productos, NO mostramos el botón "Ver todo"
-          return const SliverToBoxAdapter(child: _EmptyState());
-        }
-
-        final products = snapshot.data!;
-
-        // --- ¡MODIFICACIÓN! ---
-        // Usamos un SliverMainAxisGroup para agrupar
-        // la grilla Y el botón en un solo bloque.
-        return SliverMainAxisGroup(
-          slivers: [
-            // 1. El Grid de 2x4 (tu código original)
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4, // <-- Tal como pediste
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.85,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final product = products[index];
-                    return _ProductCard(
-                      product: product,
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => AddEditProductScreen(
-                            user: user,
-                            productToEdit: product,
-                          ),
-                        ));
-                      },
-                    );
-                  },
-                  childCount: products.length,
-                ),
-              ),
-            ),
-
-            // 2. ¡NUEVO BOTÓN! (Reemplaza el TODO)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0), // Espacio
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.list_alt_rounded, size: 20),
-                  label: const Text('Ver/Gestionar todos los productos'),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF00BFFF), // accentColor
-                      backgroundColor:
-                          const Color(0xFF2D2D5A).withAlpha(150), // surfaceColor
-                      side: const BorderSide(
-                          color: Color(0xFF2D2D5A)), // surfaceColor
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      textStyle:
-                          const TextStyle(fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      // Navegamos a la nueva pantalla
-                      builder: (_) => AllProductsScreen(user: user),
-                    ));
-                  },
-                ),
-              ),
-            ),
-            // --- FIN DE LA MODIFICACIÓN ---
-          ],
-        );
-      },
-    );
-  }
-
-  // --- WIDGET PARA SECCIÓN 4 (PLACEHOLDER) ---
- Widget _buildVideoPromoSection(BuildContext context, UserModel user) {
-    final videoService = context.read<VideoService>();
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
-
-    return StreamBuilder<List<VideoShowcaseModel>>(
-      stream: videoService.getVideoShowcasesByProvider(user.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SliverToBoxAdapter(
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(color: accentColor),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return SliverToBoxAdapter(
-            // ... (código de error sin cambios)
-          );
-        }
-
-        // --- ¡MODIFICADO! ---
-        // Ya no comprobamos si está vacío aquí,
-        // lo hacemos en el builder de la lista.
-        final videos = snapshot.data ?? [];
-        // --- FIN MODIFICACIÓN ---
-
-        return SliverMainAxisGroup(
-          slivers: [
-            // 1. Carrusel Horizontal de Videos + Botón de Añadir
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 150, // Altura del carrusel
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  
-                  // --- ¡MODIFICACIÓN! ---
-                  // +1 para el botón de "Añadir"
-                  itemCount: videos.length + 1, 
-                  // --- FIN MODIFICACIÓN ---
-                  
-                  itemBuilder: (context, index) {
-                    
-                    // --- ¡NUEVA LÓGICA! ---
-                    if (index == videos.length) {
-                      // Si es el último item, muestra la tarjeta de "Añadir"
-                      return _AddVideoCard(
-                        onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => AddEditVideoScreen(user: user),
-                          ));
-                        },
-                      );
-                    }
-                  
-                    // --- FIN NUEVA LÓGICA ---
-
-                    // Si no, muestra la tarjeta de video normal
-                    final video = videos[index];
-                    return _VideoCard(video: video);
-                  },
-                ),
-              ),
-            ),
-            
-            // 2. Botón "Gestionar Todo" (Solo aparece si tienes videos)
-            if (videos.isNotEmpty) // <-- ¡MODIFICADO!
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.video_library_rounded, size: 20),
-                    label: const Text('Ver/Gestionar todos los videos'),
-                    style: OutlinedButton.styleFrom(
-                        foregroundColor: accentColor,
-                        backgroundColor: surfaceColor.withAlpha(150),
-                        side: const BorderSide(color: surfaceColor),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        textStyle:
-                            const TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => VideoManagerScreen(user: user),
-                      ));
-                    },
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
   // --- WIDGET AUXILIAR PARA TÍTULOS DE SECCIÓN ---
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, bool isFirst) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 32, 16, 16),
         child: Text(
           title,
           style: const TextStyle(
@@ -503,145 +412,454 @@ class ManageStoreScreen extends StatelessWidget {
   }
 } // --- FIN DE LA CLASE ManageStoreScreen ---
 
+// ===================================================================
+// --- WIDGETS AUXILIARES ---
+// ===================================================================
 
-// --- WIDGETS AUXILIARES (AHORA FUERA DE LA CLASE) ---
-
-class _CategoryManagerCard extends StatelessWidget {
-  // ... (Tu código de _CategoryManagerCard va aquí, sin cambios)
+/// (NUEVO) Fila de Productos para una Categoría Específica
+class _ProductCarousel extends StatelessWidget {
+  final CategoryModel category;
   final UserModel user;
-  const _CategoryManagerCard({required this.user});
+  final ProductService productService;
+
+  const _ProductCarousel({
+    required this.category,
+    required this.user,
+    required this.productService,
+  });
 
   @override
   Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Card(
-        color: const Color(0xFF2D2D5A),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Color(0xFF00BFFF), width: 1)),
-        child: ListTile(
-          leading: const Icon(Icons.category_outlined,
-              color: Color(0xFF00BFFF), size: 32),
-          title: const Text('Gestionar Categorías',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          subtitle: const Text('Crea y organiza las carpetas de tus productos.',
-              style: TextStyle(color: Colors.white70)),
-          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38),
-          onTap: () {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => ManageCategoriesScreen(user: user),
-            ));
-          },
+      padding: const EdgeInsets.only(bottom: 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Título de la Categoría
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text(
+              category.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          // 2. Fila Horizontal de Productos
+          SizedBox(
+            height: 220, // Altura fija para el carrusel
+            child: StreamBuilder<List<ProductModel>>(
+              // CORRECCIÓN: Llamada al método correcto
+              stream: productService.getProducts(user.uid, categoryId: category.id, limit: 5),
+              builder: (context, productSnapshot) {
+                if (productSnapshot.connectionState == ConnectionState.waiting) {
+                  // Un esqueleto de carga horizontal
+                  return ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    itemCount: 3,
+                    itemBuilder: (context, index) => Container(
+                      width: 160,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D2D5A).withAlpha(128),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  );
+                }
+                
+                final products = productSnapshot.data ?? [];
+
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  itemCount: products.length + 2, // +1 Añadir, +1 Ver Más
+                  itemBuilder: (context, index) {
+                    // 1. Botón Añadir (Tu Idea)
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 12.0),
+                        child: _AddProductCard(onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            // CORRECCIÓN: Pasamos el 'category' a 'AddEditProductScreen'
+                            builder: (_) => AddEditProductScreen(user: user, preselectedCategory: category),
+                          ));
+                        }),
+                      );
+                    }
+                    // 2. Botón Ver Más 
+                    if (index == products.length + 1) {
+                      return _SeeAllCard(onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          // CORRECCIÓN: Pasamos el 'category' a 'AllProductsScreen'
+                          builder: (_) => AllProductsScreen(user: user, categoryFilter: category),
+                        ));
+                      });
+                    }
+                    // 3. Tarjeta de Producto
+                   final product = products[index - 1];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: SizedBox(
+                        width: 160, // Ancho fijo para las tarjetas en el carrusel
+                        child: ProductCardRefactor( // <--- NOMBRE CORRECTO
+                          product: product,
+                          // 1. Corregir y añadir brandColor
+                          brandColor: accentColor, 
+                          // 2. Corregir el nombre del callback de 'onTap' a 'onDetailTap'
+                          onDetailTap: () {
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => AddEditProductScreen(
+                                user: user,
+                                productToEdit: product,
+                              ),
+                            ));
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// (NUEVO) Encabezado de Marca (AHORA STATEFUL para el acordeón)
+class _BrandHeaderCard extends StatefulWidget {
+  final UserModel user;
+  final Function(ProviderProfileModel) onShowContacts;
+
+  const _BrandHeaderCard({required this.user, required this.onShowContacts});
+
+  @override
+  State<_BrandHeaderCard> createState() => _BrandHeaderCardState();
+}
+
+class _BrandHeaderCardState extends State<_BrandHeaderCard> {
+  // bool _isExpanded = false; // Estado de acordeón eliminado
+  
+  @override
+  Widget build(BuildContext context) {
+    final firestoreService = context.read<FirestoreService>();
+    const surfaceColor = Color(0xFF2D2D5A);
+    const accentColor = Color(0xFF00BFFF);
+
+    return StreamBuilder<ProviderProfileModel?>(
+      stream: firestoreService.getBrandProfile(widget.user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SliverToBoxAdapter(child: SizedBox(height: 140, child: Center(child: CircularProgressIndicator(color: accentColor))));
+        }
+        if (!snapshot.hasData || snapshot.data == null) {
+          return SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _InfoChip(
+                icon: Icons.edit_outlined,
+                label: 'Completa tu perfil de marca para más visibilidad',
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => BrandSettingsScreen(user: widget.user, brandProfile: null),
+                  ));
+                },
+              ),
+            ),
+          );
+        }
+
+        final brandProfile = snapshot.data!;
+
+        final bool hasContactInfo = (brandProfile.phone != null && brandProfile.phone!.isNotEmpty) ||
+            (brandProfile.whatsapp != null && brandProfile.whatsapp!.isNotEmpty) ||
+            (brandProfile.contactEmail.isNotEmpty) ||
+            (brandProfile.website != null && brandProfile.website!.isNotEmpty) ||
+            (brandProfile.instagram != null && brandProfile.instagram!.isNotEmpty) ||
+            (brandProfile.facebook != null && brandProfile.facebook!.isNotEmpty) ||
+            (brandProfile.tiktok != null && brandProfile.tiktok!.isNotEmpty);
+
+
+        return SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: accentColor.withAlpha(100)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: const Color(0xFF1A1A2E),
+                      backgroundImage: brandProfile.logoUrl.isNotEmpty
+                          ? NetworkImage(brandProfile.logoUrl)
+                          : null,
+                      child: brandProfile.logoUrl.isEmpty
+                          ? const Icon(Icons.business_rounded, size: 24, color: accentColor)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            brandProfile.businessName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (brandProfile.welcomeMessage.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              brandProfile.welcomeMessage,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (hasContactInfo)
+                      IconButton(
+                        icon: const Icon(Icons.info_outline_rounded, color: accentColor, size: 24),
+                        tooltip: 'Ver Información de Contacto',
+                        onPressed: () => widget.onShowContacts(brandProfile),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: accentColor, size: 24),
+                      tooltip: 'Editar Perfil de Marca',
+                      onPressed: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => BrandSettingsScreen(
+                            user: widget.user,
+                            brandProfile: brandProfile,
+                          ),
+                        ));
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// --- Icon Helper ---
+class IconsKE {
+  static const IconData instagram = IconData(0xe49a, fontFamily: 'MaterialIcons');
+}
+
+// --- InfoChip (Compacto) ---
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(30),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+        decoration: BoxDecoration(
+            color: accentColor.withAlpha(20),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: accentColor.withAlpha(80))),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: accentColor, size: 14),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _ProductCard extends StatelessWidget {
-  // ... (Tu código de _ProductCard va aquí, sin cambios)
-  final ProductModel product;
+// --- (NUEVO) Tarjeta de Acción Compacta ---
+class _SmallActionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color accentColor;
+  final Color surfaceColor;
   final VoidCallback onTap;
 
-  const _ProductCard({required this.product, required this.onTap});
-
-  Color _getBorderColor() {
-    if (product.isExpired) return Colors.redAccent;
-    if (product.isExpiringSoon) return Colors.orangeAccent;
-    return const Color(0xFF00BFFF).withAlpha(100);
-  }
+  const _SmallActionCard({
+    required this.title,
+    required this.icon,
+    required this.accentColor,
+    required this.surfaceColor,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      splashColor: accentColor.withAlpha(77),
+      highlightColor: accentColor.withAlpha(38),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accentColor.withAlpha((255 * 0.3).round()))),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: accentColor, size: 20),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                title,
+                style:
+                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+// --- (NUEVO) Tarjeta para Añadir Producto (Estilo Dotted) ---
+class _AddProductCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddProductCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: accentColor.withAlpha(77),
+        highlightColor: accentColor.withAlpha(38),
+        
+        // REEMPLAZO: DottedBorder por Container con BoxDecoration
+        child: Container(
+          // Aplicamos el mismo radio de borde
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            // ESTO CREA UN BORDE SÓLIDO (ya no es discontinuo)
+            border: Border.all(
+              color: accentColor.withAlpha(153), // Mismo color y opacidad
+              width: 2, // Mismo grosor
+            ),
+          ),
+          
+          // Contenido interno (Center, Column, Icono, Texto)
+          child: Padding( // <-- ENVOLVEMOS el contenido con Padding
+                        padding: const EdgeInsets.all(12.0), // <-- Valor de Padding para separar de los bordes
+                        child: Center(
+                            child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                    Icon(Icons.add_rounded, size: 40, color: accentColor),
+                                    SizedBox(height: 12),
+                                    Text('Añadir Producto',
+                                        style: TextStyle(
+                                            color: Colors.white, fontWeight: FontWeight.w600)),
+                                ],
+                            ),
+                        ),
+                    ), 
+                ),
+            ),
+        );
+    }
+}
+
+
+
+// --- (NUEVO) Tarjeta "Ver Más" ---
+class _SeeAllCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SeeAllCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
-    final borderColor = _getBorderColor();
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        width: 160, // Mismo ancho que las tarjetas de producto
+        margin: const EdgeInsets.only(right: 12.0),
         decoration: BoxDecoration(
-          color: surfaceColor,
+          color: surfaceColor.withAlpha(150),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: borderColor.withAlpha(80),
-              blurRadius: 12,
-              spreadRadius: 1,
-            )
-          ],
+          border: Border.all(
+            color: accentColor.withAlpha(100),
+            width: 1,
+          ),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
+        child: const Center(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                flex: 3,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    product.imageUrl.isNotEmpty
-                        ? Image.network(
-                            product.imageUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) =>
-                                progress == null
-                                    ? child
-                                    : const Center(
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2)),
-                            errorBuilder: (context, error, stack) =>
-                                const Icon(Icons.image_not_supported_outlined,
-                                    color: Colors.white38, size: 40),
-                          )
-                        : Container(
-                            color: Colors.black.withAlpha(51),
-                            child: const Icon(Icons.shopping_bag_outlined,
-                                color: Colors.white38, size: 40),
-                          ),
-                    if (product.isExpired || product.isExpiringSoon)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: _StatusTag(
-                            isExpired: product.isExpired,
-                            isExpiringSoon: product.isExpiringSoon),
-                      )
-                  ],
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '\$${product.price.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            color: Color(0xFF00BFFF),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              Icon(Icons.arrow_forward_rounded, size: 40, color: accentColor),
+              SizedBox(height: 12),
+              Text('Ver Más',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -650,17 +868,121 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
+// --- DottedBorder y sus dependencias ---
+enum BorderType { rect, rRect }
+
+class DottedBorder extends StatelessWidget {
+  final Widget child;
+  final Color color;
+  final double strokeWidth;
+  final Radius radius;
+  final BorderType borderType;
+  final List<double> dashPattern;
+
+  const DottedBorder({
+    super.key,
+    required this.child,
+    this.color = Colors.black,
+    this.strokeWidth = 1,
+    this.radius = const Radius.circular(0),
+    this.borderType = BorderType.rect,
+    this.dashPattern = const <double>[3, 1],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DottedPainter(
+        color: color,
+        strokeWidth: strokeWidth,
+        radius: radius,
+        borderType: borderType,
+        dashPattern: dashPattern,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _DottedPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final Radius radius;
+  final BorderType borderType;
+  final List<double> dashPattern;
+
+  _DottedPainter({
+    this.color = Colors.black,
+    this.strokeWidth = 1,
+    this.radius = const Radius.circular(0),
+    this.borderType = BorderType.rect,
+    this.dashPattern = const <double>[3, 1],
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    Path path;
+    if (borderType == BorderType.rRect) {
+      final validRadius = Radius.elliptical(radius.x.abs(), radius.y.abs());
+      path = Path()
+        ..addRRect(RRect.fromRectAndRadius(
+            Rect.fromLTWH(0, 0, size.width, size.height), validRadius));
+    } else {
+      path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    }
+
+    Path dashPath = Path();
+    double distance = 0.0;
+    if (dashPattern.isNotEmpty && dashPattern[0] > 0) {
+      final double dashLength = dashPattern[0];
+      final double gapLength = dashPattern.length > 1 ? dashPattern[1] : 0;
+      final double totalDashPatternLength = dashLength + gapLength;
+
+      if (totalDashPatternLength > 0) {
+        for (PathMetric pathMetric in path.computeMetrics()) {
+          while (distance < pathMetric.length) {
+            final double end = (distance + dashLength).clamp(0.0, pathMetric.length);
+            dashPath.addPath(
+              pathMetric.extractPath(distance, end),
+              Offset.zero,
+            );
+            distance += totalDashPatternLength;
+          }
+        }
+      } else {
+        dashPath = path;
+      }
+    } else {
+      dashPath = path;
+    }
+
+    canvas.drawPath(dashPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(_DottedPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.radius != radius ||
+      oldDelegate.borderType != borderType ||
+      !listEquals(oldDelegate.dashPattern, dashPattern);
+}
+
+// --- Resto de widgets auxiliares (StatusTag, EmptyState, etc.) ---
+
 class _StatusTag extends StatelessWidget {
-  // ... (Tu código de _StatusTag va aquí, sin cambios)
   final bool isExpired;
   final bool isExpiringSoon;
-
   const _StatusTag({required this.isExpired, required this.isExpiringSoon});
 
   @override
   Widget build(BuildContext context) {
     if (!isExpired && !isExpiringSoon) return const SizedBox.shrink();
-
     final color = isExpired ? Colors.redAccent : Colors.orangeAccent;
     final text = isExpired ? 'VENCIDO' : 'VENCE PRONTO';
 
@@ -680,31 +1002,28 @@ class _StatusTag extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  // ... (Tu código de _EmptyState va aquí, sin cambios)
   const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: EdgeInsets.symmetric(vertical: 48.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.store_mall_directory_outlined,
+            Icon(Icons.store_mall_directory_outlined,
                 size: 80, color: Colors.white24),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
+            Text('Añade categorías',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 22,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
             Text(
-              'Tu tienda está vacía',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(color: Colors.white),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Toca el botón "+" para añadir tu primer producto y empezar a vender.',
+              'Crea categorías en "Gestor de Contenido" para empezar a añadir productos.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.white60),
             ),
@@ -716,36 +1035,29 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _LoadingSkeleton extends StatelessWidget {
-  // ... (Tu código de _LoadingSkeleton va aquí, sin cambios)
   const _LoadingSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    // --- MODIFICADO: Lo convertí en Sliver para que funcione ---
     return SliverPadding(
       padding: const EdgeInsets.all(16.0),
-      sliver: SliverGrid.builder(
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 350,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.85,
-        ),
-        itemCount: 6,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF2D2D5A).withAlpha(128),
-              borderRadius: BorderRadius.circular(16),
+      sliver: SliverList(
+        delegate: SliverChildListDelegate(
+          [
+            Container(
+              height: 220,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2D2D5A).withAlpha(128),
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 }
 
-// --- ¡NUEVO WIDGET PARA LA TARJETA DE ORDEN! ---
 class _OrderCard extends StatelessWidget {
   final OrderModel order;
   const _OrderCard({required this.order});
@@ -755,231 +1067,110 @@ class _OrderCard extends StatelessWidget {
     const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-      child: Container(
-        decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: accentColor.withAlpha(100))),
-        child: ListTile(
-          leading: const Icon(Icons.receipt_long_outlined, color: accentColor),
-          title: Text(
-            // Muestra el primer item como título
-            order.items.isNotEmpty
-                ? order.items.first['name']
-                : 'Orden Desconocida',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(
-            'Cliente: ${order.clientName} - Total: \$${order.total.toStringAsFixed(2)}',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38),
+    return Container(
+      width: 300,
+      margin: const EdgeInsets.only(right: 12.0),
+      decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accentColor.withAlpha(100))),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
           onTap: () {
-            // Navega a la pantalla de detalles para verificar
             Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => OrderDetailScreen(order: order),
             ));
           },
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined,
+                        color: accentColor, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Venta Pendiente',
+                      style: TextStyle(
+                          color: accentColor, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  order.items.isNotEmpty
+                      ? order.items.first['name']
+                      : 'Orden Desconocida',
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Cliente: ${order.clientName} - \$${order.total.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-// --- ¡NUEVO WIDGET AUXILIAR PARA LA TARJETA DE VIDEO! ---
-// --- ¡MOVIDO A SU LUGAR CORRECTO! ---
-class _VideoCard extends StatelessWidget {
-  final VideoShowcaseModel video;
-  const _VideoCard({required this.video});
+
+// (NUEVO) Tarjeta para gestionar todos los videos
+class _ManageAllVideosCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ManageAllVideosCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    const surfaceColor = Color(0xFF2D2D5A);
     const accentColor = Color(0xFF00BFFF);
+    const surfaceColor = Color(0xFF2D2D5A);
 
     return GestureDetector(
-      onTap: () {
-        // TODO: Navegar al editor de video (AddEditVideoScreen)
-        // Navigator.of(context).push(MaterialPageRoute(
-        //   builder: (_) => AddEditVideoScreen(user: user, videoToEdit: video),
-        // ));
-      },
+      onTap: onTap,
       child: Container(
-        width: 120, // Ancho de la tarjeta
+        width: 120,
         margin: const EdgeInsets.only(right: 12.0),
         decoration: BoxDecoration(
-          color: surfaceColor,
+          color: surfaceColor.withAlpha(100),
           borderRadius: BorderRadius.circular(12),
-          image: video.thumbnailUrl.isNotEmpty
-              ? DecorationImage(
-                  image: NetworkImage(video.thumbnailUrl),
-                  fit: BoxFit.cover,
-                )
-              : null,
+          border: Border.all(
+            color: accentColor.withAlpha(150),
+            width: 2,
+          ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Overlay oscuro
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withAlpha(178)], // <-- CORREGIDO
-                ),
+            Icon(Icons.video_library_rounded,
+                color: accentColor, size: 40),
+            SizedBox(height: 8),
+            Text(
+              'Gestionar\nVideos',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
               ),
             ),
-            // Icono de Play
-            const Center(
-              child: Icon(Icons.play_circle_outline_rounded,
-                  color: Colors.white70, size: 40),
-            ),
-            // Título del video
-            Positioned(
-              bottom: 8,
-              left: 8,
-              right: 8,
-              child: Text(
-                video.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // Indicador de "Promocionado" (¡Lógica de negocio!)
-            if (video.isPromoted)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: accentColor,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'PROMO',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
     );
-    }
-}
-
-Widget _buildVideoPromoSection(BuildContext context, UserModel user) {
-    final videoService = context.read<VideoService>();
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
-
-    return StreamBuilder<List<VideoShowcaseModel>>(
-      stream: videoService.getVideoShowcasesByProvider(user.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SliverToBoxAdapter(
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(color: accentColor),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return SliverToBoxAdapter(
-            // ... (código de error sin cambios)
-          );
-        }
-
-        // --- ¡MODIFICADO! ---
-        // Ya no comprobamos si está vacío aquí,
-        // lo hacemos en el builder de la lista.
-        final videos = snapshot.data ?? [];
-        // --- FIN MODIFICACIÓN ---
-
-        return SliverMainAxisGroup(
-          slivers: [
-            // 1. Carrusel Horizontal de Videos + Botón de Añadir
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 150, // Altura del carrusel
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  
-                  // --- ¡MODIFICACIÓN! ---
-                  // +1 para el botón de "Añadir"
-                  itemCount: videos.length + 1, 
-                  // --- FIN MODIFICACIÓN ---
-                  
-                  itemBuilder: (context, index) {
-                    
-                    // --- ¡NUEVA LÓGICA! ---
-                    if (index == videos.length) {
-                      // Si es el último item, muestra la tarjeta de "Añadir"
-                      return _AddVideoCard(
-                        onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => AddEditVideoScreen(user: user),
-                          ));
-                        },
-                      );
-                    }
-                    // --- FIN NUEVA LÓGICA ---
-
-                    // Si no, muestra la tarjeta de video normal
-                    final video = videos[index];
-                    return _VideoCard(video: video);
-                  },
-                ),
-              ),
-            ),
-            
-            // 2. Botón "Gestionar Todo" (Solo aparece si tienes videos)
-            if (videos.isNotEmpty) // <-- ¡MODIFICADO!
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.video_library_rounded, size: 20),
-                    label: const Text('Ver/Gestionar todos los videos'),
-                    style: OutlinedButton.styleFrom(
-                        foregroundColor: accentColor,
-                        backgroundColor: surfaceColor.withAlpha(150),
-                        side: const BorderSide(color: surfaceColor),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        textStyle:
-                            const TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => VideoManagerScreen(user: user),
-                      ));
-                    },
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
   }
+}
 
 // --- ¡NUEVO WIDGET AUXILIAR PARA AÑADIR VIDEOS! ---
 class _AddVideoCard extends StatelessWidget {
