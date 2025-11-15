@@ -43,6 +43,12 @@ class ProviderProfileModel {
   final String? tiktok;
   // --- FIN NUEVOS CAMPOS ---
 
+  // --- ¡NUEVO CAMPO DE PARTNERS! ---
+  /// Lista de partners (marcas) con las que trabaja el proveedor.
+  /// Ej: [{'name': 'Marca A', 'logoUrl': 'http://...'}]
+  final List<Map<String, dynamic>> partners;
+  // --- FIN NUEVO CAMPO ---
+
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
   final String welcomeModuleType; // 'text' o 'video'
@@ -80,6 +86,7 @@ class ProviderProfileModel {
     this.instagram,
     this.facebook,
     this.tiktok,
+    this.partners = const [], // <-- AÑADIDO (default a lista vacía)
     // Welcome module fields
     required this.welcomeMessage,
     this.showWelcomeModule = true,
@@ -109,6 +116,13 @@ class ProviderProfileModel {
     final bookingModule = personalization['bookingModule'] as Map<String, dynamic>? ?? {};
     final quotesModule = personalization['quotesModule'] as Map<String, dynamic>? ?? {};
 
+    // --- ¡NUEVO! Leer la lista de partners de forma segura ---
+    final List<Map<String, dynamic>> partnersList =
+        (personalization['partners'] as List<dynamic>?)
+                ?.map((item) => Map<String, dynamic>.from(item as Map))
+                .toList() ??
+            [];
+
     return ProviderProfileModel(
       providerId: doc.id,
       businessName: personalization['businessName'] as String? ?? 'Nombre del Negocio',
@@ -132,6 +146,7 @@ class ProviderProfileModel {
       instagram: personalization['instagram'] as String?,
       facebook: personalization['facebook'] as String?,
       tiktok: personalization['tiktok'] as String?,
+      partners: partnersList, // <-- AÑADIDO
 
       // Leer campos del módulo de bienvenida
       showWelcomeModule: welcomeModule['show'] as bool? ?? true,
@@ -172,6 +187,7 @@ class ProviderProfileModel {
     String? instagram,
     String? facebook,
     String? tiktok,
+    List<Map<String, dynamic>>? partners, // <-- AÑADIDO
     // Welcome module
     String? welcomeMessage,
     bool? showWelcomeModule,
@@ -206,6 +222,7 @@ class ProviderProfileModel {
       instagram: instagram ?? this.instagram,
       facebook: facebook ?? this.facebook,
       tiktok: tiktok ?? this.tiktok,
+      partners: partners ?? this.partners, // <-- AÑADIDO
       // Welcome module
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
@@ -243,6 +260,7 @@ class ProviderProfileModel {
       'instagram': instagram,
       'facebook': facebook,
       'tiktok': tiktok,
+      'partners': partners, // <-- AÑADIDO
 
       // --- Módulos Anidados ---
       'welcomeModule': {

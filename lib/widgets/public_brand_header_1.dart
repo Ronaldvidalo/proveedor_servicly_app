@@ -2,22 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/widgets/contact_icon_button.dart';
 import 'package:proveedor_servicly_app/widgets/info_chip.dart'; // Para el helper IconsKE
+import 'package:proveedor_servicly_app/widgets/follow_button.dart'; // <-- ¡NUEVA IMPORTACIÓN!
 
 /// PLANTILLA 1: El Header Público Principal (Estilo Tarjeta de Presentación)
 class PublicBrandHeader1 extends StatelessWidget {
   final ProviderProfileModel profile;
   final Function(String) onLaunchUrl;
   
-  // Lógica de "Seguir" (vendrá del widget padre)
-  final bool isFollowing;
-  final VoidCallback onFollowTap;
+  // --- CAMPOS MODIFICADOS ---
+  // Ya no recibimos 'isFollowing' ni 'onFollowTap'
+  // Recibimos el ID del cliente que está viendo.
+  final String? clientId;
 
   const PublicBrandHeader1({
     super.key,
     required this.profile,
     required this.onLaunchUrl,
-    required this.isFollowing,
-    required this.onFollowTap,
+    this.clientId, // <-- AÑADIDO
   });
 
   @override
@@ -25,7 +26,7 @@ class PublicBrandHeader1 extends StatelessWidget {
     const surfaceColor = Color(0xFF2D2D5A);
     const accentColor = Color(0xFF00BFFF);
 
-    // Preparamos la lista de iconos de contacto
+    // (La lógica de 'contactIcons' no cambia...)
     final List<Widget> contactIcons = [];
     if (profile.phone != null && profile.phone!.isNotEmpty) {
       contactIcons.add(ContactIconButton(icon: Icons.phone, tooltip: 'Llamar', onTap: () => onLaunchUrl('tel:${profile.phone}')));
@@ -59,7 +60,7 @@ class PublicBrandHeader1 extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // --- 1. Logo Grande (100px) ---
+          // ... (Logo, Nombre, Eslogan, Dirección no cambian) ...
           Container(
             width: 100,
             height: 100,
@@ -78,10 +79,7 @@ class PublicBrandHeader1 extends StatelessWidget {
                 ? const Icon(Icons.store, size: 50, color: Colors.white24)
                 : null,
           ),
-          
           const SizedBox(height: 16),
-
-          // --- 2. Textos Centrales ---
           Text(
             profile.businessName,
             textAlign: TextAlign.center,
@@ -92,7 +90,6 @@ class PublicBrandHeader1 extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
-          
           if (profile.welcomeMessage.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
@@ -107,7 +104,6 @@ class PublicBrandHeader1 extends StatelessWidget {
               ),
             ),
           ],
-
           if (profile.address != null && profile.address!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(
@@ -126,23 +122,17 @@ class PublicBrandHeader1 extends StatelessWidget {
               ],
             ),
           ],
-
+          
           const SizedBox(height: 24),
 
-          // --- 3. Botones de Acción (Seguir / Mensaje) ---
+          // --- 3. Botones de Acción (¡MODIFICADO!) ---
           Row(
             children: [
               Expanded(
-                child: FilledButton.icon(
-                  icon: Icon(isFollowing ? Icons.check : Icons.add_rounded, size: 18),
-                  label: Text(isFollowing ? 'Siguiendo' : 'Seguir'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isFollowing ? surfaceColor : accentColor,
-                    foregroundColor: isFollowing ? accentColor : Colors.black,
-                    side: isFollowing ? BorderSide(color: accentColor.withAlpha(100)) : null,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: onFollowTap,
+                // ¡Usamos el nuevo widget!
+                child: FollowButton(
+                  providerId: profile.providerId,
+                  clientId: clientId,
                 ),
               ),
               const SizedBox(width: 16),
@@ -163,7 +153,7 @@ class PublicBrandHeader1 extends StatelessWidget {
             ],
           ),
 
-          // --- 4. Barra de Iconos de Contacto ---
+          // --- 4. Barra de Iconos de Contacto (Sin cambios) ---
           if (contactIcons.isNotEmpty) ...[
             const SizedBox(height: 24),
             const Divider(color: Colors.white10, height: 1),

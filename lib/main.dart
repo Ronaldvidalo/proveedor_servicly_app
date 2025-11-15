@@ -30,6 +30,7 @@ import 'core/services/category_service.dart';
 import 'core/services/agenda_service.dart';
 import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 import 'package:proveedor_servicly_app/core/services/video_service.dart';
+import 'package:proveedor_servicly_app/core/services/follow_service.dart';
 
 // --- Modelos y ViewModels ---
 import 'core/models/user_model.dart';
@@ -104,6 +105,7 @@ class MyApp extends StatelessWidget {
         Provider<AgendaService>(create: (_) => AgendaService()),
         Provider<OrderService>(create: (_) => OrderService()),
         Provider<VideoService>(create: (_) => VideoService()),
+        Provider<FollowService>(create: (_) => FollowService()),
 
         // 2. FirestoreService (necesario para los demás)
         Provider<FirestoreService>(create: (_) => FirestoreService()),

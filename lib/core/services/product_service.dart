@@ -56,6 +56,25 @@ class ProductService {
     });
   }
 
+  // --- ¡MÉTODO FALTANTE AÑADIDO AQUÍ! ---
+  /// Obtiene un stream de productos FILTRADOS POR CATEGORÍA.
+  /// Usado para los carruseles en ManageStoreScreen.
+  Stream<List<ProductModel>> getProductsByCategory(String userId, String categoryId, {int? limit}) {
+    
+    Query<Map<String, dynamic>> query = _productsCollection(userId)
+        .where('categoryId', isEqualTo: categoryId) // <-- El filtro clave
+        .orderBy('createdAt', descending: true);
+
+    if (limit != null && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+    });
+  }
+  // --- FIN DEL NUEVO MÉTODO ---
+
   /// Añade un nuevo producto a Firestore para un usuario específico.
   Future<void> addProduct(String userId, ProductModel product) async {
     await _productsCollection(userId).add(product.toJson());

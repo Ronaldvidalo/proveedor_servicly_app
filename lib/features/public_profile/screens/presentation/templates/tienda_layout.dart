@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async'; // Para StreamSubscription
 
 // --- Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
@@ -21,17 +22,21 @@ import 'package:proveedor_servicly_app/features/manage_store/presentation/screen
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/cart/screens/cart_screen.dart';
 import 'package:proveedor_servicly_app/widgets/public_brand_header_1.dart';
+import 'package:proveedor_servicly_app/widgets/partners_carousel.dart';
+import 'package:proveedor_servicly_app/core/services/follow_service.dart';
+
+// --- Asumo que tienes un AuthService para obtener el cliente actual ---
+import 'package:proveedor_servicly_app/core/services/auth_service.dart'; 
+
 
 // --- CORRECCIÓN 1: Ruta de importación DEFINITIVA ---
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
-
-/// Un widget de layout que muestra el perfil de un proveedor con un estilo de "tienda".
 class TiendaLayout extends StatefulWidget {
   final String providerId;
   final ProviderProfileModel profile;
   // TODO: Necesitaremos el ID del cliente actual para la lógica de "Seguir"
-  // final String currentClientId;
+  // final String currentClientId; // <-- ¡LO OBTENDREMOS DEL AUTH_SERVICE!
 
   const TiendaLayout({
     super.key,
@@ -44,18 +49,41 @@ class TiendaLayout extends StatefulWidget {
   State<TiendaLayout> createState() => _TiendaLayoutState();
 }
 
+/// Un widget de layout que muestra el perfil de un proveedor con un estilo de "tienda".
 class _TiendaLayoutState extends State<TiendaLayout> {
-  // Lógica de "Seguir" (por ahora, simulada)
-  // TODO: Cargar esto desde un servicio (ej. followService.isFollowing(...))
-  bool _isFollowing = false;
 
-  void _onFollowTap() {
-    setState(() {
-      _isFollowing = !_isFollowing;
-    });
-    // TODO: Llamar al servicio real:
-    // ...
+  // --- LÓGICA DE SEGUIMIENTO ELIMINADA ---
+  // Toda la lógica de _isFollowing, _isLoadingFollow, _followService y _onFollowTap
+  // se ha movido al widget 'FollowButton', tal como lo definiste.
+  
+  // Solo necesitamos el ID del cliente actual para pasarlo al header.
+  late final String? _currentClientId;
+  // --- FIN DE LA MODIFICACIÓN ---
+
+
+  // --- Conectar los servicios en initState ---
+  @override
+  void initState() {
+    super.initState();
+    // 1. Obtenemos el AuthService
+    final authService = context.read<AuthService>();
+    
+    // 2. Obtenemos el ID del cliente (el usuario logueado)
+    // (Tu AuthService usa 'currentUser.uid', así que esto es correcto)
+    _currentClientId = authService.currentUser?.uid; 
+
+    // 3. Lógica de suscripción eliminada.
   }
+
+  // --- Limpiar la suscripción ---
+  @override
+  void dispose() {
+    // Suscripción eliminada.
+    super.dispose();
+  }
+
+  // --- Función _onFollowTap eliminada ---
+  // (Ahora está encapsulada en FollowButton)
 
 
   /// Para lanzar URLs
@@ -97,9 +125,6 @@ class _TiendaLayoutState extends State<TiendaLayout> {
         ],
       ),
 
-      // --- 💡 INICIO DE LA CORRECCIÓN ---
-      // Proveemos el 'profile' que recibimos a todos los widgets hijos del body.
-      // Ahora _ProductCarousel y _ProductCard podrán encontrarlo.
       body: Provider.value(
         value: widget.profile, // Aquí inyectamos el modelo
         child: CustomScrollView(
@@ -108,13 +133,35 @@ class _TiendaLayoutState extends State<TiendaLayout> {
             SliverToBoxAdapter(
               child: PublicBrandHeader1(
                 profile: widget.profile,
-                isFollowing: _isFollowing,
-                onFollowTap: _onFollowTap,
                 onLaunchUrl: _launchURL,
+                
+                // --- MODIFICACIÓN CLAVE ---
+                // Ya no pasamos 'isFollowing' ni 'onFollowTap'
+                // Solo pasamos el ID del cliente
+                clientId: _currentClientId,
+                // --- FIN DE LA MODIFICACIÓN ---
+              ),
+            ),
+            
+            // --- ¡NUEVA SECCIÓN 2: PARTNERS! ---
+            SliverToBoxAdapter(
+              child: PartnersCarousel(
+                partners: widget.profile.partners,
               ),
             ),
 
-            // --- SECCIÓN 2: Calificaciones (¡NUEVO!) ---
+            
+            // --- SECCIÓN 2: Gestor de Promoción (Videos) ---
+            _buildSectionTitle('Videos del Proveedor', false),
+            _buildVideoPromoSection(context, widget.profile.providerId),
+
+            // --- SECCIÓN 3: Productos de la Tienda ---
+            _buildSectionTitle('Nuestros Productos', false),
+
+            // _buildProductsByCategoriesSection ES el contenido de la Sección 4
+            _buildProductsByCategoriesSection(context, widget.profile.providerId),
+
+            // --- SECCIÓN 5: Calificaciones (¡NUEVO!) ---
             _buildSectionTitle('Calificaciones y Comentarios', false),
             SliverToBoxAdapter(
               child: Container(
@@ -127,24 +174,14 @@ class _TiendaLayoutState extends State<TiendaLayout> {
               )
             ),
 
-            // --- SECCIÓN 3: Gestor de Promoción (Videos) ---
-            _buildSectionTitle('Videos del Proveedor', false),
-            _buildVideoPromoSection(context, widget.profile.providerId),
-
-            // --- SECCIÓN 4: Productos de la Tienda ---
-            _buildSectionTitle('Nuestros Productos', false),
-
-            // _buildProductsByCategoriesSection ES el contenido de la Sección 4
-            _buildProductsByCategoriesSection(context, widget.profile.providerId),
-
 
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         ),
       ),
-      // --- 💡 FIN DE LA CORRECCIÓN ---
     );
   }
+
 
   // --- WIDGET PARA SECCIÓN 3 (Videos) ---
   Widget _buildVideoPromoSection(BuildContext context, String providerId) {
@@ -262,10 +299,12 @@ class _TiendaLayoutState extends State<TiendaLayout> {
       ),
     );
   }
-} // --- FIN DE LA CLASE TiendaLayout ---
+  
+} 
+// --- FIN DE LA CLASE _TiendaLayoutState ---
 
 // ===================================================================
-// --- WIDGETS AUXILIARES (COPIADOS Y ADAPTADOS) ---
+// --- WIDGETS AUXILIARES (AHORA FUERA DE LA CLASE) ---
 // ===================================================================
 
 /// Fila de Productos para una Categoría Específica
@@ -305,7 +344,6 @@ class _ProductCarousel extends StatelessWidget {
           SizedBox(
             height: 220, // Altura fija para el carrusel
             child: StreamBuilder<List<ProductModel>>(
-              // --- CORRECCIÓN 2: Argumento nombrado 'categoryId' ---
               stream: productService.getProducts(providerId, categoryId: category.id, limit: 5),
               builder: (context, productSnapshot) {
                 if (productSnapshot.connectionState == ConnectionState.waiting) {
@@ -341,11 +379,9 @@ class _ProductCarousel extends StatelessWidget {
                       padding: const EdgeInsets.only(right: 12.0),
                       child: SizedBox(
                         width: 160,
-                        // Usamos el _ProductCard local que sabe mostrar el Dialog
                         child: _ProductCard(
                           product: product,
                           brandColor: brandColor,
-                          // El onTap ahora se maneja internamente en _ProductCard
                         ),
                       ),
                     );
@@ -369,10 +405,8 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tomamos la lógica de onContact del layout anterior
-    // Esta línea ahora funciona gracias a la importación
     final crmRepository = context.read<CrmRepository>();
-    final providerId = context.read<ProviderProfileModel>().providerId;
+    final providerId = context.watch<ProviderProfileModel>().providerId;
     
     // Función de contacto
     void onContact(String contactType) async {
@@ -711,7 +745,7 @@ class _EmptyState extends StatelessWidget {
     return const SliverFillRemaining(
       child: Center(
         child: Padding(
-          padding: EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

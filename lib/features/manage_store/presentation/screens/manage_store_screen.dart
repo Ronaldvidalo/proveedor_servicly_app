@@ -48,6 +48,8 @@ import 'package:proveedor_servicly_app/widgets/brand_header_card.dart';
 import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 import 'package:proveedor_servicly_app/widgets/stats_summary_card.dart';
 import 'package:proveedor_servicly_app/widgets/pending_orders_carousel.dart';
+import 'package:proveedor_servicly_app/widgets/provider_stats_panel.dart';
+
 
 class ManageStoreScreen extends StatelessWidget {
   final UserModel user;
@@ -171,15 +173,11 @@ class ManageStoreScreen extends StatelessWidget {
           ),
 
           // --- ¡NUEVA SECCIÓN 2: Estadísticas! ---
+        // --- ¡SECCIÓN 2: Estadísticas (AHORA CON DATOS REALES)! ---
           _buildSectionTitle('Resumen de Actividad', false),
           SliverToBoxAdapter(
-            child: StatsSummaryCard(
-              // TODO: Conectar esto a servicios reales
-              profileViews: 134, // Dato de ejemplo
-              newFollowers: 12,  // Dato de ejemplo
-              totalClients: 45,  // Dato de ejemplo
-            ),
-          ),
+          child: ProviderStatsPanel(userId: user.uid),
+        ),
 
           // --- SECCIÓN 3: Ventas/Órdenes Pendientes (Carrusel) ---
           _buildSectionTitle('Ventas Pendientes', false),
@@ -426,6 +424,7 @@ class ManageStoreScreen extends StatelessWidget {
   }
 
   // --- WIDGET AUXILIAR PARA TÍTULOS DE SECCIÓN ---
+  
   Widget _buildSectionTitle(String title, bool isFirst) {
     return SliverToBoxAdapter(
       child: Padding(
