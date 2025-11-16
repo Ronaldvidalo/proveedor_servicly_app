@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- NUEVO ENUM ---
+// --- NUEVO ENUM CON 'pending_payment' AÑADIDO ---
 // Usar un Enum para los estados de la orden es una práctica mucho
 // más limpia y segura que usar Strings sueltos.
 enum OrderStatus {
+  pending_payment,      // <--- ¡NUEVO! El cliente NO ha subido el comprobante (ej. acaba de crear la orden)
   pending_verification, // El cliente subió el comprobante, el proveedor debe revisar
   completed,            // El proveedor confirmó el pago
   cancelled,            // El proveedor o cliente canceló la orden
@@ -30,10 +31,10 @@ class OrderModel {
   final List<Map<String, dynamic>> items;
   // Ejemplo de un item:
   // {
-  //   'productId': 'xyz123',
-  //   'name': 'Servicio de Plomería',
-  //   'price': 50.00,
-  //   'quantity': 1,
+  // 	'productId': 'xyz123',
+  // 	'name': 'Servicio de Plomería',
+  // 	'price': 50.00,
+  // 	'quantity': 1,
   // }
 
   final double total;
@@ -76,14 +77,18 @@ class OrderModel {
 
     // Conversión segura de Lista de Items
     final List<Map<String, dynamic>> itemsList = (data['items'] as List<dynamic>?)
-            ?.map((item) => Map<String, dynamic>.from(item as Map))
-            .toList() ??
+        ?.map((item) => Map<String, dynamic>.from(item as Map))
+        .toList() ??
         [];
     
     // Conversión segura del String del 'status' al Enum 'OrderStatus'
     final String statusString = data['status'] as String? ?? 'pending_verification';
     final OrderStatus status = OrderStatus.values.firstWhere(
       (e) => e.name == statusString,
+      // Si el estado no se encuentra, usamos 'pending_payment' como un default seguro
+      // en lugar de 'pending_verification' si la orden es nueva, aunque 'pending_verification'
+      // también es una opción válida si prefieres ese default. 
+      // Mantenemos 'pending_verification' como lo tenías.
       orElse: () => OrderStatus.pending_verification,
     );
 

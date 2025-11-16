@@ -48,7 +48,42 @@ class OrderService {
     // Si ves un error en la consola, Firebase te dará el link para crearlo con un clic.
   }
 
-  /// 3. updateOrderStatus(String orderId, OrderStatus newStatus)
+  // --- ¡NUEVO MÉTODO AÑADIDO! ---
+  /// 3. getCompletedOrders(String providerId)
+  /// Devuelve un Stream de las órdenes que ya fueron aprobadas.
+  Stream<List<OrderModel>> getCompletedOrders(String providerId) {
+    return _db
+        .collection('orders')
+        .where('providerId', isEqualTo: providerId)
+        .where('status', isEqualTo: OrderStatus.completed.name) // Filtra solo por completadas
+        .orderBy('updatedAt', descending: true) // Muestra las más recientes primero
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => OrderModel.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+  // --- ¡NUEVO MÉTODO AÑADIDO! ---
+  /// 4. getCancelledOrders(String providerId)
+  /// Devuelve un Stream de las órdenes que fueron rechazadas o canceladas.
+  Stream<List<OrderModel>> getCancelledOrders(String providerId) {
+    return _db
+        .collection('orders')
+        .where('providerId', isEqualTo: providerId)
+        .where('status', isEqualTo: OrderStatus.cancelled.name) // Filtra solo por canceladas
+        .orderBy('updatedAt', descending: true) // Muestra las más recientes primero
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => OrderModel.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+
+  /// 5. updateOrderStatus(String orderId, OrderStatus newStatus)
   /// Lo llama el proveedor al aprobar ('completed') o rechazar ('cancelled') un pago.
   Future<void> updateOrderStatus(String orderId, OrderStatus newStatus) async {
     try {

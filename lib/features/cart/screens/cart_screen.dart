@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
-
 import '../../../../core/models/cart_item_model.dart';
+// --- ¡IMPORTACIÓN AÑADIDA! ---
+import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
@@ -10,7 +11,8 @@ class CartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const backgroundColor = Color(0xFF1A1A2E);
-    final brandColor = Theme.of(context).primaryColor; // Usaremos un color de acento genérico
+    // --- CORRECCIÓN: Usa el color de acento directamente ---
+    const brandColor = Color(0xFF00BFFF); // Color Cyber Glow
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -30,7 +32,7 @@ class CartScreen extends StatelessWidget {
                   Icon(Icons.remove_shopping_cart_outlined, size: 80, color: Colors.white24),
                   SizedBox(height: 24),
                   Text('Tu carrito está vacío',
-                    style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold)),
                 ],
               ),
             );
@@ -148,11 +150,13 @@ class _CartSummary extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
+              // --- ¡NAVEGACIÓN P2P ACTUALIZADA! ---
               onPressed: () {
-                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Función de pago no implementada.'), backgroundColor: Colors.blueAccent),
-                );
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CheckoutScreen(cart: cart),
+                ));
               },
+              // --- FIN DE LA ACTUALIZACIÓN ---
               style: FilledButton.styleFrom(
                 backgroundColor: brandColor,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -160,8 +164,8 @@ class _CartSummary extends StatelessWidget {
               child: const Text('Proceder al Pago', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
-           const SizedBox(height: 12),
-           TextButton(
+            const SizedBox(height: 12),
+            TextButton(
             onPressed: () => cart.clearCart(),
             child: const Text('Vaciar Carrito', style: TextStyle(color: Colors.redAccent))
           ),

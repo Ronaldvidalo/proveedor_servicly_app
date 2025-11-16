@@ -41,13 +41,12 @@ class ProviderProfileModel {
   final String? instagram;
   final String? facebook;
   final String? tiktok;
-  // --- FIN NUEVOS CAMPOS ---
 
   // --- ¡NUEVO CAMPO DE PARTNERS! ---
-  /// Lista de partners (marcas) con las que trabaja el proveedor.
-  /// Ej: [{'name': 'Marca A', 'logoUrl': 'http://...'}]
   final List<Map<String, dynamic>> partners;
-  // --- FIN NUEVO CAMPO ---
+  
+  // --- ¡NUEVO CAMPO DE PAGO P2P! ---
+  final String? paymentInstructions; // <-- ¡AÑADIDO! (1/5)
 
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
@@ -86,7 +85,8 @@ class ProviderProfileModel {
     this.instagram,
     this.facebook,
     this.tiktok,
-    this.partners = const [], // <-- AÑADIDO (default a lista vacía)
+    this.partners = const [],
+    this.paymentInstructions, // <-- ¡AÑADIDO! (2/5)
     // Welcome module fields
     required this.welcomeMessage,
     this.showWelcomeModule = true,
@@ -146,7 +146,8 @@ class ProviderProfileModel {
       instagram: personalization['instagram'] as String?,
       facebook: personalization['facebook'] as String?,
       tiktok: personalization['tiktok'] as String?,
-      partners: partnersList, // <-- AÑADIDO
+      partners: partnersList,
+      paymentInstructions: personalization['paymentInstructions'] as String?, // <-- ¡AÑADIDO! (3/5)
 
       // Leer campos del módulo de bienvenida
       showWelcomeModule: welcomeModule['show'] as bool? ?? true,
@@ -187,7 +188,8 @@ class ProviderProfileModel {
     String? instagram,
     String? facebook,
     String? tiktok,
-    List<Map<String, dynamic>>? partners, // <-- AÑADIDO
+    List<Map<String, dynamic>>? partners,
+    String? paymentInstructions, // <-- ¡AÑADIDO! (4/5)
     // Welcome module
     String? welcomeMessage,
     bool? showWelcomeModule,
@@ -222,7 +224,8 @@ class ProviderProfileModel {
       instagram: instagram ?? this.instagram,
       facebook: facebook ?? this.facebook,
       tiktok: tiktok ?? this.tiktok,
-      partners: partners ?? this.partners, // <-- AÑADIDO
+      partners: partners ?? this.partners,
+      paymentInstructions: paymentInstructions ?? this.paymentInstructions, // <-- ¡AÑADIDO!
       // Welcome module
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
@@ -260,7 +263,8 @@ class ProviderProfileModel {
       'instagram': instagram,
       'facebook': facebook,
       'tiktok': tiktok,
-      'partners': partners, // <-- AÑADIDO
+      'partners': partners,
+      'paymentInstructions': paymentInstructions, // <-- ¡AÑADIDO! (5/5)
 
       // --- Módulos Anidados ---
       'welcomeModule': {

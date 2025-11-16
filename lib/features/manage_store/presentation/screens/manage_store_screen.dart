@@ -49,6 +49,7 @@ import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 import 'package:proveedor_servicly_app/widgets/stats_summary_card.dart';
 import 'package:proveedor_servicly_app/widgets/pending_orders_carousel.dart';
 import 'package:proveedor_servicly_app/widgets/provider_stats_panel.dart';
+import 'package:proveedor_servicly_app/widgets/pending_sales_summary.dart';
 
 
 class ManageStoreScreen extends StatelessWidget {
@@ -180,10 +181,15 @@ class ManageStoreScreen extends StatelessWidget {
         ),
 
           // --- SECCIÓN 3: Ventas/Órdenes Pendientes (Carrusel) ---
+          // --- SECCIÓN 3: Ventas/Órdenes Pendientes (REFACTORIZADA) ---
           _buildSectionTitle('Ventas Pendientes', false),
-          SliverToBoxAdapter(
-            child: PendingOrdersCarousel(user: user),
-          ),
+         SliverToBoxAdapter(
+         child: Padding(
+         padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          // Reemplazamos el carrusel por el nuevo widget de resumen
+         child: PendingSalesSummary(providerId: user.uid),
+      ),
+    ),
 
           // --- SECCIÓN 4: Gestor de Promoción (Videos) ---
           _buildSectionTitle('Mis Videos Promocionales', false),

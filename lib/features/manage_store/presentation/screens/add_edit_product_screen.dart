@@ -9,14 +9,10 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-import 'package:proveedor_servicly_app/core/models/category_model.dart';
+// import 'package:proveedor_servicly_app/core/models/category_model.dart'; // <-- Importación duplicada eliminada
 
 // --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 14/10/2025
-// Style: Cyber Glow
-// This screen was refactored to use a responsive GridView layout,
-// custom product cards, and an enhanced loading/empty state experience,
-// aligning with the "Cyber Glow" design philosophy.
+// ... (comentarios omitidos) ...
 // --- MODIFICACIÓN: Añadido soporte para 'quantity' y 'mediaGallery' ---
 // ---------------------------------
 
@@ -205,6 +201,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         price: double.tryParse(_priceController.text) ?? 0.0,
+        // --- ¡CORRECCIÓN! AÑADIDO providerId ---
+        providerId: widget.user.uid,
+        // --- FIN DE CORRECCIÓN ---
         expiryDate: _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
         createdAt: widget.productToEdit?.createdAt ?? Timestamp.now(),
         imageUrl: imageUrl, // La imagen principal
@@ -270,7 +269,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         // OJO: Aquí deberías también borrar todos los archivos de
         // Storage (imagen principal, galería) para ahorrar costos.
          if (navigator.canPop()) {
-           navigator.pop();
+            navigator.pop();
          }
         messenger.showSnackBar(const SnackBar(content: Text('Producto eliminado.'), backgroundColor: Colors.orange));
       } catch (e) {
@@ -296,20 +295,13 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     // --- FIN NUEVO ---
     
     final inputDecoration = InputDecoration(
-      filled: true,
-      fillColor: surfaceColor,
-      labelStyle: const TextStyle(color: Colors.white70),
-      hintStyle: const TextStyle(color: Colors.white38),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: accentColor, width: 2),
-      ),
-      prefixStyle: const TextStyle(color: Colors.white, fontSize: 16)
-    );
+        filled: true,
+        fillColor: surfaceColor,
+        labelStyle: const TextStyle(color: Colors.white70),
+        hintStyle: const TextStyle(color: Colors.white38),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: accentColor, width: 2)), 
+        prefixStyle: const TextStyle(color: Colors.white, fontSize: 16));
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -368,7 +360,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                         onPressed: _isUploading || !isProPlan ? null : _pickGalleryVideo,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: isProPlan ? Colors.white : Colors.grey,
-                          side: BorderSide(color: isProPlan ? surfaceColor : Colors.grey.withOpacity(0.5))
+                          // --- CORRECCIÓN DE LINTER ---
+                          side: BorderSide(color: isProPlan ? surfaceColor : Colors.grey.withAlpha(128))
                         ),
                       ),
                     ),
@@ -502,10 +495,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                     // ... (resto del botón de guardar no cambia)
                     onPressed: _isUploading ? null : _saveProduct,
                     icon: _isUploading
-                        ? SizedBox(
+                        ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: const CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
+                            child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
                           )
                         : Icon(_isEditing ? Icons.save_alt_outlined : Icons.add_circle_outline),
                     label: Text(_isEditing ? 'Guardar Cambios' : 'Añadir Producto'),

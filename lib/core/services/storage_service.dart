@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart'; // Para debugPrint
-import 'package:path/path.dart' as p; // --- ¡IMPORTACIÓN AÑADIDA! ---
+import 'package:path/path.dart' as p;
 
 /// Un servicio para manejar las operaciones de subida y borrado de archivos a Firebase Storage.
 class StorageService {
@@ -11,13 +11,29 @@ class StorageService {
   StorageService({FirebaseStorage? storage})
       : _storage = storage ?? FirebaseStorage.instance;
 
+  // --- MÉTODO AÑADIDO PARA EL COMPROBANTE DE PAGO ---
+  /// Sube un archivo simple (ej. comprobante de pago) a una ruta específica.
+  /// 
+  /// Este es el método que faltaba y es invocado por CheckoutScreen.
+  Future<String> uploadFile(File file, String path) async {
+    try {
+      final ref = _storage.ref(path);
+      final uploadTask = await ref.putFile(file);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[StorageService] Error al subir archivo simple: $e');
+      rethrow;
+    }
+  }
+  // --- FIN DEL MÉTODO AÑADIDO ---
+
   /// Sube un archivo a Firebase Storage y reporta el progreso.
   Future<String> uploadFileWithProgress(
     File file,
     String path,
     Function(double) onProgress,
   ) async {
-    // ... (Este método de 'brandProfiles' está correcto) ...
     try {
       final ref = _storage.ref(path);
       final uploadTask = ref.putFile(file);
@@ -57,7 +73,6 @@ class StorageService {
     }
   }
 
-  // --- ¡NUEVO MÉTODO AÑADIDO! ---
   /// Sube un archivo (imagen o video) a la galería de un producto.
   Future<String> uploadGalleryMedia({
     required XFile file,
@@ -74,8 +89,6 @@ class StorageService {
       final ref = _storage.ref(storagePath);
 
       // 3. Subir el archivo
-      // Aquí es donde en el futuro podrías añadir compresión de video
-      // usando FFMPEG antes del putFile.
       final uploadTask = await ref.putFile(File(file.path));
 
       // 4. Obtener la URL de descarga
@@ -89,8 +102,6 @@ class StorageService {
       rethrow; // Relanzar para que _saveProduct lo atrape
     }
   }
-  // --- FIN DEL NUEVO MÉTODO ---
-
 
   /// Elimina un archivo de Firebase Storage usando su URL de descarga.
   Future<void> deleteFileByUrl(String fileUrl) async {

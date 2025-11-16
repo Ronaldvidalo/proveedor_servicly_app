@@ -7,6 +7,7 @@ import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
+import 'package:proveedor_servicly_app/features/settings/screens/manage_payment_methods_screen.dart';
 
 class BrandSettingsScreen extends StatefulWidget {
   final UserModel user;
@@ -471,6 +472,28 @@ class _BrandSettingsScreenState extends State<BrandSettingsScreen> {
                   ]
                 ),
                 // --- FIN DE NUEVA SECCIÓN ---
+                 const SizedBox(height: 24),
+                  _buildSectionCard(
+                  title: 'Métodos de Pago P2P',
+                  subtitle: 'Gestiona las cuentas donde recibirás tus pagos (CBU, Alias, Wallets).',
+                 children: [
+                  // Usamos un ListTile para que se vea como una opción de configuración
+                 ListTile(
+                 shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+               tileColor: const Color(0xFF1A1A2E), // Color de fondo (backgroundColor)
+               leading: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF00BFFF)),
+               title: const Text('Gestionar mis métodos de pago', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+               trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+               onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+               builder: (_) => ManagePaymentMethodsScreen(user: widget.user),
+            ));
+          },
+        ),
+    ]
+),
 
                 const SizedBox(height: 48),
                 SizedBox(

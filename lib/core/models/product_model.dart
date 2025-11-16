@@ -19,6 +19,10 @@ class ProductModel {
   final String? promoText;
   final String? categoryId;
 
+  // --- ¡CAMPO REQUERIDO AÑADIDO! ---
+  // El ID del proveedor que es dueño de este producto.
+  final String providerId;
+
   // --- ¡NUEVO CAMPO PARA INVENTARIO! ---
   /// La cantidad de stock disponible.
   /// Un valor 'null' puede significar "disponibilidad infinita" o "es un servicio".
@@ -26,14 +30,6 @@ class ProductModel {
 
   // --- ¡NUEVO CAMPO PARA GALERÍA! ---
   /// Una lista de mapas que representa la galería de medios.
-  /// Permite un carrusel de imágenes y/o un video.
-  ///
-  /// Ejemplo de uso:
-  /// [
-  ///   { 'type': 'image', 'url': 'https://.../img1.jpg' },
-  ///   { 'type': 'image', 'url': 'https://.../img2.jpg' },
-  ///   { 'type': 'video', 'url': 'https://.../promo.mp4', 'thumbnailUrl': 'https://.../thumb.jpg' }
-  /// ]
   final List<Map<String, dynamic>> mediaGallery;
 
   ProductModel({
@@ -42,13 +38,14 @@ class ProductModel {
     required this.description,
     required this.price,
     required this.createdAt,
+    required this.providerId, // <-- AÑADIDO
     this.expiryDate,
     this.imageUrl = '',
     this.promoPrice,
     this.promoText,
     this.categoryId,
-    this.quantity, // <-- AÑADIDO
-    this.mediaGallery = const [], // <-- AÑADIDO (default a lista vacía)
+    this.quantity, 
+    this.mediaGallery = const [],
   });
 
   /// Convierte un documento de Firestore a una instancia de [ProductModel].
@@ -67,13 +64,14 @@ class ProductModel {
       description: data['description'] as String? ?? '',
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+      providerId: data['providerId'] as String? ?? '', // <-- AÑADIDO
       expiryDate: data['expiryDate'] as Timestamp?,
       imageUrl: data['imageUrl'] as String? ?? '',
       promoPrice: (data['promoPrice'] as num?)?.toDouble(),
       promoText: data['promoText'] as String?,
       categoryId: data['categoryId'] as String?,
-      quantity: data['quantity'] as int?, // <-- AÑADIDO
-      mediaGallery: gallery, // <-- AÑADIDO
+      quantity: data['quantity'] as int?, 
+      mediaGallery: gallery,
     );
   }
 
@@ -84,13 +82,14 @@ class ProductModel {
       'description': description,
       'price': price,
       'createdAt': createdAt,
+      'providerId': providerId, // <-- AÑADIDO
       'expiryDate': expiryDate,
       'imageUrl': imageUrl,
       'promoPrice': promoPrice,
       'promoText': promoText,
       'categoryId': categoryId,
-      'quantity': quantity, // <-- AÑADIDO
-      'mediaGallery': mediaGallery, // <-- AÑADIDO
+      'quantity': quantity,
+      'mediaGallery': mediaGallery,
     };
   }
 

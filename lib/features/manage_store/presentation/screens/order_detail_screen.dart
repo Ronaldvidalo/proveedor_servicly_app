@@ -18,6 +18,43 @@ class OrderDetailScreen extends StatefulWidget {
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isLoading = false;
 
+  /// Muestra un diálogo de confirmación antes de ejecutar una acción.
+  Future<void> _showConfirmationDialog(OrderStatus newStatus) async {
+    final bool didConfirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D5A),
+        title: Text(
+          newStatus == OrderStatus.completed ? 'Aprobar Pago' : 'Rechazar Orden',
+          style: const TextStyle(color: Colors.white)
+        ),
+        content: Text(
+          newStatus == OrderStatus.completed
+              ? '¿Estás seguro de que has recibido el pago y deseas marcar esta orden como completada?'
+              : '¿Estás seguro de que deseas rechazar esta orden? Esta acción no se puede deshacer.',
+          style: const TextStyle(color: Colors.white70)
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white70)),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          TextButton(
+            child: Text(
+              newStatus == OrderStatus.completed ? 'Aprobar' : 'Rechazar',
+              style: TextStyle(color: newStatus == OrderStatus.completed ? Colors.green : Colors.redAccent)
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    ) ?? false; // Si el usuario cierra el diálogo, es 'false'
+
+    if (didConfirm) {
+      _updateOrderStatus(newStatus);
+    }
+  }
+
   /// Función para manejar la actualización de estado (Aprobar o Rechazar)
   Future<void> _updateOrderStatus(OrderStatus newStatus) async {
     if (_isLoading) return; // Evitar doble-tap
@@ -39,7 +76,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       
       messenger.showSnackBar(SnackBar(
         content: Text(successMessage),
-        backgroundColor: Colors.green,
+        backgroundColor: newStatus == OrderStatus.completed ? Colors.green : Colors.orangeAccent,
       ));
 
       // 3. Regresa a la pantalla anterior
@@ -58,12 +95,37 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       }
     }
   }
+  
+  /// Muestra la imagen en un diálogo de pantalla completa
+  void _showFullImage(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.8),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(10),
+        child: GestureDetector(
+          onTap: () => Navigator.of(ctx).pop(),
+          child: InteractiveViewer( // Permite hacer zoom y pan
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.contain, // Asegura que se vea la imagen completa
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
     const backgroundColor = Color(0xFF1A1A2E);
     const accentColor = Color(0xFF00BFFF);
     const surfaceColor = Color(0xFF2D2D5A);
+    
+    // --- NUEVO: Controla si los botones de acción deben mostrarse ---
+    final bool isPending = widget.order.status == OrderStatus.pending_verification;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -116,37 +178,41 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             surfaceColor: surfaceColor,
             title: 'Comprobante de Pago',
             children: [
-              Container(
-                height: 400, // Altura fija para la imagen
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    widget.order.paymentProofUrl,
-                    fit: BoxFit.contain, // contain para verla completa
-                    // Loader mientras carga la imagen
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const Center(
-                        child: CircularProgressIndicator(color: accentColor),
-                      );
-                    },
-                    // Error si la imagen no carga
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
-                            SizedBox(height: 8),
-                            Text('No se pudo cargar el comprobante', style: TextStyle(color: Colors.redAccent)),
-                          ],
-                        ),
-                      );
-                    },
+              // --- MODIFICADO: Añadido GestureDetector ---
+              GestureDetector(
+                onTap: () => _showFullImage(context, widget.order.paymentProofUrl),
+                child: Container(
+                  height: 400, // Altura fija para la imagen
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      widget.order.paymentProofUrl,
+                      fit: BoxFit.contain, // contain para verla completa
+                      // Loader mientras carga la imagen
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(
+                          child: CircularProgressIndicator(color: accentColor),
+                        );
+                      },
+                      // Error si la imagen no carga
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
+                              SizedBox(height: 8),
+                              Text('No se pudo cargar el comprobante', style: TextStyle(color: Colors.redAccent)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -155,45 +221,59 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
           const SizedBox(height: 32),
 
-          // --- Botones de Acción ---
-          Row(
-            children: [
-              // Botón de Rechazar
-              Expanded(
-                child: FilledButton(
-                  onPressed: _isLoading ? null : () => _updateOrderStatus(OrderStatus.cancelled),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+          // --- MODIFICADO: Botones de Acción Condicionales ---
+          // Solo muestra los botones si la orden está pendiente
+          if (isPending)
+            Row(
+              children: [
+                // Botón de Rechazar
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : () => _showConfirmationDialog(OrderStatus.cancelled),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isLoading 
+                        ? const SizedBox.shrink() // Se oculta si está cargando
+                        : const Text('Rechazar Pago'),
                   ),
-                  child: _isLoading 
-                      ? const SizedBox.shrink() // Se oculta si está cargando
-                      : const Text('Rechazar Pago'),
                 ),
-              ),
-              const SizedBox(width: 16),
-              // Botón de Aprobar
-              Expanded(
-                flex: 2,
-                child: FilledButton(
-                  onPressed: _isLoading ? null : () => _updateOrderStatus(OrderStatus.completed),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.green, // Verde para "Aprobar"
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                const SizedBox(width: 16),
+                // Botón de Aprobar
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : () => _showConfirmationDialog(OrderStatus.completed),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.green, // Verde para "Aprobar"
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                          )
+                        : const Text('Aprobar Pago', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                        )
-                      : const Text('Aprobar Pago', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
+              ],
+            )
+          else
+            // Muestra el estado actual si ya no está pendiente
+            Center(
+              child: Chip(
+                label: Text(
+                  widget.order.status == OrderStatus.completed ? 'Orden Completada' : 'Orden Cancelada',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                ),
+                backgroundColor: widget.order.status == OrderStatus.completed ? Colors.green : Colors.redAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
