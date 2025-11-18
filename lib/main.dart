@@ -1,3 +1,12 @@
+// --- UX/UI Enhancement Comment ---
+// This main.dart file has been updated to integrate the new dynamic
+// ThemeService while respecting the existing Riverpod/Provider hybrid setup.
+// 1. 'main()' now initializes and loads the ThemeService.
+// 2. The old 'ThemeProvider' has been replaced with the new 'ThemeService'
+//    in the MultiProvider list.
+// 3. MaterialApp now consumes ThemeService and uses ThemeMode.system.
+// ---------------------------------
+
 // *** CORRECCIÓN ***
 // Ocultamos los nombres que entran en conflicto con el paquete 'provider'
 // 'ProviderScope' no está oculto, por lo que podemos seguir usándolo.
@@ -16,9 +25,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
 // --- MODIFICACIÓN: TEMA DE LA APP ---
-// Importamos el NUEVO provider de tema
-import 'package:proveedor_servicly_app/providers/theme_provider.dart';
-// Se elimina la importación antigua: import 'shared/theme/theme.dart';
+// Importamos el NUEVO provider de tema y el archivo de temas
+import 'package:proveedor_servicly_app/core/services/theme_service.dart';
+import 'package:proveedor_servicly_app/shared/theme/app_themes.dart';
+// Se elimina la importación antigua: import 'package:proveedor_servicly_app/providers/theme_provider.dart';
 
 // --- Servicios Core ---
 import 'core/services/auth_service.dart';
@@ -74,32 +84,37 @@ void main() async {
     }
   }
   // ----------------------------------------------------
+  
+  // --- 1. Cargar el NUEVO servicio de tema ---
+  final themeService = ThemeService();
+  await themeService.loadTheme(); // Carga la paleta guardada por el usuario
 
-  // *** CORRECCIÓN APLICADA AQUÍ ***
-  // Faltaba envolver tu ProviderScope con runApp()
   runApp(
-    const ProviderScope(
-      child: MyApp(),
+    ProviderScope( // Mantenemos tu ProviderScope
+      child: MyApp(themeService: themeService), // 2. Pasamos el servicio
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  // --- 2. Aceptamos el servicio ---
+  final ThemeService themeService;
+  const MyApp({super.key, required this.themeService});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // --- MODIFICACIÓN: AÑADIMOS EL THEME PROVIDER ---
-        // Este provider debe estar en la lista para que el Consumer en DashboardScreen lo encuentre
-        ChangeNotifierProvider<ThemeProvider>(
-          create: (_) => ThemeProvider(),
-        ),
+        // --- 3. Añadimos el NUEVO ThemeService ---
+        ChangeNotifierProvider.value(value: themeService),
+
+        // --- ELIMINADO el ThemeProvider antiguo ---
+        // ChangeNotifierProvider<ThemeProvider>(
+        //   create: (_) => ThemeProvider(),
+        // ),
 
         // --- PROVEEDORES DE SERVICIOS (Singletons) ---
-
-        // 1. Servicios que no dependen de nada
+        // (Tu código original se mantiene)
         Provider<StorageService>(create: (_) => StorageService()),
         Provider<ProductService>(create: (_) => ProductService()),
         Provider<CategoryService>(create: (_) => CategoryService()),
@@ -108,28 +123,20 @@ class MyApp extends StatelessWidget {
         Provider<VideoService>(create: (_) => VideoService()),
         Provider<FollowService>(create: (_) => FollowService()),
         Provider<PaymentService>(create: (_) => PaymentService()),
-
-        // 2. FirestoreService (necesario para los demás)
         Provider<FirestoreService>(create: (_) => FirestoreService()),
-
-        // 3. Servicios que dependen de otros servicios
         Provider<AuthService>(
           create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
           ),
         ),
-
-        // --- ¡CORRECCIÓN APLICADA AQUÍ! ---
-        // ProviderService ahora DEPENDE de FirestoreService.
-        // Usamos un ProxyProvider para "inyectar" FirestoreService.
         ProxyProvider<FirestoreService, ProviderService>(
           update: (context, firestoreService, previousProviderService) =>
               ProviderService(firestoreService: firestoreService),
         ),
-        // La línea antigua "Provider<ProviderService>(create: (_) => ProviderService())," fue reemplazada.
 
         // --- PROVIDERS DE ESTADO (Streams Globales) ---
+        // (Tu código original se mantiene)
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
@@ -139,7 +146,7 @@ class MyApp extends StatelessWidget {
           create: (context) {
             final authService = context.read<AuthService>();
             final firestoreService = context.read<FirestoreService>();
-
+            
             if (kDebugMode) {
               print("[StreamProvider<UserModel>] Creando stream REAL...");
             }
@@ -166,10 +173,8 @@ class MyApp extends StatelessWidget {
           },
         ),
 
-        // Servicio de Permisos (depende de UserModel)
         ProxyProvider<UserModel?, PermissionsService>(
           update: (context, user, previousPermissions) {
-            // Si user es null (ej. al cerrar sesión), pasamos un UserModel vacío
             return PermissionsService(user ?? UserModel.empty());
           },
         ),
@@ -180,18 +185,17 @@ class MyApp extends StatelessWidget {
         ),
       ],
       // --- MODIFICACIÓN: Envolvemos MaterialApp en un Consumer ---
-      // Esto permite que el tema de la app cambie cuando el ThemeProvider se lo indique.
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
+      // 4. Cambiamos de Consumer<ThemeProvider> a Consumer<ThemeService>
+      child: Consumer<ThemeService>(
+        builder: (context, themeService, child) {
           return MaterialApp(
             title: 'Servicly',
             debugShowCheckedModeBanner: false,
-            // Usamos los temas definidos DENTRO del ThemeProvider
-            theme: ThemeProvider.lightTheme,
-            darkTheme: ThemeProvider.darkTheme,
-            // El modo (claro/oscuro) es controlado por el estado del provider
-            themeMode:
-                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            // 5. Usamos los temas dinámicos de ThemeService
+            theme: themeService.lightTheme,
+            darkTheme: themeService.darkTheme,
+            // 6. Usamos ThemeMode.system para el modo claro/oscuro automático
+            themeMode: ThemeMode.system, 
             home: const AuthWrapper(),
           );
         },

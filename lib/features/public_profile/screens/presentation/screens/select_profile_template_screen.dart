@@ -61,7 +61,7 @@ class SelectProfileTemplateScreen extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) => BrandSettingsScreen(
           user: user,
-          initialTemplateId: templateId,
+          //initialTemplateId: templateId,
         ),
       ),
     );

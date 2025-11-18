@@ -7,7 +7,7 @@ class PaymentService {
 
   /// Devuelve la referencia a la subcolección de métodos de pago de un usuario.
   CollectionReference<Map<String, dynamic>> _getMethodsCollection(String userId) {
-    return _db.collection('users').doc(userId).collection('paymentMethods');
+    return _db.collection('brandProfiles').doc(userId).collection('paymentMethods');
   }
 
   // =========================================================================

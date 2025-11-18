@@ -27,6 +27,7 @@ dependencies:
   showcaseview: ^3.0.0 # O la versión más reciente
   shared_preferences: ^2.2.3
   chewie: ^1.7.4
+ 
 
   # --- GESTIÓN DE ESTADO ---
   flutter_riverpod: ^2.5.1

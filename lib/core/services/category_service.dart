@@ -10,12 +10,21 @@ class CategoryService {
 
   /// Obtiene una referencia a la subcolección 'categories' de un usuario específico.
   CollectionReference<Map<String, dynamic>> _categoriesCollection(String userId) {
-    return _db.collection('users').doc(userId).collection('categories');
+    
+    // --- ¡CAMBIO DE ARQUITECTURA! ---
+    // Ahora apunta a la colección 'tienda' (plantilla "Tienda de Servicios")
+    // en lugar de 'users'.
+    return _db.collection('tienda').doc(userId).collection('categories');
   }
 
   /// Obtiene un stream con la lista de categorías de un usuario en tiempo real.
   Stream<List<CategoryModel>> getCategories(String userId) {
-    return _categoriesCollection(userId).snapshots().map((snapshot) {
+    // CORRECCIÓN: Tu código original no ordenaba, pero 'ManageStoreScreen'
+    // depende de un orden. Añadimos 'orderBy' para consistencia.
+    return _categoriesCollection(userId)
+        .orderBy('name') // O 'order' si añades ese campo
+        .snapshots()
+        .map((snapshot) {
       return snapshot.docs.map((doc) => CategoryModel.fromFirestore(doc)).toList();
     });
   }

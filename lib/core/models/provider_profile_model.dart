@@ -22,6 +22,9 @@ class ProviderProfileModel {
   /// Este campo define el tipo de perfil (ej: 'store', 'booking', 'social').
   final String profileType;
 
+  /// ¡NUEVO CAMPO! Define el "Skin" de fondo del perfil público
+  final String? publicProfileTheme;
+
   /// El email de contacto público.
   final String contactEmail;
 
@@ -46,7 +49,7 @@ class ProviderProfileModel {
   final List<Map<String, dynamic>> partners;
   
   // --- ¡NUEVO CAMPO DE PAGO P2P! ---
-  final String? paymentInstructions; // <-- ¡AÑADIDO! (1/5)
+  final String? paymentInstructions;
 
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
@@ -71,6 +74,7 @@ class ProviderProfileModel {
     required this.brandColor,
     required this.activeModules,
     required this.profileType,
+    this.publicProfileTheme, // <-- AÑADIDO AL CONSTRUCTOR
     required this.contactEmail,
     this.address,
     // Nuevos campos
@@ -86,7 +90,7 @@ class ProviderProfileModel {
     this.facebook,
     this.tiktok,
     this.partners = const [],
-    this.paymentInstructions, // <-- ¡AÑADIDO! (2/5)
+    this.paymentInstructions,
     // Welcome module fields
     required this.welcomeMessage,
     this.showWelcomeModule = true,
@@ -130,6 +134,7 @@ class ProviderProfileModel {
       brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
       profileType: data['publicProfileTemplate'] as String? ?? 'social',
+      publicProfileTheme: personalization['publicProfileTheme'] as String?, // <-- AÑADIDO AL FACTORY
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
       address: personalization['address'] as String?,
 
@@ -147,7 +152,7 @@ class ProviderProfileModel {
       facebook: personalization['facebook'] as String?,
       tiktok: personalization['tiktok'] as String?,
       partners: partnersList,
-      paymentInstructions: personalization['paymentInstructions'] as String?, // <-- ¡AÑADIDO! (3/5)
+      paymentInstructions: personalization['paymentInstructions'] as String?, 
 
       // Leer campos del módulo de bienvenida
       showWelcomeModule: welcomeModule['show'] as bool? ?? true,
@@ -174,6 +179,7 @@ class ProviderProfileModel {
     Color? brandColor,
     List<String>? activeModules,
     String? profileType,
+    String? publicProfileTheme, // <-- AÑADIDO AL COPYWITH
     String? contactEmail,
     String? address,
     // Nuevos campos
@@ -189,7 +195,7 @@ class ProviderProfileModel {
     String? facebook,
     String? tiktok,
     List<Map<String, dynamic>>? partners,
-    String? paymentInstructions, // <-- ¡AÑADIDO! (4/5)
+    String? paymentInstructions, 
     // Welcome module
     String? welcomeMessage,
     bool? showWelcomeModule,
@@ -211,6 +217,7 @@ class ProviderProfileModel {
       brandColor: brandColor ?? this.brandColor,
       activeModules: activeModules ?? this.activeModules,
       profileType: profileType ?? this.profileType,
+      publicProfileTheme: publicProfileTheme ?? this.publicProfileTheme, // <-- AÑADIDO AL COPYWITH
       contactEmail: contactEmail ?? this.contactEmail,
       address: address ?? this.address,
       slogan: slogan ?? this.slogan,
@@ -225,7 +232,8 @@ class ProviderProfileModel {
       facebook: facebook ?? this.facebook,
       tiktok: tiktok ?? this.tiktok,
       partners: partners ?? this.partners,
-      paymentInstructions: paymentInstructions ?? this.paymentInstructions, // <-- ¡AÑADIDO!
+      paymentInstructions: paymentInstructions ?? this.paymentInstructions, 
+      // --- ¡ERROR CORREGIDO! 'in' eliminado ---
       // Welcome module
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
@@ -238,6 +246,7 @@ class ProviderProfileModel {
       showPromotionsModule: showPromotionsModule ?? this.showPromotionsModule,
       showGiftCardModule: showGiftCardModule ?? this.showGiftCardModule,
       showBookingModule: showBookingModule ?? this.showBookingModule,
+      // --- ¡ERROR CORREGIDO! 's' eliminado ---
       showQuotesModule: showQuotesModule ?? this.showQuotesModule,
     );
   }
@@ -250,6 +259,8 @@ class ProviderProfileModel {
       'businessName': businessName,
       'logoUrl': logoUrl,
       'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2),
+      // --- ¡CORRECCIÓN! Eliminado el '_' que causaba el error ---
+      'publicProfileTheme': publicProfileTheme, // <-- AÑADIDO AL TOMAP
       'contactEmail': contactEmail,
       'address': address,
       'slogan': slogan,
@@ -264,7 +275,7 @@ class ProviderProfileModel {
       'facebook': facebook,
       'tiktok': tiktok,
       'partners': partners,
-      'paymentInstructions': paymentInstructions, // <-- ¡AÑADIDO! (5/5)
+      'paymentInstructions': paymentInstructions, 
 
       // --- Módulos Anidados ---
       'welcomeModule': {
@@ -310,3 +321,4 @@ Color? _colorFromHex(String? hexColor) {
   }
   return null;
 }
+
