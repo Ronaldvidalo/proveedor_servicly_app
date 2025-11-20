@@ -6,28 +6,28 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.9.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0' # Ajustado para compatibilidad general, tu >=3.9.0 está bien si usas esa versión
 
 dependencies:
   flutter:
     sdk: flutter
 
-   # Utilidades y UI
+  # Utilidades y UI
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
   provider: ^6.1.2
   path: ^1.9.0
 
-# ... tus otras dependencias
+  # ... tus otras dependencias
   table_calendar: ^3.0.9
   firebase_messaging: ^14.9.4
   url_launcher: ^6.3.1
   video_player: ^2.8.6
   collection: ^1.18.0
-  showcaseview: ^3.0.0 # O la versión más reciente
+  showcaseview: ^3.0.0
   shared_preferences: ^2.2.3
   chewie: ^1.7.4
- 
+  
 
   # --- GESTIÓN DE ESTADO ---
   flutter_riverpod: ^2.5.1
@@ -54,9 +54,42 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  
+  # --- DEPENDENCIAS PARA ICONOS Y SPLASH (AÑADIDAS) ---
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.1
 
 # La sección flutter es la correcta para configuraciones del framework.
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+# ============================================================
+# CONFIGURACIÓN DE GENERADORES DE ASSETS
+# ============================================================
+
+# 1. Configuración del ÍCONO (Miniatura de la App)
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/servicly_logo.png" # Asegúrate de que este archivo exista
+  min_sdk_android: 21
+  # remove_alpha_ios: true # Descomentar si el logo tiene fondo transparente y se ve negro en iOS
+
+# 2. Configuración del SPLASH SCREEN (Pantalla de Carga Nativa)
+flutter_native_splash:
+  color: "#1A1A2E"
+  
+  # AQUÍ usamos la nueva imagen con mucho espacio transparente alrededor
+  image: "assets/images/splash_logo_small.png" 
+  branding: "assets/images/splash_logo_small.png"
+  
+  color_dark: "#1A1A2E"
+  image_dark: "assets/images/splash_logo_small.png"
+  branding_dark: "assets/images/splash_logo_small.png"
+
+  # Configuración específica Android 12
+  android_12:
+    image: "assets/images/splash_logo_small.png"
+    icon_background_color: "#1A1A2E"

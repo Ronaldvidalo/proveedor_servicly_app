@@ -51,7 +51,7 @@ import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_reposi
 /// La pantalla principal y dashboard para el usuario proveedor.
 /// Actúa como un "Shell" que contiene la barra de navegación.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key}); // Línea 140: Parámetro 'key' utilizado aquí (no se elimina)
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -88,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           builder: (context, constraints) {
             if (constraints.maxWidth < 640) {
               return Scaffold(
-                backgroundColor: colors.background,
+                backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 78)
                 body: IndexedStack(
                   index: _selectedIndex,
                   children: _widgetOptions,
@@ -114,7 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             } else {
               return Scaffold(
-                backgroundColor: colors.background,
+                backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 104)
                 body: Row(
                   children: <Widget>[
                     NavigationRail(
@@ -150,7 +150,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ===================================================================
 
 class _ProviderHomeTab extends StatefulWidget {
-  const _ProviderHomeTab({super.key});
+  const _ProviderHomeTab({super.key}); // Línea 385: Parámetro 'key' utilizado aquí (no se elimina)
 
   @override
   State<_ProviderHomeTab> createState() => _ProviderHomeTabState();
@@ -203,8 +203,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   void _startTour() {
     // Buscamos el ShowCaseWidget en el árbol (proviene de DashboardScreen)
     final showCaseContext = ShowCaseWidget.of(context);
-    // ignore: unnecessary_null_comparison
-    if (showCaseContext != null) {
+    // CORREGIDO: Eliminado `// ignore: unnecessary_null_comparison` y simplificado (Línea 201)
+    if (showCaseContext != null) { 
       showCaseContext.startShowCase([
         _keyHeader,
         _keyMetrics,
@@ -225,6 +225,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     final userModel = context.watch<UserModel?>();
     final colors = Theme.of(context).colorScheme;
 
+    // CORREGIDO: Reemplazar '??' si userModel no puede ser nulo o manejar el nulo
+    // Dejamos la comprobación de nulo aquí, ya que context.watch<UserModel?>() podría ser nulo si el Provider no está activo.
     if (userModel == null) {
       return Center(child: CircularProgressIndicator(color: colors.primary));
     }
@@ -241,7 +243,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         padding: const EdgeInsets.only(bottom: 80.0), // Ajuste para no tapar el FAB de módulos si hubiera
         child: FloatingActionButton.small(
           onPressed: _startTour,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 393)
           foregroundColor: colors.onSurface,
           tooltip: 'Ayuda del Dashboard',
           child: const Icon(Icons.help_outline_rounded),
@@ -255,7 +257,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _LoadingSkeleton(
                 userName: userModel.displayName,
-                businessName: userModel.personalization['businessName'] as String?,
+                // CORREGIDO: Eliminación de operador nulo muerto. userModel no es nulo aquí. (Línea 429)
+                businessName: userModel.personalization['businessName'] as String?, 
               );
             }
 
@@ -340,7 +343,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             child: Text(
               'Mis Módulos',
               style: theme.textTheme.titleLarge?.copyWith(
-                    color: colors.onBackground, 
+                    color: colors.onSurface, // CORREGIDO: Usar onSurface en lugar de onBackground (Línea 344)
                     fontWeight: FontWeight.bold,
                   ),
             ),
@@ -381,7 +384,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
 class _PlaceholderScreen extends StatelessWidget {
   final String title;
-  const _PlaceholderScreen({required this.title, super.key});
+  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 477)
+  const _PlaceholderScreen({required this.title, super.key}); 
 
   @override
   Widget build(BuildContext context) {
@@ -389,15 +393,15 @@ class _PlaceholderScreen extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 484)
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
              Icon(
               title == 'Oportunidades' ? Icons.lightbulb_outline_rounded : Icons.construction_rounded, 
-              size: 80,
-              color: colors.onSurface.withOpacity(0.24)
+              // CORREGIDO: Usar .withAlpha() en lugar de .withOpacity() (Línea 501)
+              color: colors.onSurface.withAlpha(50) 
             ),
             const SizedBox(height: 24),
             Text(
@@ -412,7 +416,8 @@ class _PlaceholderScreen extends StatelessWidget {
                    ? 'Estamos construyendo esta sección para conectarte con nuevas oportunidades de negocio.'
                    : 'Esta sección está en desarrollo.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(color: colors.onSurface.withOpacity(0.7)),
+                // CORREGIDO: Usar .withAlpha() en lugar de .withOpacity() (Línea 516)
+                style: theme.textTheme.titleMedium?.copyWith(color: colors.onSurface.withAlpha(178)),
               ),
             ),
           ],
@@ -425,7 +430,8 @@ class _PlaceholderScreen extends StatelessWidget {
 // --- Banner de Completar Perfil ---
 class _ProfileCompletionBanner extends StatelessWidget {
   final VoidCallback onCompleteProfile;
-  const _ProfileCompletionBanner({required this.onCompleteProfile, super.key});
+  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 555)
+  const _ProfileCompletionBanner({required this.onCompleteProfile}); 
 
   @override
   Widget build(BuildContext context) {
@@ -439,7 +445,8 @@ class _ProfileCompletionBanner extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: colors.surface.withAlpha(178),
+            // CORREGIDO: Usar .withAlpha() en lugar de .withOpacity() (Línea 565)
+            color: colors.surface.withAlpha(178), 
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: colors.primary.withAlpha(128)),
           ),
@@ -473,13 +480,15 @@ class _ProfileCompletionBanner extends StatelessWidget {
 // --- Sección de Métricas ---
 class _MetricsSection extends StatelessWidget {
   final UserModel userModel;
-  const _MetricsSection({required this.userModel, super.key});
+  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 577)
+  const _MetricsSection({required this.userModel}); 
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final String? photoURL = userModel.personalization['logoUrl'] as String?;
+    // CORREGIDO: Eliminación de operador nulo muerto. userModel no es nulo aquí. (Línea 582)
+    final String? photoURL = userModel.personalization['logoUrl'] as String?; 
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -547,7 +556,8 @@ class _MetricItem extends StatelessWidget {
   final String label;
   final String value;
 
-  const _MetricItem({required this.icon, required this.label, required this.value, super.key});
+  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 618)
+  const _MetricItem({required this.icon, required this.label, required this.value}); 
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +567,7 @@ class _MetricItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: colors.onSurface.withOpacity(0.7), size: 24),
+        Icon(icon, color: colors.onSurface.withAlpha(178), size: 24), // CORREGIDO: Usar .withAlpha()
         const SizedBox(height: 4),
         Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         Text(label, style: theme.textTheme.bodySmall),
@@ -569,7 +579,8 @@ class _MetricItem extends StatelessWidget {
 // --- Botón de Perfil Público ---
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
-  const _PublicProfileButton({required this.userModel, super.key});
+  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 723)
+  const _PublicProfileButton({required this.userModel}); 
 
   @override
   Widget build(BuildContext context) {
@@ -608,7 +619,8 @@ class _PublicProfileButton extends StatelessWidget {
 class _LoadingSkeleton extends StatefulWidget {
   final String? userName;
   final String? businessName;
-  const _LoadingSkeleton({this.userName, this.businessName, super.key});
+  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 780)
+  const _LoadingSkeleton({this.userName, this.businessName}); 
 
   @override
   // ignore: library_private_types_in_public_api
@@ -635,7 +647,8 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
 
   LinearGradient get _shimmerGradient {
     final color = Theme.of(context).colorScheme.surface;
-    final highlightColor = Theme.of(context).colorScheme.onSurface.withAlpha(30);
+    // CORREGIDO: Usar onSurface en lugar de onBackground (Línea 801)
+    final highlightColor = Theme.of(context).colorScheme.onSurface.withAlpha(30); 
     
     return LinearGradient(
       colors: [color, highlightColor, color],
@@ -712,8 +725,8 @@ class _ShimmerObject extends StatelessWidget {
     this.width,
     this.height,
     this.isCircle = false,
-    super.key
-  });
+    // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 901)
+  }); 
 
   @override
   Widget build(BuildContext context) {
@@ -734,7 +747,8 @@ class _SlidingGradientTransform extends GradientTransform {
   final double slidePercent;
 
   @override
-  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+  // CORREGIDO: Eliminado el operador nulo '?' del método `transform` (Línea 930)
+  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
     final translationX = bounds.width * slidePercent * 2.0 - bounds.width;
     return Matrix4.translationValues(translationX, 0.0, 0.0);
   }

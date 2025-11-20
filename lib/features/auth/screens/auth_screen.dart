@@ -4,6 +4,9 @@
 // This screen was refactored to handle only email/password auth.
 // Role and profile data collection was moved to OnboardingScreen
 // to improve the user experience.
+//
+// (FIX 20/11/2025): Se reemplazó el icono genérico por el logo oficial
+// de la marca (assets/images/servicly_logo.png) manteniendo el efecto glow.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -288,13 +291,19 @@ class _AuthScreenState extends State<AuthScreen>
             color: surfaceColor,
             boxShadow: [
               BoxShadow(
-                color: primaryColor.withAlpha(77),
+                color: primaryColor.withAlpha(77), // Opacidad aprox 0.3
                 blurRadius: 10,
                 spreadRadius: 2,
               ),
             ],
           ),
-          child: Icon(Icons.shield_moon_rounded, size: 60, color: primaryColor),
+          // --- AQUÍ EL CAMBIO: Usamos tu logo en lugar del icono ---
+          child: Image.asset(
+            'assets/images/servicly_logo.png',
+            width: 80, // Ajustado para que se vea bien dentro del círculo
+            height: 80,
+            fit: BoxFit.contain,
+          ),
         ),
         const SizedBox(height: 32),
         AnimatedSwitcher(
@@ -514,11 +523,6 @@ class _AuthScreenState extends State<AuthScreen>
 }
 
 // --- WIDGETS AUXILIARES ---
-
-// --- MODIFICACIÓN: Se elimina _RoleSelectionCard ---
-
-// --- MODIFICACIÓN: Se elimina _CountrySelector ---
-
 
 class GoogleLogo extends StatelessWidget {
   const GoogleLogo({super.key});

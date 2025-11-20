@@ -5,6 +5,7 @@
 // 2. The old 'ThemeProvider' has been replaced with the new 'ThemeService'
 //    in the MultiProvider list.
 // 3. MaterialApp now consumes ThemeService and uses ThemeMode.system.
+// 4. (NUEVO) Se ha integrado SplashScreen como pantalla de inicio.
 // ---------------------------------
 
 // *** CORRECCIÓN ***
@@ -49,7 +50,8 @@ import 'core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 
 // --- UI ---
-import 'features/auth/widgets/auth_wrapper.dart';
+// import 'features/auth/widgets/auth_wrapper.dart'; // Ya no es la home directa
+import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; // <-- NUEVO IMPORT
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -196,7 +198,8 @@ class MyApp extends StatelessWidget {
             darkTheme: themeService.darkTheme,
             // 6. Usamos ThemeMode.system para el modo claro/oscuro automático
             themeMode: ThemeMode.system, 
-            home: const AuthWrapper(),
+            // 7. ¡NUEVO! Iniciamos con el Splash Screen animado
+            home: const SplashScreen(), 
           );
         },
       ),
