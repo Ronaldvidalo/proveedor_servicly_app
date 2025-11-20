@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import 'package:intl/intl.dart'; // <-- ELIMINADO (No se usa)
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
-// import 'package:proveedor_servicly_app/core/services/auth_service.dart'; // <-- ELIMINADO (No se usa)
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
-// --- ¡IMPORTACIÓN CORREGIDA! ---
-import '../../manage_store/presentation/screens/order_detail_screen.dart'; // Para navegar al detalle
+// Ajusta esta importación si tu estructura de carpetas es diferente
+import '../../manage_store/presentation/screens/order_detail_screen.dart';
 
 /// Pantalla completa para que el proveedor gestione TODAS sus órdenes.
 /// Muestra pestañas para "Pendientes", "Completadas" y "Canceladas".
@@ -46,23 +44,23 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
+    // --- TEMATIZACIÓN ---
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor, // Fondo del tema
       appBar: AppBar(
         title: const Text('Gestión de Órdenes'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: accentColor,
+          indicatorColor: colors.primary, // Color de acento del tema
           indicatorWeight: 3,
-          labelColor: accentColor,
-          unselectedLabelColor: Colors.white70,
+          labelColor: colors.primary,
+          unselectedLabelColor: colors.onSurface.withOpacity(0.7),
           tabs: const [
             Tab(text: 'PENDIENTES'),
             Tab(text: 'COMPLETADAS'),
@@ -77,24 +75,18 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> with SingleTickerProv
           _OrderListTab(
             stream: context.read<OrderService>().getPendingOrders(widget.providerId),
             emptyMessage: 'No tienes órdenes pendientes de verificación.',
-            accentColor: accentColor,
-            surfaceColor: surfaceColor,
           ),
           
           // --- Pestaña 2: Completadas ---
           _OrderListTab(
             stream: context.read<OrderService>().getCompletedOrders(widget.providerId),
             emptyMessage: 'Aún no has completado ninguna orden.',
-            accentColor: accentColor,
-            surfaceColor: surfaceColor,
           ),
           
           // --- Pestaña 3: Canceladas ---
           _OrderListTab(
             stream: context.read<OrderService>().getCancelledOrders(widget.providerId),
             emptyMessage: 'No tienes órdenes canceladas.',
-            accentColor: accentColor,
-            surfaceColor: surfaceColor,
           ),
         ],
       ),
@@ -106,23 +98,21 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> with SingleTickerProv
 class _OrderListTab extends StatelessWidget {
   final Stream<List<OrderModel>> stream;
   final String emptyMessage;
-  final Color accentColor;
-  final Color surfaceColor;
 
   const _OrderListTab({
     required this.stream,
     required this.emptyMessage,
-    required this.accentColor,
-    required this.surfaceColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return StreamBuilder<List<OrderModel>>(
       stream: stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: accentColor));
+          return Center(child: CircularProgressIndicator(color: colors.primary));
         }
         if (snapshot.hasError) {
           return _ErrorState(message: 'Error al cargar las órdenes: ${snapshot.error}');
@@ -140,7 +130,6 @@ class _OrderListTab extends StatelessWidget {
             final order = orders[index];
             return _CompactOrderItemCard(
               order: order, 
-              surfaceColor: surfaceColor
             );
           },
         );
@@ -152,29 +141,22 @@ class _OrderListTab extends StatelessWidget {
 /// Una tarjeta compacta para mostrar en la lista de órdenes.
 class _CompactOrderItemCard extends StatelessWidget {
   final OrderModel order;
-  final Color surfaceColor;
   
-  const _CompactOrderItemCard({required this.order, required this.surfaceColor});
-
-  /* --- FUNCIÓN ELIMINADA (NO SE USA AQUÍ) ---
-  // Helper para formatear la fecha
-  String _formatDate(DateTime date) {
-    return DateFormat('dd/MM/yyyy \'a las\' hh:mm a').format(date);
-  }
-  */
+  const _CompactOrderItemCard({required this.order});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final item = order.items.isNotEmpty ? order.items.first : null;
 
     return Card(
-      color: surfaceColor,
+      color: colors.surface, // Color de superficie del tema
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          // Navega a la pantalla de detalle para aprobar/rechazar
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => OrderDetailScreen(order: order),
           ));
@@ -191,11 +173,11 @@ class _CompactOrderItemCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       item != null ? '${item['quantity']}x ${item['name']}' : 'Orden Vacía',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.bold, fontSize: 16),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  _StatusBadge(status: order.status), // El badge de estado
+                  _StatusBadge(status: order.status),
                 ],
               ),
               if (order.items.length > 1)
@@ -203,11 +185,11 @@ class _CompactOrderItemCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     '+ ${order.items.length - 1} ${order.items.length - 1 == 1 ? 'item' : 'items'} más',
-                    style: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic, fontSize: 12),
+                    style: TextStyle(color: colors.onSurface.withOpacity(0.7), fontStyle: FontStyle.italic, fontSize: 12),
                   ),
                 ),
               
-              const Divider(color: Colors.white24, height: 24),
+              Divider(color: colors.onSurface.withOpacity(0.1), height: 24),
 
               // Fila inferior: Cliente y Total
               Row(
@@ -218,14 +200,14 @@ class _CompactOrderItemCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Cliente',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                          style: TextStyle(color: colors.onSurface.withOpacity(0.7), fontSize: 12),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           order.clientName,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w500),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -235,14 +217,14 @@ class _CompactOrderItemCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text(
+                      Text(
                         'Total',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                        style: TextStyle(color: colors.onSurface.withOpacity(0.7), fontSize: 12),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '\$${order.total.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Color(0xFF00BFFF), fontWeight: FontWeight.bold, fontSize: 18),
+                        style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                     ],
                   ),
@@ -292,7 +274,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withAlpha(51), // 20% de opacidad
+        color: color.withAlpha(51),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color, width: 0.5)
       ),
@@ -317,18 +299,19 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.receipt_long_outlined, size: 80, color: Colors.white24),
+            Icon(Icons.receipt_long_outlined, size: 80, color: colors.onSurface.withOpacity(0.2)),
             const SizedBox(height: 24),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: Colors.white60),
+              style: TextStyle(fontSize: 16, color: colors.onSurface.withOpacity(0.6)),
             ),
           ],
         ),

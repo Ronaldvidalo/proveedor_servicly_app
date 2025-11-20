@@ -1,31 +1,44 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 19/11/2025
+// Style: Cyber Glow
+// Feature: Virtual Tour (ShowCaseView)
+//
+// 1. (¡NUEVO!) Integrado ShowCaseWidget en la raíz del Dashboard.
+// 2. Implementada lógica para iniciar el tour AUTOMÁTICAMENTE
+//    solo cuando los datos (FutureBuilder) terminan de cargar.
+// 3. Añadidos pasos del tour: Header, Métricas, Perfil Público y Módulos.
+// 4. Botón de ayuda (?) en el AppBar para reiniciar el tour manualmente.
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show listEquals;
-import 'dart:ui';
+import 'dart:ui'; // Para ImageFilter
+
+// --- Imports para el Tour ---
+import 'package:showcaseview/showcaseview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 // --- Importaciones de Modelos y Servicios ---
-import '../../../core/models/user_model.dart';
-import '../../../core/models/module_model.dart';
-import '../../../core/services/auth_service.dart';
-import '../../../core/services/firestore_service.dart';
-// --- MEJORA 4: RUTA ASUMIDA para el ThemeProvider ---
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/models/module_model.dart';
+import 'package:proveedor_servicly_app/core/services/auth_service.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/providers/theme_provider.dart';
 import 'package:proveedor_servicly_app/widgets/loading/shimmer_loading.dart';
-
-
 import 'package:proveedor_servicly_app/shared/theme/screens/theme_selection_screen.dart';
-import '../../../core/services/theme_service.dart';
+import 'package:proveedor_servicly_app/core/services/theme_service.dart';
 
 // --- Importaciones de Módulos ---
 import 'package:proveedor_servicly_app/features/catalogo/modules/modules_screen.dart';
-import '../../profile/screens/create_profile_screen.dart';
-import '../../public_profile/screens/public_profile_screen.dart';
-import '../../public_profile/screens/presentation/screens/select_profile_template_screen.dart';
-import '../../manage_store/presentation/screens/manage_store_screen.dart';
-import '../../agenda/presentation/screens/agenda_screen.dart';
+import 'package:proveedor_servicly_app/features/profile/screens/create_profile_screen.dart';
+import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
+import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
+import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
 import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
-// --- MEJORA 3: Importación de Home Screen ---
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
 import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
 import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
@@ -33,29 +46,10 @@ import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_
 
 // --- IMPORTACIONES CRM ---
 import 'package:proveedor_servicly_app/features/crm/data/repositories/screens/client_management_screen.dart';
-import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; // NECESARIO PARA LA INYECCIÓN
-
-// Importar DottedBorder si está en un archivo separado, si no, mantenerlo abajo.
-// import 'package:dotted_border/dotted_border.dart'; // Si decides usar el paquete
-
-/// Mapa para convertir los nombres de los íconos (String desde Firestore) a objetos IconData.
-const Map<String, IconData> _iconMap = {
-  'people_outline': Icons.people_outline_rounded,
-  'calendar_today_outlined': Icons.calendar_today_rounded,
-  'insights': Icons.insights_rounded,
-  'add_card': Icons.add_card_rounded,
-  'add_circle_outline': Icons.add_circle_outline_rounded,
-  'store_mall_directory_outlined': Icons.store_mall_directory_rounded,
-  'person_search_outlined': Icons.person_search_rounded,
-  'sync_alt_rounded': Icons.sync_alt_rounded,
-  'help_outline': Icons.help_outline_rounded,
-  'visibility_outlined': Icons.visibility_outlined,
-  'storefront_outlined': Icons.storefront_outlined,
-  'agenda': Icons.calendar_month_outlined, // Icono añadido para agenda
-};
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 /// La pantalla principal y dashboard para el usuario proveedor.
-/// Ahora actúa como un "Shell" que contiene la barra de navegación.
+/// Actúa como un "Shell" que contiene la barra de navegación.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -64,12 +58,13 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0; // Estado para la pestaña activa
+  int _selectedIndex = 0; 
+  BuildContext? _showCaseContext; // Contexto para el tour
 
   static const List<Widget> _widgetOptions = <Widget>[
-    _ProviderHomeTab(), // Pestaña 0: El contenido del dashboard
+    _ProviderHomeTab(), // Pestaña 0: El contenido del dashboard con Tour
     _PlaceholderScreen(title: 'Oportunidades'), // Pestaña 1: Placeholder
-    SettingsScreen(), // Pestaña 2: Tu pantalla de Configuración real
+    SettingsScreen(), // Pestaña 2: Configuración
   ];
 
   void _onItemTapped(int index) {
@@ -83,69 +78,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 640) {
-          return Scaffold(
-            backgroundColor: colors.background, // Usa el tema
-            body: IndexedStack(
-              index: _selectedIndex,
-              children: _widgetOptions,
-            ),
-            bottomNavigationBar: BottomNavigationBar(
-              items: const <BottomNavigationBarItem>[
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.home_filled),
-                  label: 'Inicio',
+    // --- WRAPPER DEL TOUR (ShowCaseWidget) ---
+    // Envolvemos todo el Scaffold para que el overlay funcione sobre todo
+    return ShowCaseWidget(
+      builder: (context) {
+        _showCaseContext = context; // Capturamos el contexto válido
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 640) {
+              return Scaffold(
+                backgroundColor: colors.background,
+                body: IndexedStack(
+                  index: _selectedIndex,
+                  children: _widgetOptions,
                 ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.lightbulb_outline_rounded),
-                  label: 'Oportunidades',
+                bottomNavigationBar: BottomNavigationBar(
+                  items: const <BottomNavigationBarItem>[
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_filled),
+                      label: 'Inicio',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.lightbulb_outline_rounded),
+                      label: 'Oportunidades',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.settings_outlined),
+                      label: 'Configuración',
+                    ),
+                  ],
+                  currentIndex: _selectedIndex,
+                  onTap: _onItemTapped,
                 ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_outlined),
-                  label: 'Configuración',
-                ),
-              ],
-              currentIndex: _selectedIndex,
-              onTap: _onItemTapped,
-              // Estilos automáticos desde ThemeService
-            ),
-          );
-        } else {
-          return Scaffold(
-            backgroundColor: colors.background, // Usa el tema
-            body: Row(
-              children: <Widget>[
-                NavigationRail(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: _onItemTapped,
-                  labelType: NavigationRailLabelType.all,
-                  // Estilos automáticos desde ThemeService
-                  destinations: const <NavigationRailDestination>[
-                     NavigationRailDestination(icon: Icon(Icons.home_filled), label: Text('Inicio')),
-                     NavigationRailDestination(icon: Icon(Icons.lightbulb_outline_rounded), label: Text('Oportunidades')),
-                     NavigationRailDestination(icon: Icon(Icons.settings_outlined), label: Text('Configuración')),
+              );
+            } else {
+              return Scaffold(
+                backgroundColor: colors.background,
+                body: Row(
+                  children: <Widget>[
+                    NavigationRail(
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: _onItemTapped,
+                      labelType: NavigationRailLabelType.all,
+                      destinations: const <NavigationRailDestination>[
+                          NavigationRailDestination(icon: Icon(Icons.home_filled), label: Text('Inicio')),
+                          NavigationRailDestination(icon: Icon(Icons.lightbulb_outline_rounded), label: Text('Oportunidades')),
+                          NavigationRailDestination(icon: Icon(Icons.settings_outlined), label: Text('Configuración')),
+                      ],
+                    ),
+                    VerticalDivider(thickness: 1, width: 1, color: theme.dividerColor),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _selectedIndex,
+                        children: _widgetOptions,
+                      ),
+                    ),
                   ],
                 ),
-                VerticalDivider(thickness: 1, width: 1, color: theme.dividerColor), // Usa el tema
-                Expanded(
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: _widgetOptions,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
+              );
+            }
+          },
+        );
       },
     );
   }
 }
 
 // ===================================================================
-// --- PESTAÑA 0: INICIO (Contenido del Dashboard) ---
+// --- PESTAÑA 0: INICIO (Contenido del Dashboard con Tour) ---
 // ===================================================================
 
 class _ProviderHomeTab extends StatefulWidget {
@@ -158,6 +159,15 @@ class _ProviderHomeTab extends StatefulWidget {
 class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerProviderStateMixin {
   late Future<List<ModuleModel>> _modulesFuture;
   late AnimationController _animationController;
+
+  // --- Claves Globales para el Tour ---
+  final GlobalKey _keyHeader = GlobalKey();
+  final GlobalKey _keyMetrics = GlobalKey();
+  final GlobalKey _keyPublicProfile = GlobalKey();
+  final GlobalKey _keyModulesTitle = GlobalKey();
+
+  // Bandera para asegurar que el chequeo del tour solo ocurra una vez al cargar datos
+  bool _isTourCheckPending = true;
 
   @override
   void initState() {
@@ -172,6 +182,36 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
          _animationController.forward();
        }
      });
+  }
+
+  /// Comprueba si es la primera vez y lanza el tour
+  Future<void> _checkIfFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasSeenTour = prefs.getBool('hasSeenDashboardTour_v1') ?? false;
+
+    if (!hasSeenTour) {
+      // Pequeño delay para asegurar que el UI esté renderizado
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        _startTour();
+        prefs.setBool('hasSeenDashboardTour_v1', true);
+      }
+    }
+  }
+
+  /// Inicia la secuencia de Showcase
+  void _startTour() {
+    // Buscamos el ShowCaseWidget en el árbol (proviene de DashboardScreen)
+    final showCaseContext = ShowCaseWidget.of(context);
+    // ignore: unnecessary_null_comparison
+    if (showCaseContext != null) {
+      showCaseContext.startShowCase([
+        _keyHeader,
+        _keyMetrics,
+        _keyPublicProfile,
+        _keyModulesTitle,
+      ]);
+    }
   }
 
   @override
@@ -189,36 +229,69 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
       return Center(child: CircularProgressIndicator(color: colors.primary));
     }
 
-    return SafeArea(
-      bottom: false, 
-      child: FutureBuilder<List<ModuleModel>>(
-        future: _modulesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _LoadingSkeleton(
-              userName: userModel.displayName,
-              businessName: userModel.personalization['businessName'] as String?,
+    return Scaffold(
+      // AppBar interno para el botón de ayuda del Tour
+      appBar: AppBar(
+        toolbarHeight: 0, // Oculto visualmente pero presente para estructura
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      // Botón flotante para repetir el tour (Opcional, o usar un icono en un AppBar real)
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80.0), // Ajuste para no tapar el FAB de módulos si hubiera
+        child: FloatingActionButton.small(
+          onPressed: _startTour,
+          backgroundColor: colors.surface,
+          foregroundColor: colors.onSurface,
+          tooltip: 'Ayuda del Dashboard',
+          child: const Icon(Icons.help_outline_rounded),
+        ),
+      ),
+      body: SafeArea(
+        bottom: false, 
+        child: FutureBuilder<List<ModuleModel>>(
+          future: _modulesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _LoadingSkeleton(
+                userName: userModel.displayName,
+                businessName: userModel.personalization['businessName'] as String?,
+              );
+            }
+
+            if (snapshot.hasError || !snapshot.hasData || (snapshot.data?.isEmpty ?? true)) {
+              return Center(child: Text('Error al cargar la configuración.', style: Theme.of(context).textTheme.bodyMedium));
+            }
+
+            // --- INICIAR TOUR CUANDO LOS DATOS ESTÉN LISTOS ---
+            if (_isTourCheckPending) {
+              _isTourCheckPending = false;
+              WidgetsBinding.instance.addPostFrameCallback((_) => _checkIfFirstTime());
+            }
+
+            final allModules = snapshot.data!;
+            final activeModules = allModules
+                .where((module) => userModel.activeModules.contains(module.moduleId))
+                .toList()
+              ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
+
+            return CustomScrollView(
+              slivers: [
+                // --- HEADER DEL DASHBOARD ---
+                SliverToBoxAdapter(
+                  child: Showcase(
+                    key: _keyHeader,
+                    title: 'Bienvenido',
+                    description: 'Este es tu panel de control. Aquí verás un resumen de tu negocio.',
+                    child: DashboardHeader(userModel: userModel),
+                  ),
+                ), 
+                
+                _buildAnimatedContent(context, userModel, activeModules, allModules),
+              ],
             );
-          }
-
-          if (snapshot.hasError || !snapshot.hasData || (snapshot.data?.isEmpty ?? true)) {
-            return Center(child: Text('Error al cargar la configuración.', style: Theme.of(context).textTheme.bodyMedium));
-          }
-
-          final allModules = snapshot.data!;
-          final activeModules = allModules
-              .where((module) => userModel.activeModules.contains(module.moduleId))
-              .toList()
-            ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
-
-          return CustomScrollView(
-            slivers: [
-              // --- USA EL WIDGET REUTILIZABLE ---
-              DashboardHeader(userModel: userModel), 
-              _buildAnimatedContent(context, userModel, activeModules, allModules),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -241,18 +314,36 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
               ),
             ),
 
-          _MetricsSection(userModel: userModel),
+          // --- MÉTRICAS ---
+          Showcase(
+            key: _keyMetrics,
+            title: 'Métricas Rápidas',
+            description: 'Consulta visitas y contactos de un vistazo.',
+            child: _MetricsSection(userModel: userModel),
+          ),
           const SizedBox(height: 32),
 
-          _PublicProfileButton(userModel: userModel),
+          // --- BOTÓN PERFIL PÚBLICO ---
+          Showcase(
+            key: _keyPublicProfile,
+            title: 'Tu Tienda Online',
+            description: 'Configura y comparte tu perfil público con tus clientes.',
+            child: _PublicProfileButton(userModel: userModel),
+          ),
           const SizedBox(height: 32),
 
-          Text(
-            'Mis Módulos',
-            style: theme.textTheme.titleLarge?.copyWith(
-                  color: colors.onBackground, 
-                  fontWeight: FontWeight.bold,
-                ),
+          // --- TÍTULO MÓDULOS ---
+          Showcase(
+            key: _keyModulesTitle,
+            title: 'Tus Herramientas',
+            description: 'Accede a tus módulos activos o añade nuevos desde aquí.',
+            child: Text(
+              'Mis Módulos',
+              style: theme.textTheme.titleLarge?.copyWith(
+                    color: colors.onBackground, 
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -263,7 +354,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
                 begin: const Offset(0, 0.1),
                 end: Offset.zero,
               ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut)),
-              child: _ModulesGrid(
+              child: ModulesGrid( // Usamos el widget importado
                 activeModules: activeModules,
                 user: userModel,
                 onAddModule: () {
@@ -421,10 +512,10 @@ class _MetricsSection extends StatelessWidget {
                   height: 30,
                   child: TextButton(
                     onPressed: () { /* TODO: Navegar a pantalla de métricas detalladas */
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
-                       );
-                    },
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
+                        );
+                     },
                     child: const Row(
                        mainAxisSize: MainAxisSize.min,
                        children: [
@@ -513,297 +604,6 @@ class _PublicProfileButton extends StatelessWidget {
   }
 }
 
-// --- Grilla de Módulos ---
-class _ModulesGrid extends StatelessWidget {
-  final List<ModuleModel> activeModules;
-  final VoidCallback onAddModule;
-  final UserModel user;
-
-  const _ModulesGrid({
-    required this.activeModules,
-    required this.onAddModule,
-    required this.user,
-    super.key
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double cardBaseWidth = 160.0;
-        final crossAxisCount = (constraints.maxWidth / (cardBaseWidth + 16)).floor().clamp(2, 5);
-
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            if (user.personalization['publicProfileTemplate'] == 'store')
-              _ModuleCard(
-                title: 'Gestionar Tienda',
-                icon: _iconMap['storefront_outlined'] ?? Icons.storefront_outlined,
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ManageStoreScreen(user: user),
-                  ));
-                },
-              ),
-
-            ...activeModules.map((module) {
-              return _ModuleCard(
-                title: module.name,
-                icon: _iconMap[module.icon] ?? Icons.extension_outlined,
-                onTap: () {
-                   _navigateToModule(context, module.moduleId, user);
-                },
-              );
-            }),
-
-            _AddModuleCard(onTap: onAddModule),
-          ],
-        );
-      },
-    );
-  }
-
-   void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
-  Widget? destination;
-  switch (moduleId) {
-    case 'agenda':
-      destination = AgendaScreen(user: user);
-      break;
-    case 'clients':
-      // destination = ClientsScreen(user: user);
-      break;
-  }
-
-  if (destination != null) {
-    // --- LA SOLUCIÓN ---
-    // Creamos una variable local 'final' no nula.
-    // El 'builder' ahora recibe una variable que NUNCA puede ser nula.
-    final Widget destinationWidget = destination;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => destinationWidget));
-    // --- FIN DE LA SOLUCIÓN ---
-
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Navegación para "$moduleId" no implementada.'))
-    );
-  }
-}
-}
-
-class _ModuleCard extends StatefulWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _ModuleCard({required this.title, required this.icon, required this.onTap, super.key});
-
-  @override
-  State<_ModuleCard> createState() => _ModuleCardState();
-}
-
-class _ModuleCardState extends State<_ModuleCard> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: _isHovered ? colors.primary.withAlpha(128) : colors.primary.withAlpha(64),
-              blurRadius: _isHovered ? 15 : 10,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Material(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(16),
-            splashColor: colors.primary.withAlpha(77),
-            highlightColor: colors.primary.withAlpha(38),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(widget.icon, size: 40, color: colors.primary),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text(
-                    widget.title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AddModuleCard extends StatelessWidget {
-  final VoidCallback onTap;
-  const _AddModuleCard({required this.onTap, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: colors.primary.withAlpha(77),
-        highlightColor: colors.primary.withAlpha(38),
-        child: DottedBorder(
-          color: colors.primary.withAlpha(153),
-          strokeWidth: 2,
-          radius: const Radius.circular(16),
-          borderType: BorderType.rRect,
-          dashPattern: const [8, 6],
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add_rounded, size: 40, color: colors.primary),
-                const SizedBox(height: 12),
-                Text('Añadir Módulo', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// --- DottedBorder y Widgets Relacionados ---
-enum BorderType { rect, rRect }
-
-class DottedBorder extends StatelessWidget {
-  final Widget child;
-  final Color color;
-  final double strokeWidth;
-  final Radius radius;
-  final BorderType borderType;
-  final List<double> dashPattern;
-
-  const DottedBorder({
-    super.key,
-    required this.child,
-    this.color = Colors.black,
-    this.strokeWidth = 1,
-    this.radius = const Radius.circular(0),
-    this.borderType = BorderType.rect,
-    this.dashPattern = const <double>[3, 1],
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DottedPainter(
-        color: color,
-        strokeWidth: strokeWidth,
-        radius: radius,
-        borderType: borderType,
-        dashPattern: dashPattern,
-      ),
-      child: child,
-    );
-  }
-}
-
-class _DottedPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final Radius radius;
-  final BorderType borderType;
-  final List<double> dashPattern;
-
-  _DottedPainter({
-    this.color = Colors.black,
-    this.strokeWidth = 1,
-    this.radius = const Radius.circular(0),
-    this.borderType = BorderType.rect,
-    this.dashPattern = const <double>[3, 1],
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    Path path;
-    if (borderType == BorderType.rRect) {
-      final validRadius = Radius.elliptical(radius.x.abs(), radius.y.abs());
-      path = Path()..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), validRadius));
-    } else {
-      path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    }
-
-    Path dashPath = Path();
-    double distance = 0.0;
-    if (dashPattern.isNotEmpty && dashPattern[0] > 0) {
-       final double dashLength = dashPattern[0];
-       final double gapLength = dashPattern.length > 1 ? dashPattern[1] : 0;
-       final double totalDashPatternLength = dashLength + gapLength;
-
-        if (totalDashPatternLength > 0) {
-           for (PathMetric pathMetric in path.computeMetrics()) {
-             while (distance < pathMetric.length) {
-               final double end = (distance + dashLength).clamp(0.0, pathMetric.length);
-               dashPath.addPath(
-                 pathMetric.extractPath(distance, end),
-                 Offset.zero,
-               );
-               distance += totalDashPatternLength;
-             }
-           }
-         } else {
-            dashPath = path;
-         }
-     } else {
-        dashPath = path;
-     }
-
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(_DottedPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.strokeWidth != strokeWidth ||
-      oldDelegate.radius != radius ||
-      oldDelegate.borderType != borderType ||
-      !listEquals(oldDelegate.dashPattern, dashPattern);
-}
-
-
 // --- Widgets de Carga ---
 class _LoadingSkeleton extends StatefulWidget {
   final String? userName;
@@ -852,7 +652,7 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
     return AnimatedBuilder(
       animation: _shimmerController,
       builder: (context, child) {
-         return CustomScrollView(
+          return CustomScrollView(
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),

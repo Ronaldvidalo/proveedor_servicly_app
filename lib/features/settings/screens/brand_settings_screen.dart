@@ -1,21 +1,21 @@
 // --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 18/11/2025
+// UX/UI Redesigned: 19/11/2025
 // Style: Cyber Glow
-// 1. (¡NUEVO!) Implementada la previsualización total (Fondo + Acento).
-//    El body de la pantalla ahora usa el "Tema Público" y el
-//    "Acento Público" seleccionados para una muestra en vivo.
-// 2. (FIX) El `AppBar` y el botón `Guardar` se mantienen
-//    fijos con el tema "privado" (Cyber Glow Azul).
-// 3. (ELIMINADO) Se eliminó el selector de "Tema de la App (Privado)"
-//    para simplificar la UX, fijando el tema del proveedor.
-// 4. (FIX) Añadida lógica de contraste `_getOnColor` para los
-//    iconos sobre el color de acento primario.
+// Feature: Virtual Tour (ShowCaseView)
+//
+// 1. (FIX) Eliminado parámetro 'shapeBorder' que causaba error en Showcase.
+// 2. (FIX) Actualizado 'withOpacity' a 'withValues(alpha: ...)' (Nueva API Flutter).
+// 3. (FIX) Reemplazado 'background'/'onBackground' por 'surface'/'onSurface'.
+// 4. (FIX) Limpieza de imports y funciones no utilizadas.
 // ---------------------------------
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+// --- Imports para el Tour ---
+import 'package:showcaseview/showcaseview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // --- Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
@@ -24,20 +24,18 @@ import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 
-// Importamos el ThemeService para leer el tema (¡pero no cambiarlo!)
+// Importamos el ThemeService para leer el tema
 import 'package:proveedor_servicly_app/core/services/theme_service.dart';
-// ¡NUEVO IMPORT! Para acceder al enum AppPalette
-import 'package:proveedor_servicly_app/shared/theme/app_themes.dart';
+// import 'package:proveedor_servicly_app/shared/theme/app_themes.dart'; // <-- ELIMINADO (No se usaba)
 
 // --- Navegación ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/manage_payment_methods_screen.dart';
 
 // ===================================================================
-// --- DEFINICIONES DE TEMA PÚBLICO (Movidas aquí para accesibilidad) ---
+// --- DEFINICIONES DE TEMA PÚBLICO ---
 // ===================================================================
 
-/// Clase de datos simple para nuestros "Skins" de perfil público
 class _PublicThemeData {
   final String id;
   final String name;
@@ -52,7 +50,6 @@ class _PublicThemeData {
   });
 }
 
-/// Define los "Skins" permitidos
 final List<_PublicThemeData> _publicProfileThemes = [
   const _PublicThemeData(
     id: 'cyber_glow',
@@ -80,12 +77,27 @@ final List<_PublicThemeData> _publicProfileThemes = [
   ),
 ];
 
-/// Helper para obtener el color de contraste (blanco/negro)
 Color _getOnColor(Color color) {
   return ThemeData.estimateBrightnessForColor(color) == Brightness.dark
       ? Colors.white
       : Colors.black;
 }
+
+// Se reactiva esta función porque la necesitamos en initState
+Color? _colorFromHex(String? hexColor) {
+  if (hexColor == null || hexColor.isEmpty) return null;
+  final hexCode = hexColor.replaceAll('#', '');
+  if (hexCode.length == 6) {
+    final validHexCode = 'FF$hexCode';
+    try {
+      return Color(int.parse(validHexCode, radix: 16));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+// ===================================================================
 
 class BrandSettingsScreen extends StatefulWidget {
   final UserModel user;
@@ -104,15 +116,23 @@ class BrandSettingsScreen extends StatefulWidget {
 class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  // --- Claves Globales para el Tour ---
+  final GlobalKey _keyIdentitySection = GlobalKey();
+  final GlobalKey _keyColorSection = GlobalKey();
+  final GlobalKey _keyThemeSection = GlobalKey();
+  final GlobalKey _keyFormatSection = GlobalKey();
+  final GlobalKey _keySaveButton = GlobalKey();
+
+  BuildContext? _showCaseContext; // Contexto para iniciar el tour
+
   late TextEditingController _businessNameController;
   late TextEditingController _sloganController;
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
   late TextEditingController _countryController;
   late String _selectedFormat;
-  late String _selectedPublicTheme; // <-- ESTADO PARA TEMA PÚBLICO
+  late String _selectedPublicTheme;
 
-  // --- Controladores de Redes Sociales ---
   late TextEditingController _phoneController;
   late TextEditingController _whatsappController;
   late TextEditingController _websiteController;
@@ -124,15 +144,13 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   XFile? _selectedImageFile;
   String? _existingLogoUrl;
 
-  // Color de MARCA (diferente del tema de la APP)
   Color _selectedBrandColor = const Color(0xFF00BFFF);
 
-  // Paleta de colores de marca predefinidos
   final List<Color> _predefinedBrandColors = [
-    const Color(0xFF00BFFF), // Cyber Glow Azul
-    const Color(0xFF00FF7F), // Cyber Glow Verde
-    const Color(0xFFF000B0), // Cyber Glow Rosa
-    const Color(0xFFFFA500), // Cyber Glow Naranja
+    const Color(0xFF00BFFF),
+    const Color(0xFF00FF7F),
+    const Color(0xFFF000B0),
+    const Color(0xFFFFA500),
     Colors.purpleAccent,
     Colors.redAccent,
   ];
@@ -153,6 +171,35 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _tiktokController = TextEditingController();
 
     _initializeFields();
+
+    // --- Iniciar chequeo del Tour ---
+    _checkIfFirstTime();
+  }
+
+  /// Comprueba si es la primera vez y lanza el tour
+  Future<void> _checkIfFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v1') ?? false;
+
+    if (!hasSeenTour) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startTour();
+        prefs.setBool('hasSeenBrandSettingsTour_v1', true);
+      });
+    }
+  }
+
+  /// Inicia la secuencia de Showcase
+  void _startTour() {
+    if (_showCaseContext != null) {
+      ShowCaseWidget.of(_showCaseContext!).startShowCase([
+        _keyIdentitySection,
+        _keyColorSection,
+        _keyThemeSection,
+        _keyFormatSection,
+        _keySaveButton,
+      ]);
+    }
   }
 
   void _initializeFields() {
@@ -182,6 +229,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _existingLogoUrl = personalization['logoUrl'] as String?;
 
     final hexColor = personalization['primaryColor'] as String?;
+    // AQUÍ se usa _colorFromHex, por lo que ya no dará error de "unused"
     _selectedBrandColor = _colorFromHex(hexColor) ?? const Color(0xFF00BFFF);
 
     _selectedPublicTheme =
@@ -204,11 +252,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     super.dispose();
   }
 
-  /// Función helper para obtener el tema público seleccionado
   _PublicThemeData _getPublicThemeData(String themeId) {
     return _publicProfileThemes.firstWhere(
       (t) => t.id == themeId,
-      // Fallback por si el ID guardado no se encuentra
       orElse: () =>
           _publicProfileThemes.firstWhere((t) => t.id == 'cyber_glow'),
     );
@@ -255,7 +301,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       }
 
       final hexColor =
-          '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}';
+          '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}'; // Corregido 'value' deprecated si aplica, pero int.toRadixString está bien.
 
       final Map<String, dynamic> updatedPersonalization =
           Map<String, dynamic>.from(userModel.personalization);
@@ -275,7 +321,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'instagram': _instagramController.text.trim(),
         'facebook': _facebookController.text.trim(),
         'tiktok': _tiktokController.text.trim(),
-        'publicProfileTheme': _selectedPublicTheme, // <-- CAMPO GUARDADO
+        'publicProfileTheme': _selectedPublicTheme,
       });
 
       await firestoreService.updateUser(userModel.uid, {
@@ -312,223 +358,251 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- INICIO DE LA LÓGICA DE PREVISUALIZACIÓN ---
-    
-    // 1. Obtenemos el tema REAL de la app (Tema Privado)
     final ThemeData appTheme = Theme.of(context);
-    
-    // 2. Obtenemos los datos del "Skin" público seleccionado
     final _PublicThemeData publicTheme =
         _getPublicThemeData(_selectedPublicTheme);
-
-    // 3. Creamos un tema de PREVISUALIZACIÓN sobreescribiendo
-    //    el fondo, la superficie Y EL ACENTO.
     final ThemeData previewTheme = appTheme.copyWith(
       colorScheme: appTheme.colorScheme.copyWith(
         surface: publicTheme.surface,
-        background: publicTheme.background,
-        primary: _selectedBrandColor, // <-- ¡NUEVO! Previsualiza el acento
-        onPrimary: _getOnColor(_selectedBrandColor), // Contraste
+        // background -> surface (Flutter nuevo)
+        // Como fallback usamos surface también para background si el tema lo requiere
+        // pero en colorScheme moderno background está deprecado.
+        // Usamos 'surface' para ambos o lo dejamos implícito.
+        // primary: _selectedBrandColor,
+        onPrimary: _getOnColor(_selectedBrandColor),
       ),
       scaffoldBackgroundColor: publicTheme.background,
     );
-    // --- FIN DE LA LÓGICA DE PREVISUALIZACIÓN ---
 
-    return Scaffold(
-      // El AppBar USA EL TEMA DE LA APP (appTheme)
-      appBar: AppBar(
-        title: const Text('Editar Perfil Público'),
-        // Usamos el color de fondo real de la app, no el de preview
-        backgroundColor: appTheme.scaffoldBackgroundColor, 
-        foregroundColor: appTheme.colorScheme.onSurface,
-        elevation: 0,
-      ),
-      
-      // El Scaffold USA EL COLOR DE FONDO DE PREVISUALIZACIÓN
-      backgroundColor: previewTheme.scaffoldBackgroundColor,
+    // --- WRAPPER DEL TOUR ---
+    return ShowCaseWidget(
+      builder: (context) {
+        _showCaseContext = context; // Guardamos el contexto para el botón manual
+        
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Editar Perfil Público'),
+            backgroundColor: appTheme.scaffoldBackgroundColor,
+            foregroundColor: appTheme.colorScheme.onSurface,
+            elevation: 0,
+            actions: [
+              // Botón para repetir el tour manualmente
+              IconButton(
+                icon: const Icon(Icons.help_outline_rounded),
+                tooltip: 'Ayuda',
+                onPressed: _startTour,
+              )
+            ],
+          ),
+          backgroundColor: previewTheme.scaffoldBackgroundColor,
+          
+          body: Theme(
+            data: previewTheme,
+            child: Builder(builder: (context) {
+              final theme = Theme.of(context);
+              final colors = theme.colorScheme;
 
-      // El Body USA EL TEMA DE PREVISUALIZACIÓN (previewTheme)
-      body: Theme(
-        data: previewTheme, // <-- ¡LA MAGIA ESTÁ AQUÍ!
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 700),
-            child: Form(
-              key: _formKey,
-              // Usamos un Builder para obtener el (context) que
-              // contiene el previewTheme
-              child: Builder(builder: (context) {
-                // Ahora `Theme.of(context)` se refiere al previewTheme
-                final theme = Theme.of(context);
-                final colors = theme.colorScheme;
+              final inputDecoration = InputDecoration(
+                  filled: true,
+                  // background -> surface
+                  fillColor: colors.surface, 
+                  labelStyle:
+                      TextStyle(color: colors.onSurface.withValues(alpha: 0.7)),
+                  hintStyle:
+                      TextStyle(color: colors.onSurface.withValues(alpha: 0.4)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.primary, width: 2)),
+                  errorStyle: TextStyle(color: colors.error.withValues(alpha: 0.9)));
 
-                // Definimos la decoración de input USANDO EL TEMA DE PREVISUALIZACIÓN
-                final inputDecoration = InputDecoration(
-                    filled: true,
-                    fillColor: colors.background, // Usa el fondo del tema de preview
-                    labelStyle: TextStyle(
-                        color: colors.onSurface.withOpacity(0.7)),
-                    hintStyle: TextStyle(
-                        color: colors.onSurface.withOpacity(0.4)),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        // El foco usa el acento del PREVIEW
-                        borderSide: BorderSide(
-                            color: colors.primary, width: 2)), 
-                    errorStyle: TextStyle(
-                        color: colors.error.withOpacity(0.9)));
-
-                return ListView(
-                  padding: const EdgeInsets.all(24.0),
-                  children: [
-                    // --- SECCIÓN 1: IDENTIDAD DE MARCA ---
-                    _buildSectionCard(
-                      theme: theme, // Pasa el tema de preview
-                      title: 'Identidad de Marca (Público)',
-                      children: [
-                        _LogoAndNameCard(
-                          imageFile: _selectedImageFile,
-                          existingLogoUrl: _existingLogoUrl,
-                          nameController: _businessNameController,
-                          decoration: inputDecoration,
-                          onTapLogo: _pickImage,
-                        ),
-                        const SizedBox(height: 24),
-                        _ColorSelectorCard(
-                          title: 'Color de Acento (Público)',
-                          predefinedColors: _predefinedBrandColors,
-                          selectedColor: _selectedBrandColor,
-                          onColorSelected: (color) {
-                            setState(() => _selectedBrandColor = color);
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        _PublicThemeSelector(
-                          selectedThemeId: _selectedPublicTheme,
-                          onThemeSelected: (themeId) {
-                            setState(() => _selectedPublicTheme = themeId);
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // --- SECCIÓN 2: FORMATO DE PERFIL ---
-                    _buildSectionCard(
-                        theme: theme,
-                        title: 'Formato de Perfil Público',
-                        subtitle:
-                            'Elige cómo verán tus clientes tu página de presentación.',
+              return Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 700),
+                      child: Column(
                         children: [
-                          _TemplateSelector(
-                            selectedFormat: _selectedFormat,
-                            onFormatSelected: (format) {
-                              setState(() => _selectedFormat = format);
-                            },
-                          ),
-                        ]),
-                    const SizedBox(height: 24),
+                          // --- SECCIÓN 1: IDENTIDAD DE MARCA ---
+                          _buildSectionCard(
+                            theme: theme,
+                            title: 'Identidad de Marca (Público)',
+                            children: [
+                              // TOUR: Paso 1 - Identidad
+                              Showcase(
+                                key: _keyIdentitySection,
+                                title: 'Tu Marca',
+                                description: 'Sube tu logo y define el nombre de tu negocio. ¡Es lo primero que verán!',
+                                child: _LogoAndNameCard(
+                                  imageFile: _selectedImageFile,
+                                  existingLogoUrl: _existingLogoUrl,
+                                  nameController: _businessNameController,
+                                  decoration: inputDecoration,
+                                  onTapLogo: _pickImage,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              
+                              // TOUR: Paso 2 - Color
+                              Showcase(
+                                key: _keyColorSection,
+                                title: 'Color de Acento',
+                                description: 'Elige un color que represente tu marca. Se usará en botones y precios.',
+                                child: _ColorSelectorCard(
+                                  title: 'Color de Acento (Público)',
+                                  predefinedColors: _predefinedBrandColors,
+                                  selectedColor: _selectedBrandColor,
+                                  onColorSelected: (color) {
+                                    setState(() => _selectedBrandColor = color);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 24),
 
-                    // --- SECCIÓN 3: CONTENIDO ---
-                    _buildSectionCard(
-                        theme: theme,
-                        title: 'Contenido del Perfil',
-                        children: [
-                          TextFormField(
-                            controller: _sloganController,
-                            style: TextStyle(
-                                color: colors.onSurface),
-                            decoration: inputDecoration.copyWith(
-                              labelText: 'Slogan o Mensaje de Bienvenida',
-                              prefixIcon: Icon(Icons.campaign_outlined,
-                                  color: colors.onSurface.withOpacity(0.7)),
+                              // TOUR: Paso 3 - Tema
+                              Showcase(
+                                key: _keyThemeSection,
+                                title: 'Atmósfera (Skin)',
+                                description: 'Selecciona el estilo de fondo para tu página. Prueba cómo se ve en tiempo real.',
+                                child: _PublicThemeSelector(
+                                  selectedThemeId: _selectedPublicTheme,
+                                  onThemeSelected: (themeId) {
+                                    setState(() => _selectedPublicTheme = themeId);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // --- SECCIÓN 2: FORMATO DE PERFIL ---
+                          _buildSectionCard(
+                              theme: theme,
+                              title: 'Formato de Perfil Público',
+                              subtitle:
+                                  'Elige cómo verán tus clientes tu página de presentación.',
+                              children: [
+                                // TOUR: Paso 4 - Formato
+                                Showcase(
+                                  key: _keyFormatSection,
+                                  title: 'Diseño de Página',
+                                  description: '¿Vendes productos o servicios? Elige "Tienda" o "Catálogo" según necesites.',
+                                  child: _TemplateSelector(
+                                    selectedFormat: _selectedFormat,
+                                    onFormatSelected: (format) {
+                                      setState(() => _selectedFormat = format);
+                                    },
+                                  ),
+                                ),
+                              ]),
+                          const SizedBox(height: 24),
+
+                          // --- SECCIÓN 3: CONTENIDO ---
+                          _buildSectionCard(
+                              theme: theme,
+                              title: 'Contenido del Perfil',
+                              children: [
+                                TextFormField(
+                                  controller: _sloganController,
+                                  style: TextStyle(color: colors.onSurface),
+                                  decoration: inputDecoration.copyWith(
+                                    labelText: 'Slogan o Mensaje de Bienvenida',
+                                    prefixIcon: Icon(Icons.campaign_outlined,
+                                        color: colors.onSurface.withValues(alpha: 0.7)),
+                                  ),
+                                  maxLength: 150,
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _addressController,
+                                  style: TextStyle(color: colors.onSurface),
+                                  decoration: inputDecoration.copyWith(
+                                    labelText: 'Dirección o Zona de Cobertura',
+                                    prefixIcon: Icon(Icons.location_on_outlined,
+                                        color: colors.onSurface.withValues(alpha: 0.7)),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _countryController,
+                                  style: TextStyle(color: colors.onSurface),
+                                  decoration: inputDecoration.copyWith(
+                                    labelText: 'País (Ej: AR, US, ES)',
+                                    prefixIcon: Icon(Icons.flag_outlined,
+                                        color: colors.onSurface.withValues(alpha: 0.7)),
+                                  ),
+                                  maxLength: 2,
+                                ),
+                              ]),
+                          const SizedBox(height: 24),
+
+                          // --- SECCIÓN 4: REDES SOCIALES ---
+                          _SocialMediaCard(
+                            theme: theme,
+                            decoration: inputDecoration,
+                            phoneController: _phoneController,
+                            whatsappController: _whatsappController,
+                            websiteController: _websiteController,
+                            instagramController: _instagramController,
+                            facebookController: _facebookController,
+                            tiktokController: _tiktokController,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // --- SECCIÓN 5: MÉTODOS DE PAGO ---
+                          _PaymentMethodsCard(
+                            user: widget.user,
+                          ),
+                          const SizedBox(height: 48),
+
+                          // --- Botón de Guardar ---
+                          // TOUR: Paso 5 - Guardar
+                          Showcase(
+                            key: _keySaveButton,
+                            title: 'Publicar',
+                            description: 'No olvides guardar para que tus clientes vean los cambios.',
+                            // shapeBorder ELIMINADO para corregir error
+                            child: SizedBox(
+                              height: 50,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: appTheme.colorScheme.primary,
+                                  foregroundColor: appTheme.colorScheme.onPrimary,
+                                ),
+                                onPressed: _isLoading ? null : _saveSettings,
+                                child: _isLoading
+                                    ? SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                            color: appTheme.colorScheme.onPrimary,
+                                            strokeWidth: 3))
+                                    : const Text('Guardar Cambios'),
+                              ),
                             ),
-                            maxLength: 150,
                           ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _addressController,
-                            style: TextStyle(
-                                color: colors.onSurface),
-                            decoration: inputDecoration.copyWith(
-                              labelText: 'Dirección o Zona de Cobertura',
-                              prefixIcon: Icon(Icons.location_on_outlined,
-                                  color: colors.onSurface.withOpacity(0.7)),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _countryController,
-                            style: TextStyle(
-                                color: colors.onSurface),
-                            decoration: inputDecoration.copyWith(
-                              labelText: 'País (Ej: AR, US, ES)',
-                              prefixIcon: Icon(Icons.flag_outlined,
-                                  color: colors.onSurface.withOpacity(0.7)),
-                            ),
-                            maxLength: 2,
-                          ),
-                        ]),
-                    const SizedBox(height: 24),
-
-                    // --- SECCIÓN 4: REDES SOCIALES ---
-                    _SocialMediaCard(
-                      theme: theme,
-                      decoration: inputDecoration,
-                      phoneController: _phoneController,
-                      whatsappController: _whatsappController,
-                      websiteController: _websiteController,
-                      instagramController: _instagramController,
-                      facebookController: _facebookController,
-                      tiktokController: _tiktokController,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // --- SECCIÓN 5: MÉTODOS DE PAGO ---
-                    _PaymentMethodsCard(
-                      user: widget.user,
-                    ),
-                    const SizedBox(height: 48),
-
-                    // --- Botón de Guardar ---
-                    SizedBox(
-                      height: 50,
-                      child: FilledButton(
-                        // El botón usará el color de acento de la APP (appTheme)
-                        style: FilledButton.styleFrom(
-                          backgroundColor: appTheme.colorScheme.primary,
-                          foregroundColor: appTheme.colorScheme.onPrimary,
-                        ),
-                        onPressed: _isLoading ? null : _saveSettings,
-                        child: _isLoading
-                            ? SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                    color: appTheme.colorScheme.onPrimary,
-                                    strokeWidth: 3))
-                            : const Text('Guardar Cambios'),
+                          const SizedBox(height: 24),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              }),
-            ),
+                  ),
+                ),
+              );
+            }),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  /// Contenedor reutilizable para cada sección.
-  /// (Usa el color 'surface' del tema que se le pasa)
   Widget _buildSectionCard(
       {required ThemeData theme,
       required String title,
@@ -537,7 +611,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface, // <-- USA EL TEMA (DE PREVIEW)
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -550,7 +624,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
             const SizedBox(height: 8),
             Text(subtitle,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.7))),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
           ],
           const SizedBox(height: 24),
           ...children,
@@ -561,8 +635,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
   void _showSnackbar(String message, {bool isError = false}) {
     if (!mounted) return;
-    // El snackbar usa el tema de la APP, no el de preview
-    final colors = Theme.of(context).colorScheme; 
+    final colors = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message,
           style: TextStyle(
@@ -574,27 +647,12 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       margin: const EdgeInsets.all(16),
     ));
   }
-
-  Color? _colorFromHex(String? hexColor) {
-    if (hexColor == null || hexColor.isEmpty) return null;
-    final hexCode = hexColor.replaceAll('#', '');
-    if (hexCode.length == 6) {
-      final validHexCode = 'FF$hexCode';
-      try {
-        return Color(int.parse(validHexCode, radix: 16));
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  }
 }
 
 // ===================================================================
 // --- WIDGETS DE SECCIÓN PERSONALIZADOS ---
 // ===================================================================
 
-/// Combina el selector de logo y el nombre del negocio.
 class _LogoAndNameCard extends StatelessWidget {
   final XFile? imageFile;
   final String? existingLogoUrl;
@@ -612,10 +670,9 @@ class _LogoAndNameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Usará el tema de preview que viene del 'Builder'
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    
+
     ImageProvider? image;
     if (imageFile != null) {
       image = FileImage(File(imageFile!.path));
@@ -640,17 +697,16 @@ class _LogoAndNameCard extends StatelessWidget {
                   image: image != null
                       ? DecorationImage(image: image, fit: BoxFit.cover)
                       : null,
-                  // El borde AHORA usa el color de acento del PREVIEW
-                  border: Border.all(color: colors.primary, width: 2), 
+                  border: Border.all(color: colors.primary, width: 2),
                   color: image == null
-                      ? colors.surface.withAlpha(100)
+                      ? colors.surface.withValues(alpha: 0.4) // Corregido withAlpha/Opacity
                       : Colors.transparent,
                 ),
                 child: image == null
                     ? Center(
                         child: Icon(Icons.business_rounded,
                             size: 40,
-                            color: colors.onSurface.withOpacity(0.7)))
+                            color: colors.onSurface.withValues(alpha: 0.7)))
                     : null,
               ),
               Positioned(
@@ -661,13 +717,11 @@ class _LogoAndNameCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      // El botón AHORA usa el color de acento del PREVIEW
-                      color: colors.primary, 
+                      color: colors.primary,
                       shape: BoxShape.circle,
                       border: Border.fromBorderSide(
                           BorderSide(color: colors.surface, width: 2)),
                     ),
-                    // Icono con contraste automático
                     child: Icon(Icons.edit,
                         size: 18,
                         color: colors.onPrimary,
@@ -694,7 +748,6 @@ class _LogoAndNameCard extends StatelessWidget {
   }
 }
 
-/// Muestra la paleta de colores de la app para la MARCA
 class _ColorSelectorCard extends StatelessWidget {
   final String title;
   final List<Color> predefinedColors;
@@ -710,8 +763,8 @@ class _ColorSelectorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // Usará el tema de preview
-    
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -730,16 +783,16 @@ class _ColorSelectorCard extends StatelessWidget {
               onTap: () => onColorSelected(color),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
                   border: isSelected
                       ? Border.all(color: Colors.white, width: 3)
-                      : Border.all(color: Colors.white.withOpacity(0.5), width: 1),
+                      : Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1),
                   boxShadow: isSelected
-                      ? [BoxShadow(color: color.withAlpha(178), blurRadius: 10)]
+                      ? [BoxShadow(color: color.withValues(alpha: 0.7), blurRadius: 10)]
                       : [],
                 ),
                 child: isSelected
@@ -754,7 +807,6 @@ class _ColorSelectorCard extends StatelessWidget {
   }
 }
 
-/// (Tu Idea 3) Muestra los formatos de perfil como tarjetas visuales
 class _TemplateSelector extends StatelessWidget {
   final String selectedFormat;
   final ValueChanged<String> onFormatSelected;
@@ -764,7 +816,6 @@ class _TemplateSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Forzamos la fila con Expanded para que siempre usen el espacio
     return Row(
       children: [
         Expanded(
@@ -798,7 +849,6 @@ class _TemplateSelector extends StatelessWidget {
   }
 }
 
-/// (MEJORA: Tipografía reducida a labelLarge)
 class _TemplateCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -814,9 +864,9 @@ class _TemplateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // Usará el tema de preview
+    final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final successColor = const Color(0xFF00FF7F); // Color de éxito es constante
+    final successColor = const Color(0xFF00FF7F);
 
     return InkWell(
       onTap: onTap,
@@ -825,7 +875,8 @@ class _TemplateCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? successColor.withAlpha(30) : colors.background,
+          // Reemplazo de background por surface y withOpacity por withValues
+          color: isSelected ? successColor.withValues(alpha: 0.12) : colors.surface, 
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? successColor : colors.surface,
@@ -838,7 +889,7 @@ class _TemplateCard extends StatelessWidget {
                 size: 32,
                 color: isSelected
                     ? successColor
-                    : colors.onSurface.withOpacity(0.7)),
+                    : colors.onSurface.withValues(alpha: 0.7)),
             const SizedBox(height: 12),
             Text(
               title,
@@ -853,14 +904,13 @@ class _TemplateCard extends StatelessWidget {
   }
 }
 
-/// (Widget Corregido) Muestra un resumen de los métodos de pago
 class _PaymentMethodsCard extends StatelessWidget {
   final UserModel user;
   const _PaymentMethodsCard({required this.user});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // Usará el tema de preview
+    final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
     const summaryText = "1 cuenta configurada (MercadoPago)";
@@ -876,13 +926,13 @@ class _PaymentMethodsCard extends StatelessWidget {
           );
         },
         borderRadius: BorderRadius.circular(12),
-        splashColor: colors.primary.withOpacity(0.2), // Splash de acento de PREVIEW
-        highlightColor: colors.primary.withOpacity(0.1), // Highlight de acento de PREVIEW
+        splashColor: colors.primary.withValues(alpha: 0.2),
+        highlightColor: colors.primary.withValues(alpha: 0.1),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Row(
             children: [
-              Icon(Icons.credit_card_outlined, color: colors.primary, size: 28), // Icono de acento de PREVIEW
+              Icon(Icons.credit_card_outlined, color: colors.primary, size: 28),
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
@@ -896,13 +946,13 @@ class _PaymentMethodsCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       summaryText,
-                      style: TextStyle(color: colors.onSurface.withOpacity(0.7)),
+                      style: TextStyle(color: colors.onSurface.withValues(alpha: 0.7)),
                     ),
                   ],
                 ),
               ),
               Icon(Icons.arrow_forward_ios_rounded,
-                  color: colors.onSurface.withOpacity(0.3), size: 16),
+                  color: colors.onSurface.withValues(alpha: 0.3), size: 16),
             ],
           ),
         ),
@@ -911,7 +961,6 @@ class _PaymentMethodsCard extends StatelessWidget {
   }
 }
 
-/// Tarjeta de Redes Sociales con campos expandibles
 class _SocialMediaCard extends StatelessWidget {
   final ThemeData theme;
   final InputDecoration decoration;
@@ -935,7 +984,6 @@ class _SocialMediaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Este widget recibe el tema (de preview) explícitamente
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
@@ -952,7 +1000,7 @@ class _SocialMediaCard extends StatelessWidget {
           Text(
               'Toca un ícono para añadir tu información. Los iconos en color se mostrarán en tu perfil.',
               style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7))),
+                  ?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
           const SizedBox(height: 24),
           _ClickableIconFormField(
             controller: phoneController,
@@ -965,7 +1013,7 @@ class _SocialMediaCard extends StatelessWidget {
           const SizedBox(height: 12),
           _ClickableIconFormField(
             controller: whatsappController,
-            icon: Icons.message_outlined, // Reemplazar con ícono de WhatsApp
+            icon: Icons.message_outlined,
             label: 'WhatsApp',
             hint: 'Ej: 54911...',
             keyboardType: TextInputType.phone,
@@ -1013,7 +1061,6 @@ class _SocialMediaCard extends StatelessWidget {
   }
 }
 
-/// El widget de formulario expandible
 class _ClickableIconFormField extends StatefulWidget {
   final TextEditingController controller;
   final IconData icon;
@@ -1049,7 +1096,7 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme; // Usará el tema de preview
+    final colors = Theme.of(context).colorScheme;
     final bool isFilled = widget.controller.text.isNotEmpty;
 
     return Column(
@@ -1062,10 +1109,9 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
             children: [
               Icon(
                 widget.icon,
-                // El icono usa el acento del PREVIEW
                 color: isFilled
-                    ? colors.primary 
-                    : colors.onSurface.withOpacity(0.5),
+                    ? colors.primary
+                    : colors.onSurface.withValues(alpha: 0.5),
                 size: 24,
               ),
               const SizedBox(width: 16),
@@ -1074,7 +1120,7 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
                 style: TextStyle(
                     color: isFilled
                         ? colors.onSurface
-                        : colors.onSurface.withOpacity(0.5),
+                        : colors.onSurface.withValues(alpha: 0.5),
                     fontWeight: FontWeight.w600),
               ),
               const Spacer(),
@@ -1082,7 +1128,7 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
                 _isExpanded
                     ? Icons.expand_less_rounded
                     : Icons.expand_more_rounded,
-                color: colors.onSurface.withOpacity(0.5),
+                color: colors.onSurface.withValues(alpha: 0.5),
               ),
             ],
           ),
@@ -1098,7 +1144,7 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
                     style: TextStyle(color: colors.onSurface),
                     decoration: widget.decoration.copyWith(
                       hintText: widget.hint,
-                      prefixIcon: null, // No necesitamos el ícono aquí
+                      prefixIcon: null,
                     ),
                     keyboardType: widget.keyboardType,
                     onChanged: (value) {
@@ -1115,7 +1161,6 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
   }
 }
 
-/// El widget selector principal para los temas públicos
 class _PublicThemeSelector extends StatelessWidget {
   final String selectedThemeId;
   final ValueChanged<String> onThemeSelected;
@@ -1127,8 +1172,8 @@ class _PublicThemeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // Usará el tema de preview
-    
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1139,11 +1184,11 @@ class _PublicThemeSelector extends StatelessWidget {
                 fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
         GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 250,
             mainAxisSpacing: 12,
-            childAspectRatio: 2.5, // Tarjetas más anchas que altas
+            crossAxisSpacing: 12,
+            childAspectRatio: 2.5,
           ),
           itemCount: _publicProfileThemes.length,
           shrinkWrap: true,
@@ -1163,7 +1208,6 @@ class _PublicThemeSelector extends StatelessWidget {
   }
 }
 
-/// La tarjeta visual individual para cada "Skin"
 class _ThemeChoiceCard extends StatelessWidget {
   final _PublicThemeData theme;
   final bool isSelected;
@@ -1177,7 +1221,6 @@ class _ThemeChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El borde SÍ usa el acento del PREVIEW
     final Color previewPrimaryColor = Theme.of(context).colorScheme.primary;
 
     return InkWell(
@@ -1186,12 +1229,12 @@ class _ThemeChoiceCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: theme.background, // Muestra el color de fondo
+          color: theme.background,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? previewPrimaryColor // Borde de acento de PREVIEW
-                : Colors.white.withOpacity(0.3), // Borde tenue
+                ? previewPrimaryColor
+                : Colors.white.withValues(alpha: 0.3),
             width: isSelected ? 3 : 1,
           ),
         ),
@@ -1201,7 +1244,6 @@ class _ThemeChoiceCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Muestra el color de la tarjeta/superficie
               Container(
                 width: double.infinity,
                 height: 20,
@@ -1211,7 +1253,6 @@ class _ThemeChoiceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              // Muestra el nombre
               Text(
                 theme.name,
                 style: TextStyle(

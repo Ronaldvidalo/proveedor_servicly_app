@@ -3,12 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
-import 'package:proveedor_servicly_app/features/profile/screens/all_orders_screen.dart';
-
-// Definición de colores para consistencia
-const _accentColor = Color(0xFF00BFFF); // Cyber Glow Accent
-const _surfaceColor = Color(0xFF2D2D5A);
-const _backgroundColor = Color(0xFF1A1A2E);
+// IMPORTANTE: Ajusta esta ruta a donde realmente guardaste AllOrdersScreen
+import 'package:proveedor_servicly_app/features/orders/screens/all_orders_screen.dart';
 
 /// Un widget reutilizable que muestra un resumen de las ventas pendientes
 /// del proveedor y sirve como acceso directo a la pantalla de órdenes.
@@ -22,30 +18,28 @@ class PendingSalesSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Asumo que OrderService está disponible en el Provider
     final orderService = context.read<OrderService>();
+    // --- TEMATIZACIÓN ---
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return StreamBuilder<List<OrderModel>>(
-      // Usamos el método 'getPendingOrders'
       stream: orderService.getPendingOrders(providerId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // Muestra un skeleton simple mientras carga
-          return _buildLoadingState();
+          return _buildLoadingState(colors);
         }
 
         if (snapshot.hasError) {
           debugPrint('Error al cargar órdenes pendientes: ${snapshot.error}');
-          return _buildErrorState();
+          return _buildErrorState(colors);
         }
 
         final pendingOrders = snapshot.data ?? [];
         final count = pendingOrders.length;
 
-        // --- El Widget Principal (Tarjeta de Resumen) ---
         return GestureDetector(
           onTap: () {
-            // Navega a la pantalla de detalle de órdenes, abriendo en la pestaña "Pendientes"
             Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => AllOrdersScreen(
                 providerId: providerId,
@@ -53,53 +47,53 @@ class PendingSalesSummary extends StatelessWidget {
               ),
             ));
           },
-          child: _buildSummaryCard(context, count),
+          child: _buildSummaryCard(context, count, colors),
         );
       },
     );
   }
 
   // Widget para el estado de carga
-  Widget _buildLoadingState() {
+  Widget _buildLoadingState(ColorScheme colors) {
     return Container(
-      height: 86, // Altura fija
+      height: 86,
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: _surfaceColor,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Center(child: LinearProgressIndicator(color: _accentColor)),
+      child: Center(child: LinearProgressIndicator(color: colors.primary)),
     );
   }
 
   // Widget para el estado de error
-  Widget _buildErrorState() {
+  Widget _buildErrorState(ColorScheme colors) {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: _surfaceColor,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.redAccent, width: 1),
+        border: Border.all(color: colors.error, width: 1),
       ),
-      child: const Center(
+      child: Center(
           child: Text(
         'Error al cargar órdenes',
-        style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+        style: TextStyle(color: colors.error, fontWeight: FontWeight.bold),
       )),
     );
   }
 
   // Widget principal de la tarjeta con el conteo de órdenes
-  Widget _buildSummaryCard(BuildContext context, int count) {
+  Widget _buildSummaryCard(BuildContext context, int count, ColorScheme colors) {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: _surfaceColor,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _accentColor.withAlpha(100), width: 1),
+        border: Border.all(color: colors.primary.withAlpha(100), width: 1),
         boxShadow: [
           BoxShadow(
-            color: _accentColor.withAlpha(51),
+            color: colors.primary.withAlpha(51),
             blurRadius: 12,
             spreadRadius: 2,
           ),
@@ -111,10 +105,10 @@ class PendingSalesSummary extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _backgroundColor,
+              color: colors.background, // Fondo del icono
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.pending_actions_rounded, color: _accentColor, size: 30),
+            child: Icon(Icons.pending_actions_rounded, color: colors.primary, size: 30),
           ),
 
           const SizedBox(width: 16),
@@ -128,8 +122,8 @@ class PendingSalesSummary extends StatelessWidget {
                   count == 0
                       ? 'No hay ventas pendientes'
                       : '¡Tienes $count ${count == 1 ? 'venta' : 'ventas'} nuevas!',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.onSurface,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -139,8 +133,8 @@ class PendingSalesSummary extends StatelessWidget {
                   count == 0
                       ? 'Todo al día'
                       : 'Accede para confirmar o rechazar',
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: colors.onSurface.withOpacity(0.7),
                     fontSize: 14,
                   ),
                 ),
@@ -149,7 +143,7 @@ class PendingSalesSummary extends StatelessWidget {
           ),
 
           // Icono de flecha
-          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 18),
+          Icon(Icons.arrow_forward_ios_rounded, color: colors.onSurface.withOpacity(0.5), size: 18),
         ],
       ),
     );
