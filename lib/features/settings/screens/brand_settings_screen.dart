@@ -1,12 +1,12 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 19/11/2025
 // Style: Cyber Glow
-// Feature: Virtual Tour (ShowCaseView)
+// Feature: Virtual Tour + Geocoding Integration
 //
 // 1. (FIX) Eliminado parámetro 'shapeBorder' que causaba error en Showcase.
 // 2. (FIX) Actualizado 'withOpacity' a 'withValues(alpha: ...)' (Nueva API Flutter).
 // 3. (FIX) Reemplazado 'background'/'onBackground' por 'surface'/'onSurface'.
-// 4. (FIX) Limpieza de imports y funciones no utilizadas.
+// 4. (NEW) Integración de GeocodingService para convertir dirección a coordenadas GPS.
 // ---------------------------------
 
 import 'dart:io';
@@ -24,9 +24,11 @@ import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 
+// --- IMPORTACIÓN CRÍTICA PARA GEOCODING ---
+import 'package:proveedor_servicly_app/core/services/geocoding_service.dart';
+
 // Importamos el ThemeService para leer el tema
 import 'package:proveedor_servicly_app/core/services/theme_service.dart';
-// import 'package:proveedor_servicly_app/shared/theme/app_themes.dart'; // <-- ELIMINADO (No se usaba)
 
 // --- Navegación ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
@@ -83,7 +85,6 @@ Color _getOnColor(Color color) {
       : Colors.black;
 }
 
-// Se reactiva esta función porque la necesitamos en initState
 Color? _colorFromHex(String? hexColor) {
   if (hexColor == null || hexColor.isEmpty) return null;
   final hexCode = hexColor.replaceAll('#', '');
@@ -123,7 +124,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final GlobalKey _keyFormatSection = GlobalKey();
   final GlobalKey _keySaveButton = GlobalKey();
 
-  BuildContext? _showCaseContext; // Contexto para iniciar el tour
+  BuildContext? _showCaseContext; 
 
   late TextEditingController _businessNameController;
   late TextEditingController _sloganController;
@@ -176,7 +177,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _checkIfFirstTime();
   }
 
-  /// Comprueba si es la primera vez y lanza el tour
   Future<void> _checkIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
     final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v1') ?? false;
@@ -189,7 +189,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     }
   }
 
-  /// Inicia la secuencia de Showcase
   void _startTour() {
     if (_showCaseContext != null) {
       ShowCaseWidget.of(_showCaseContext!).startShowCase([
@@ -229,7 +228,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _existingLogoUrl = personalization['logoUrl'] as String?;
 
     final hexColor = personalization['primaryColor'] as String?;
-    // AQUÍ se usa _colorFromHex, por lo que ya no dará error de "unused"
     _selectedBrandColor = _colorFromHex(hexColor) ?? const Color(0xFF00BFFF);
 
     _selectedPublicTheme =
@@ -280,9 +278,15 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     final userModel = widget.user;
     String? newLogoUrl;
 
+    // --- NUEVO: Instancia del servicio de Geocoding ---
+    final geocodingService = GeocodingService();
+    double? newLatitude;
+    double? newLongitude;
+
     final navigator = Navigator.of(context);
 
     try {
+      // 1. Subida de Imagen (si aplica)
       if (_selectedImageFile != null) {
         final String storagePath =
             'brandProfiles/${userModel.uid}/profile_logo.jpg';
@@ -300,8 +304,34 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         );
       }
 
+      // 2. Lógica de GEOCODING (Convertir dirección a coordenadas)
+      final addressText = _addressController.text.trim();
+      if (addressText.isNotEmpty) {
+        try {
+          // Tip: Concatenar el país ayuda a la precisión si el usuario no lo escribió en la dirección
+          String queryAddress = addressText;
+          if (_countryController.text.trim().isNotEmpty) {
+             // Evita duplicar si ya lo escribió
+             if (!addressText.toLowerCase().contains(_countryController.text.trim().toLowerCase())) {
+                queryAddress = "$addressText, ${_countryController.text.trim()}";
+             }
+          }
+
+          final coords = await geocodingService.getCoordinatesFromAddress(queryAddress);
+          if (coords != null) {
+            newLatitude = coords['latitude'];
+            newLongitude = coords['longitude'];
+            debugPrint("GEOCODING ÉXITO: $newLatitude, $newLongitude");
+          } else {
+             debugPrint("GEOCODING: No se encontraron coordenadas para $queryAddress");
+          }
+        } catch (e) {
+          debugPrint("Error en geocoding: $e");
+        }
+      }
+
       final hexColor =
-          '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}'; // Corregido 'value' deprecated si aplica, pero int.toRadixString está bien.
+          '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}';
 
       final Map<String, dynamic> updatedPersonalization =
           Map<String, dynamic>.from(userModel.personalization);
@@ -311,10 +341,10 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'logoUrl': newLogoUrl ?? _existingLogoUrl ?? '',
         'primaryColor': hexColor,
         'contactEmail': _contactEmailController.text.trim(),
-        'address': _addressController.text.trim(),
+        'address': addressText,
+        'country': _countryController.text.trim(),
         'slogan': _sloganController.text.trim(),
         'welcomeMessage': _sloganController.text.trim(),
-        'country': _countryController.text.trim(),
         'phone': _phoneController.text.trim(),
         'whatsapp': _whatsappController.text.trim(),
         'website': _websiteController.text.trim(),
@@ -322,6 +352,12 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'facebook': _facebookController.text.trim(),
         'tiktok': _tiktokController.text.trim(),
         'publicProfileTheme': _selectedPublicTheme,
+        
+        // --- GUARDADO DE COORDENADAS ---
+        // Si obtuvimos nuevas, las guardamos. Si no, intentamos mantener las viejas si existen.
+        // Nota: Si el usuario borra la dirección, quizás quieras borrar las coordenadas (opcional)
+        if (newLatitude != null) 'latitude': newLatitude,
+        if (newLongitude != null) 'longitude': newLongitude,
       });
 
       await firestoreService.updateUser(userModel.uid, {
@@ -364,20 +400,14 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     final ThemeData previewTheme = appTheme.copyWith(
       colorScheme: appTheme.colorScheme.copyWith(
         surface: publicTheme.surface,
-        // background -> surface (Flutter nuevo)
-        // Como fallback usamos surface también para background si el tema lo requiere
-        // pero en colorScheme moderno background está deprecado.
-        // Usamos 'surface' para ambos o lo dejamos implícito.
-        // primary: _selectedBrandColor,
         onPrimary: _getOnColor(_selectedBrandColor),
       ),
       scaffoldBackgroundColor: publicTheme.background,
     );
 
-    // --- WRAPPER DEL TOUR ---
     return ShowCaseWidget(
       builder: (context) {
-        _showCaseContext = context; // Guardamos el contexto para el botón manual
+        _showCaseContext = context;
         
         return Scaffold(
           appBar: AppBar(
@@ -386,7 +416,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
             foregroundColor: appTheme.colorScheme.onSurface,
             elevation: 0,
             actions: [
-              // Botón para repetir el tour manualmente
               IconButton(
                 icon: const Icon(Icons.help_outline_rounded),
                 tooltip: 'Ayuda',
@@ -404,7 +433,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
               final inputDecoration = InputDecoration(
                   filled: true,
-                  // background -> surface
                   fillColor: colors.surface, 
                   labelStyle:
                       TextStyle(color: colors.onSurface.withValues(alpha: 0.7)),
@@ -521,11 +549,15 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                                   maxLength: 150,
                                 ),
                                 const SizedBox(height: 16),
+                                
+                                // --- CAMPO DIRECCIÓN (IMPORTANTE PARA GEO) ---
                                 TextFormField(
                                   controller: _addressController,
                                   style: TextStyle(color: colors.onSurface),
                                   decoration: inputDecoration.copyWith(
                                     labelText: 'Dirección o Zona de Cobertura',
+                                    helperText: 'Se usará para mostrar "Cerca de mí" en el mapa',
+                                    helperStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.6)),
                                     prefixIcon: Icon(Icons.location_on_outlined,
                                         color: colors.onSurface.withValues(alpha: 0.7)),
                                   ),
@@ -535,11 +567,10 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                                   controller: _countryController,
                                   style: TextStyle(color: colors.onSurface),
                                   decoration: inputDecoration.copyWith(
-                                    labelText: 'País (Ej: AR, US, ES)',
+                                    labelText: 'País (Ej: Argentina)',
                                     prefixIcon: Icon(Icons.flag_outlined,
                                         color: colors.onSurface.withValues(alpha: 0.7)),
                                   ),
-                                  maxLength: 2,
                                 ),
                               ]),
                           const SizedBox(height: 24),
@@ -569,7 +600,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                             key: _keySaveButton,
                             title: 'Publicar',
                             description: 'No olvides guardar para que tus clientes vean los cambios.',
-                            // shapeBorder ELIMINADO para corregir error
                             child: SizedBox(
                               height: 50,
                               child: FilledButton(
@@ -699,7 +729,7 @@ class _LogoAndNameCard extends StatelessWidget {
                       : null,
                   border: Border.all(color: colors.primary, width: 2),
                   color: image == null
-                      ? colors.surface.withValues(alpha: 0.4) // Corregido withAlpha/Opacity
+                      ? colors.surface.withValues(alpha: 0.4) 
                       : Colors.transparent,
                 ),
                 child: image == null
@@ -875,7 +905,6 @@ class _TemplateCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
-          // Reemplazo de background por surface y withOpacity por withValues
           color: isSelected ? successColor.withValues(alpha: 0.12) : colors.surface, 
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -1031,7 +1060,7 @@ class _SocialMediaCard extends StatelessWidget {
           const SizedBox(height: 12),
           _ClickableIconFormField(
             controller: instagramController,
-            icon: IconsKE.instagram, // Helper class
+            icon: Icons.camera_alt_outlined, 
             label: 'Instagram',
             hint: 'tuusuario (sin @)',
             keyboardType: TextInputType.text,
@@ -1149,7 +1178,6 @@ class _ClickableIconFormFieldState extends State<_ClickableIconFormField> {
                     keyboardType: widget.keyboardType,
                     onChanged: (value) {
                       setState(() {
-                        // Reconstruye para actualizar el color del icono
                       });
                     },
                   ),

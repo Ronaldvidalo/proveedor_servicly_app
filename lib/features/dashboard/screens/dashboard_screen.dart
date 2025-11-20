@@ -1,13 +1,12 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 19/11/2025
 // Style: Cyber Glow
-// Feature: Virtual Tour (ShowCaseView)
+// Feature: Virtual Tour (ShowCaseView) + Navigation Update
 //
-// 1. (¡NUEVO!) Integrado ShowCaseWidget en la raíz del Dashboard.
-// 2. Implementada lógica para iniciar el tour AUTOMÁTICAMENTE
-//    solo cuando los datos (FutureBuilder) terminan de cargar.
-// 3. Añadidos pasos del tour: Header, Métricas, Perfil Público y Módulos.
-// 4. Botón de ayuda (?) en el AppBar para reiniciar el tour manualmente.
+// 1. (UPDATE) Agregada 'HomeScreen' (Explorar) a la navegación principal (Index 1).
+// 2. Configurado BottomNavigationBar como 'fixed' para soportar 4 pestañas sin romper el estilo.
+// 3. Integrado ShowCaseWidget en la raíz del Dashboard.
+// 4. Implementada lógica para iniciar el tour AUTOMÁTICAMENTE al cargar datos.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -39,7 +38,7 @@ import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agen
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
 import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
-import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
+import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart'; // <-- IMPORTANTE
 import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
 import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
@@ -51,7 +50,7 @@ import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_reposi
 /// La pantalla principal y dashboard para el usuario proveedor.
 /// Actúa como un "Shell" que contiene la barra de navegación.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key}); // Línea 140: Parámetro 'key' utilizado aquí (no se elimina)
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -61,10 +60,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0; 
   BuildContext? _showCaseContext; // Contexto para el tour
 
+  // --- LISTA DE PANTALLAS ACTUALIZADA ---
   static const List<Widget> _widgetOptions = <Widget>[
-    _ProviderHomeTab(), // Pestaña 0: El contenido del dashboard con Tour
-    _PlaceholderScreen(title: 'Oportunidades'), // Pestaña 1: Placeholder
-    SettingsScreen(), // Pestaña 2: Configuración
+    _ProviderHomeTab(),              // Index 0: Dashboard (Inicio)
+    HomeScreen(),                    // Index 1: Explorar (Mapa/Buscador) <--- ¡AGREGADO!
+    _PlaceholderScreen(title: 'Oportunidades'), // Index 2: Oportunidades
+    SettingsScreen(),                // Index 3: Configuración
   ];
 
   void _onItemTapped(int index) {
@@ -79,7 +80,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final colors = theme.colorScheme;
 
     // --- WRAPPER DEL TOUR (ShowCaseWidget) ---
-    // Envolvemos todo el Scaffold para que el overlay funcione sobre todo
     return ShowCaseWidget(
       builder: (context) {
         _showCaseContext = context; // Capturamos el contexto válido
@@ -88,16 +88,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           builder: (context, constraints) {
             if (constraints.maxWidth < 640) {
               return Scaffold(
-                backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 78)
+                backgroundColor: colors.surface,
                 body: IndexedStack(
                   index: _selectedIndex,
                   children: _widgetOptions,
                 ),
                 bottomNavigationBar: BottomNavigationBar(
+                  // IMPORTANTE: 'fixed' mantiene el color de fondo y etiquetas visibles
+                  type: BottomNavigationBarType.fixed, 
+                  backgroundColor: colors.surface,
+                  selectedItemColor: colors.primary,
+                  unselectedItemColor: colors.onSurface.withAlpha(150),
                   items: const <BottomNavigationBarItem>[
                     BottomNavigationBarItem(
-                      icon: Icon(Icons.home_filled),
+                      icon: Icon(Icons.dashboard_rounded),
                       label: 'Inicio',
+                    ),
+                    // --- NUEVO ÍTEM: EXPLORAR ---
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.map_outlined),
+                      label: 'Explorar',
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(Icons.lightbulb_outline_rounded),
@@ -105,7 +115,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(Icons.settings_outlined),
-                      label: 'Configuración',
+                      label: 'Ajustes',
                     ),
                   ],
                   currentIndex: _selectedIndex,
@@ -113,18 +123,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               );
             } else {
+              // Diseño para Tablet/Web (NavigationRail)
               return Scaffold(
-                backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 104)
+                backgroundColor: colors.surface,
                 body: Row(
                   children: <Widget>[
                     NavigationRail(
+                      backgroundColor: colors.surface,
                       selectedIndex: _selectedIndex,
                       onDestinationSelected: _onItemTapped,
                       labelType: NavigationRailLabelType.all,
                       destinations: const <NavigationRailDestination>[
-                          NavigationRailDestination(icon: Icon(Icons.home_filled), label: Text('Inicio')),
+                          NavigationRailDestination(icon: Icon(Icons.dashboard_rounded), label: Text('Inicio')),
+                          // --- NUEVO ÍTEM: EXPLORAR ---
+                          NavigationRailDestination(icon: Icon(Icons.map_outlined), label: Text('Explorar')),
                           NavigationRailDestination(icon: Icon(Icons.lightbulb_outline_rounded), label: Text('Oportunidades')),
-                          NavigationRailDestination(icon: Icon(Icons.settings_outlined), label: Text('Configuración')),
+                          NavigationRailDestination(icon: Icon(Icons.settings_outlined), label: Text('Ajustes')),
                       ],
                     ),
                     VerticalDivider(thickness: 1, width: 1, color: theme.dividerColor),
@@ -150,7 +164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ===================================================================
 
 class _ProviderHomeTab extends StatefulWidget {
-  const _ProviderHomeTab({super.key}); // Línea 385: Parámetro 'key' utilizado aquí (no se elimina)
+  const _ProviderHomeTab({super.key}); 
 
   @override
   State<_ProviderHomeTab> createState() => _ProviderHomeTabState();
@@ -203,7 +217,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   void _startTour() {
     // Buscamos el ShowCaseWidget en el árbol (proviene de DashboardScreen)
     final showCaseContext = ShowCaseWidget.of(context);
-    // CORREGIDO: Eliminado `// ignore: unnecessary_null_comparison` y simplificado (Línea 201)
     if (showCaseContext != null) { 
       showCaseContext.startShowCase([
         _keyHeader,
@@ -225,8 +238,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     final userModel = context.watch<UserModel?>();
     final colors = Theme.of(context).colorScheme;
 
-    // CORREGIDO: Reemplazar '??' si userModel no puede ser nulo o manejar el nulo
-    // Dejamos la comprobación de nulo aquí, ya que context.watch<UserModel?>() podría ser nulo si el Provider no está activo.
     if (userModel == null) {
       return Center(child: CircularProgressIndicator(color: colors.primary));
     }
@@ -238,12 +249,12 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      // Botón flotante para repetir el tour (Opcional, o usar un icono en un AppBar real)
+      // Botón flotante para repetir el tour (Opcional)
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 80.0), // Ajuste para no tapar el FAB de módulos si hubiera
+        padding: const EdgeInsets.only(bottom: 16.0),
         child: FloatingActionButton.small(
           onPressed: _startTour,
-          backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 393)
+          backgroundColor: colors.surface,
           foregroundColor: colors.onSurface,
           tooltip: 'Ayuda del Dashboard',
           child: const Icon(Icons.help_outline_rounded),
@@ -257,7 +268,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _LoadingSkeleton(
                 userName: userModel.displayName,
-                // CORREGIDO: Eliminación de operador nulo muerto. userModel no es nulo aquí. (Línea 429)
                 businessName: userModel.personalization['businessName'] as String?, 
               );
             }
@@ -343,7 +353,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             child: Text(
               'Mis Módulos',
               style: theme.textTheme.titleLarge?.copyWith(
-                    color: colors.onSurface, // CORREGIDO: Usar onSurface en lugar de onBackground (Línea 344)
+                    color: colors.onSurface, 
                     fontWeight: FontWeight.bold,
                   ),
             ),
@@ -384,7 +394,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
 class _PlaceholderScreen extends StatelessWidget {
   final String title;
-  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 477)
   const _PlaceholderScreen({required this.title, super.key}); 
 
   @override
@@ -393,14 +402,13 @@ class _PlaceholderScreen extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: colors.surface, // CORREGIDO: Usar surface en lugar de background (Línea 484)
+      backgroundColor: colors.surface, 
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
              Icon(
               title == 'Oportunidades' ? Icons.lightbulb_outline_rounded : Icons.construction_rounded, 
-              // CORREGIDO: Usar .withAlpha() en lugar de .withOpacity() (Línea 501)
               color: colors.onSurface.withAlpha(50) 
             ),
             const SizedBox(height: 24),
@@ -416,7 +424,6 @@ class _PlaceholderScreen extends StatelessWidget {
                    ? 'Estamos construyendo esta sección para conectarte con nuevas oportunidades de negocio.'
                    : 'Esta sección está en desarrollo.',
                 textAlign: TextAlign.center,
-                // CORREGIDO: Usar .withAlpha() en lugar de .withOpacity() (Línea 516)
                 style: theme.textTheme.titleMedium?.copyWith(color: colors.onSurface.withAlpha(178)),
               ),
             ),
@@ -430,7 +437,6 @@ class _PlaceholderScreen extends StatelessWidget {
 // --- Banner de Completar Perfil ---
 class _ProfileCompletionBanner extends StatelessWidget {
   final VoidCallback onCompleteProfile;
-  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 555)
   const _ProfileCompletionBanner({required this.onCompleteProfile}); 
 
   @override
@@ -445,7 +451,6 @@ class _ProfileCompletionBanner extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            // CORREGIDO: Usar .withAlpha() en lugar de .withOpacity() (Línea 565)
             color: colors.surface.withAlpha(178), 
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: colors.primary.withAlpha(128)),
@@ -480,14 +485,12 @@ class _ProfileCompletionBanner extends StatelessWidget {
 // --- Sección de Métricas ---
 class _MetricsSection extends StatelessWidget {
   final UserModel userModel;
-  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 577)
   const _MetricsSection({required this.userModel}); 
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    // CORREGIDO: Eliminación de operador nulo muerto. userModel no es nulo aquí. (Línea 582)
     final String? photoURL = userModel.personalization['logoUrl'] as String?; 
 
     return Container(
@@ -502,38 +505,38 @@ class _MetricsSection extends StatelessWidget {
           Row(
              crossAxisAlignment: CrossAxisAlignment.center,
              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: colors.primary.withAlpha(50), 
-                  backgroundImage: photoURL != null && photoURL.isNotEmpty ? NetworkImage(photoURL) : null,
-                  child: photoURL == null || photoURL.isEmpty ? Icon(Icons.person, color: colors.primary) : null, 
-                ),
-               const SizedBox(width: 12),
-               Text(
-                 'Actividad Reciente',
-                 style: theme.textTheme.titleMedium?.copyWith(
-                       color: colors.onSurface,
-                       fontWeight: FontWeight.bold,
-                     ),
+               CircleAvatar(
+                 radius: 20,
+                 backgroundColor: colors.primary.withAlpha(50), 
+                 backgroundImage: photoURL != null && photoURL.isNotEmpty ? NetworkImage(photoURL) : null,
+                 child: photoURL == null || photoURL.isEmpty ? Icon(Icons.person, color: colors.primary) : null, 
                ),
-               const Spacer(),
-                SizedBox(
-                  height: 30,
-                  child: TextButton(
-                    onPressed: () { /* TODO: Navegar a pantalla de métricas detalladas */
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
-                        );
+              const SizedBox(width: 12),
+              Text(
+                'Actividad Reciente',
+                style: theme.textTheme.titleMedium?.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const Spacer(),
+               SizedBox(
+                 height: 30,
+                 child: TextButton(
+                   onPressed: () { 
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
+                       );
                      },
-                    child: const Row(
-                       mainAxisSize: MainAxisSize.min,
-                       children: [
-                         Text('Detalles'),
-                         Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                       ],
-                     ),
-                  ),
-                ),
+                   child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Detalles'),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      ],
+                    ),
+                 ),
+               ),
              ],
            ),
           Divider(height: 24, color: theme.dividerColor),
@@ -556,7 +559,6 @@ class _MetricItem extends StatelessWidget {
   final String label;
   final String value;
 
-  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 618)
   const _MetricItem({required this.icon, required this.label, required this.value}); 
 
   @override
@@ -567,7 +569,7 @@ class _MetricItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: colors.onSurface.withAlpha(178), size: 24), // CORREGIDO: Usar .withAlpha()
+        Icon(icon, color: colors.onSurface.withAlpha(178), size: 24), 
         const SizedBox(height: 4),
         Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         Text(label, style: theme.textTheme.bodySmall),
@@ -579,7 +581,6 @@ class _MetricItem extends StatelessWidget {
 // --- Botón de Perfil Público ---
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
-  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 723)
   const _PublicProfileButton({required this.userModel}); 
 
   @override
@@ -619,11 +620,9 @@ class _PublicProfileButton extends StatelessWidget {
 class _LoadingSkeleton extends StatefulWidget {
   final String? userName;
   final String? businessName;
-  // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 780)
   const _LoadingSkeleton({this.userName, this.businessName}); 
 
   @override
-  // ignore: library_private_types_in_public_api
   _LoadingSkeletonState createState() => _LoadingSkeletonState();
 }
 
@@ -647,7 +646,6 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
 
   LinearGradient get _shimmerGradient {
     final color = Theme.of(context).colorScheme.surface;
-    // CORREGIDO: Usar onSurface en lugar de onBackground (Línea 801)
     final highlightColor = Theme.of(context).colorScheme.onSurface.withAlpha(30); 
     
     return LinearGradient(
@@ -725,7 +723,6 @@ class _ShimmerObject extends StatelessWidget {
     this.width,
     this.height,
     this.isCircle = false,
-    // CORREGIDO: Eliminado el parámetro 'key' si no se usa internamente (Línea 901)
   }); 
 
   @override
@@ -747,7 +744,6 @@ class _SlidingGradientTransform extends GradientTransform {
   final double slidePercent;
 
   @override
-  // CORREGIDO: Eliminado el operador nulo '?' del método `transform` (Línea 930)
   Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
     final translationX = bounds.width * slidePercent * 2.0 - bounds.width;
     return Matrix4.translationValues(translationX, 0.0, 0.0);

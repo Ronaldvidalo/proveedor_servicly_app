@@ -6,6 +6,7 @@
 //    in the MultiProvider list.
 // 3. MaterialApp now consumes ThemeService and uses ThemeMode.system.
 // 4. (NUEVO) Se ha integrado SplashScreen como pantalla de inicio.
+// 5. (UX) Eliminada la solicitud automática de permisos de notificación al inicio.
 // ---------------------------------
 
 // *** CORRECCIÓN ***
@@ -29,7 +30,6 @@ import 'firebase_options.dart';
 // Importamos el NUEVO provider de tema y el archivo de temas
 import 'package:proveedor_servicly_app/core/services/theme_service.dart';
 import 'package:proveedor_servicly_app/shared/theme/app_themes.dart';
-// Se elimina la importación antigua: import 'package:proveedor_servicly_app/providers/theme_provider.dart';
 
 // --- Servicios Core ---
 import 'core/services/auth_service.dart';
@@ -50,8 +50,7 @@ import 'core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 
 // --- UI ---
-// import 'features/auth/widgets/auth_wrapper.dart'; // Ya no es la home directa
-import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; // <-- NUEVO IMPORT
+import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,24 +67,9 @@ void main() async {
   );
   // -----------------------------
 
-  // --- LÓGICA: SOLICITAR PERMISOS DE NOTIFICACIÓN ---
-  try {
-    final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-  } catch (e) {
-    if (kDebugMode) {
-      print('[main] Error al solicitar permisos de notificación: $e');
-    }
-  }
-  // ----------------------------------------------------
+  // --- UX: Solicitud de permisos ELIMINADA del inicio ---
+  // Se solicitará contextualmente dentro de la app (Dashboard/Onboarding)
+  // para mejorar la tasa de aceptación.
   
   // --- 1. Cargar el NUEVO servicio de tema ---
   final themeService = ThemeService();
@@ -110,13 +94,7 @@ class MyApp extends StatelessWidget {
         // --- 3. Añadimos el NUEVO ThemeService ---
         ChangeNotifierProvider.value(value: themeService),
 
-        // --- ELIMINADO el ThemeProvider antiguo ---
-        // ChangeNotifierProvider<ThemeProvider>(
-        //   create: (_) => ThemeProvider(),
-        // ),
-
         // --- PROVEEDORES DE SERVICIOS (Singletons) ---
-        // (Tu código original se mantiene)
         Provider<StorageService>(create: (_) => StorageService()),
         Provider<ProductService>(create: (_) => ProductService()),
         Provider<CategoryService>(create: (_) => CategoryService()),
@@ -138,7 +116,6 @@ class MyApp extends StatelessWidget {
         ),
 
         // --- PROVIDERS DE ESTADO (Streams Globales) ---
-        // (Tu código original se mantiene)
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,

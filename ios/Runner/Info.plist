@@ -47,5 +47,9 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSLocationWhenInUseUsageDescription</key>
+        <string>Servicly necesita tu ubicación para mostrarte profesionales cercanos disponibles.</string>
+        <key>NSLocationAlwaysUsageDescription</key>
+        <string>Servicly necesita tu ubicación para mejorar la búsqueda de servicios en tu zona.</string>
 	</dict>
 </plist>

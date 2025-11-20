@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-// Para debugPrint
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
 class ProviderProfileModel {
@@ -22,7 +21,7 @@ class ProviderProfileModel {
   /// Este campo define el tipo de perfil (ej: 'store', 'booking', 'social').
   final String profileType;
 
-  /// ¡NUEVO CAMPO! Define el "Skin" de fondo del perfil público
+  /// Define el "Skin" de fondo del perfil público
   final String? publicProfileTheme;
 
   /// El email de contacto público.
@@ -39,17 +38,23 @@ class ProviderProfileModel {
   final String? phone;
   final String? whatsapp;
 
-  // --- ¡NUEVOS CAMPOS DE REDES! ---
+  // --- CAMPOS DE REDES ---
   final String? website;
   final String? instagram;
   final String? facebook;
   final String? tiktok;
 
-  // --- ¡NUEVO CAMPO DE PARTNERS! ---
+  // --- CAMPO DE PARTNERS ---
   final List<Map<String, dynamic>> partners;
-  
-  // --- ¡NUEVO CAMPO DE PAGO P2P! ---
+
+  // --- CAMPO DE PAGO P2P ---
   final String? paymentInstructions;
+
+  // --- CAMPOS GEO, CATEGORÍA Y DISPONIBILIDAD ---
+  final String? category;   // Ej: "Pintor", "Abogado"
+  final double? latitude;   // Coordenada GPS
+  final double? longitude;  // Coordenada GPS
+  final bool isAvailable;   // Switch "Disponible"
 
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
@@ -74,23 +79,28 @@ class ProviderProfileModel {
     required this.brandColor,
     required this.activeModules,
     required this.profileType,
-    this.publicProfileTheme, // <-- AÑADIDO AL CONSTRUCTOR
+    this.publicProfileTheme,
     required this.contactEmail,
     this.address,
-    // Nuevos campos
+    // Campos adicionales
     this.slogan,
     this.averageRating,
     this.reviewCount,
     this.openingHours,
     this.phone,
     this.whatsapp,
-    // --- ¡AÑADIDOS AL CONSTRUCTOR! ---
+    // Redes y Partners
     this.website,
     this.instagram,
     this.facebook,
     this.tiktok,
     this.partners = const [],
     this.paymentInstructions,
+    // GEO y Disponibilidad
+    this.category,
+    this.latitude,
+    this.longitude,
+    this.isAvailable = true, // Por defecto true para perfiles antiguos
     // Welcome module fields
     required this.welcomeMessage,
     this.showWelcomeModule = true,
@@ -100,10 +110,10 @@ class ProviderProfileModel {
     // Module visibility controls
     this.showPortfolioModule = true,
     this.showReviewsModule = true,
-    this.showPromotionsModule = true, // Default true
-    this.showGiftCardModule = true, // Default true
-    this.showBookingModule = true, // Activo por defecto
-    this.showQuotesModule = false, // Inactivo por defecto
+    this.showPromotionsModule = true,
+    this.showGiftCardModule = true,
+    this.showBookingModule = true,
+    this.showQuotesModule = false,
   });
 
   /// Constructor factory para crear un [ProviderProfileModel] desde un documento de Firestore.
@@ -120,7 +130,7 @@ class ProviderProfileModel {
     final bookingModule = personalization['bookingModule'] as Map<String, dynamic>? ?? {};
     final quotesModule = personalization['quotesModule'] as Map<String, dynamic>? ?? {};
 
-    // --- ¡NUEVO! Leer la lista de partners de forma segura ---
+    // Leer la lista de partners de forma segura
     final List<Map<String, dynamic>> partnersList =
         (personalization['partners'] as List<dynamic>?)
                 ?.map((item) => Map<String, dynamic>.from(item as Map))
@@ -134,11 +144,11 @@ class ProviderProfileModel {
       brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
       profileType: data['publicProfileTemplate'] as String? ?? 'social',
-      publicProfileTheme: personalization['publicProfileTheme'] as String?, // <-- AÑADIDO AL FACTORY
+      publicProfileTheme: personalization['publicProfileTheme'] as String?,
       contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
       address: personalization['address'] as String?,
 
-      // Leer campos adicionales desde 'personalization'
+      // Leer campos adicionales
       slogan: personalization['slogan'] as String?,
       averageRating: (personalization['averageRating'] as num?)?.toDouble(),
       reviewCount: personalization['reviewCount'] as int?,
@@ -146,13 +156,20 @@ class ProviderProfileModel {
       phone: personalization['phone'] as String?,
       whatsapp: personalization['whatsapp'] as String?,
 
-      // --- ¡AÑADIDOS AL FACTORY! ---
+      // Redes, Partners y Pagos
       website: personalization['website'] as String?,
       instagram: personalization['instagram'] as String?,
       facebook: personalization['facebook'] as String?,
       tiktok: personalization['tiktok'] as String?,
       partners: partnersList,
-      paymentInstructions: personalization['paymentInstructions'] as String?, 
+      paymentInstructions: personalization['paymentInstructions'] as String?,
+
+      // --- LECTURA DE GEO Y DISPONIBILIDAD ---
+      category: personalization['category'] as String?,
+      latitude: (personalization['latitude'] as num?)?.toDouble(),
+      longitude: (personalization['longitude'] as num?)?.toDouble(),
+      // isAvailable suele estar en la raíz de 'users' o en 'brandProfiles', aquí asumimos la raíz del doc
+      isAvailable: data['isAvailable'] as bool? ?? true,
 
       // Leer campos del módulo de bienvenida
       showWelcomeModule: welcomeModule['show'] as bool? ?? true,
@@ -179,7 +196,7 @@ class ProviderProfileModel {
     Color? brandColor,
     List<String>? activeModules,
     String? profileType,
-    String? publicProfileTheme, // <-- AÑADIDO AL COPYWITH
+    String? publicProfileTheme,
     String? contactEmail,
     String? address,
     // Nuevos campos
@@ -189,13 +206,18 @@ class ProviderProfileModel {
     String? openingHours,
     String? phone,
     String? whatsapp,
-    // --- ¡AÑADIDOS AL COPYWITH! ---
+    // Redes y Partners
     String? website,
     String? instagram,
     String? facebook,
     String? tiktok,
     List<Map<String, dynamic>>? partners,
-    String? paymentInstructions, 
+    String? paymentInstructions,
+    // GEO y Disponibilidad
+    String? category,
+    double? latitude,
+    double? longitude,
+    bool? isAvailable,
     // Welcome module
     String? welcomeMessage,
     bool? showWelcomeModule,
@@ -217,7 +239,7 @@ class ProviderProfileModel {
       brandColor: brandColor ?? this.brandColor,
       activeModules: activeModules ?? this.activeModules,
       profileType: profileType ?? this.profileType,
-      publicProfileTheme: publicProfileTheme ?? this.publicProfileTheme, // <-- AÑADIDO AL COPYWITH
+      publicProfileTheme: publicProfileTheme ?? this.publicProfileTheme,
       contactEmail: contactEmail ?? this.contactEmail,
       address: address ?? this.address,
       slogan: slogan ?? this.slogan,
@@ -226,14 +248,18 @@ class ProviderProfileModel {
       openingHours: openingHours ?? this.openingHours,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
-      // --- ¡AÑADIDOS AL COPYWITH! ---
+      // Redes
       website: website ?? this.website,
       instagram: instagram ?? this.instagram,
       facebook: facebook ?? this.facebook,
       tiktok: tiktok ?? this.tiktok,
       partners: partners ?? this.partners,
-      paymentInstructions: paymentInstructions ?? this.paymentInstructions, 
-      // --- ¡ERROR CORREGIDO! 'in' eliminado ---
+      paymentInstructions: paymentInstructions ?? this.paymentInstructions,
+      // GEO y Disponibilidad
+      category: category ?? this.category,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isAvailable: isAvailable ?? this.isAvailable,
       // Welcome module
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
@@ -246,7 +272,6 @@ class ProviderProfileModel {
       showPromotionsModule: showPromotionsModule ?? this.showPromotionsModule,
       showGiftCardModule: showGiftCardModule ?? this.showGiftCardModule,
       showBookingModule: showBookingModule ?? this.showBookingModule,
-      // --- ¡ERROR CORREGIDO! 's' eliminado ---
       showQuotesModule: showQuotesModule ?? this.showQuotesModule,
     );
   }
@@ -259,8 +284,7 @@ class ProviderProfileModel {
       'businessName': businessName,
       'logoUrl': logoUrl,
       'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2),
-      // --- ¡CORRECCIÓN! Eliminado el '_' que causaba el error ---
-      'publicProfileTheme': publicProfileTheme, // <-- AÑADIDO AL TOMAP
+      'publicProfileTheme': publicProfileTheme,
       'contactEmail': contactEmail,
       'address': address,
       'slogan': slogan,
@@ -269,13 +293,21 @@ class ProviderProfileModel {
       'openingHours': openingHours,
       'phone': phone,
       'whatsapp': whatsapp,
-      // --- ¡AÑADIDOS AL TOMAP! ---
+      // Redes
       'website': website,
       'instagram': instagram,
       'facebook': facebook,
       'tiktok': tiktok,
       'partners': partners,
-      'paymentInstructions': paymentInstructions, 
+      'paymentInstructions': paymentInstructions,
+
+      // --- GEO Y CATEGORÍA ---
+      'category': category,
+      'latitude': latitude,
+      'longitude': longitude,
+      // Nota: 'isAvailable' generalmente se guarda en la raíz del documento del usuario,
+      // pero si lo guardas dentro de 'personalization' o 'brandProfiles', esta línea lo incluye.
+      'isAvailable': isAvailable,
 
       // --- Módulos Anidados ---
       'welcomeModule': {
@@ -321,4 +353,3 @@ Color? _colorFromHex(String? hexColor) {
   }
   return null;
 }
-

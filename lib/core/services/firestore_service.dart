@@ -509,27 +509,27 @@ class FirestoreService {
   Stream<List<PortfolioItemModel>> getPortfolioItemsStream(String userId, String categoryId) {
      debugPrint("[FirestoreService] ADVERTENCIA: Usando método obsoleto getPortfolioItemsStream");
      return _usersCollection
-         .doc(userId)
-         .collection(_portfolioItemsCollection) 
-         .where('categoryId', isEqualTo: categoryId) 
-         .orderBy('order') 
-         .snapshots()
-         .map((snapshot) {
-           return snapshot.docs
-             .map((doc) => PortfolioItemModel.fromFirestore(doc))
-             .toList();
-         }).handleError((error){
+          .doc(userId)
+          .collection(_portfolioItemsCollection) 
+          .where('categoryId', isEqualTo: categoryId) 
+          .orderBy('order') 
+          .snapshots()
+          .map((snapshot) {
+            return snapshot.docs
+              .map((doc) => PortfolioItemModel.fromFirestore(doc))
+              .toList();
+          }).handleError((error){
              if (kDebugMode) debugPrint('[FirestoreService] !! ERROR en getPortfolioItemsStream (obsoleto) UID: $userId CatID: $categoryId. Error: $error');
              return <PortfolioItemModel>[];
-         });
+          });
   }
-  // TU NUEVO MÉTODO
-Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
-  // Apunta a la nueva colección 'brandProfiles'
-  await _db.collection('brandProfiles').doc(uid).set(data, SetOptions(merge: true));
-}
+  
+  Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
+    // Apunta a la nueva colección 'brandProfiles'
+    await _db.collection('brandProfiles').doc(uid).set(data, SetOptions(merge: true));
+  }
 
-/// Obtiene un Stream del perfil de marca de un proveedor.
+  /// Obtiene un Stream del perfil de marca de un proveedor.
   /// Devuelve 'null' si el documento aún no existe.
   Stream<ProviderProfileModel?> getBrandProfile(String providerId) {
     return _db
@@ -548,6 +548,22 @@ Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
     });
   }
 
-  // (Aquí irían el resto de métodos obsoletos de portafolio: add, update, delete...)
+  // --- ¡MÉTODO NUEVO: ACTUALIZAR DISPONIBILIDAD! ---
+  /// Actualiza la disponibilidad del proveedor para recibir trabajos (Switch "Disponible").
+  Future<void> updateProviderAvailability(String uid, bool isAvailable) async {
+    if (kDebugMode) debugPrint("[FirestoreService] Actualizando disponibilidad (isAvailable: $isAvailable) para UID: $uid");
+    try {
+      // 1. Actualizar en 'users' (para lógica interna)
+      await _usersCollection.doc(uid).update({'isAvailable': isAvailable});
+
+      // 2. Actualizar en 'brandProfiles' (para el mapa público)
+      await _db.collection('brandProfiles').doc(uid).set(
+        {'isAvailable': isAvailable}, 
+        SetOptions(merge: true)
+      );
+    } catch (e) {
+      debugPrint('[FirestoreService] Error al actualizar disponibilidad: $e');
+    }
+  }
 
 } // Fin de la clase FirestoreService
