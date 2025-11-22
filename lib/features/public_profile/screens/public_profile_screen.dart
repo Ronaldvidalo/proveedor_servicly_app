@@ -1,88 +1,19 @@
-// --- UX/UI Enhancement Comment ---
-// UX/UI Refactor: 18/11/2025
-// Style: Cyber Glow (Aplicación de Tema Público)
-//
-// 1. (¡NUEVO!) Este widget ahora actúa como el "Inyector de Tema"
-//    para el perfil público del cliente.
-// 2. Lee los campos 'publicProfileTheme' y 'brandColor'
-//    directamente desde el 'profile' (ProviderProfileModel).
-// 3. Se copió la lógica de 'brand_settings_screen.dart'
-//    (_PublicThemeData, _getOnColor) para interpretar
-//    estos valores.
-// 4. Se crea un 'ThemeData' personalizado en vivo.
-// 5. Este 'customTheme' se inyecta a los layouts hijos
-//    (Catalog, Tienda, CV) usando un widget `Theme`.
-// ---------------------------------
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:proveedor_servicly_app/core/services/provider_service.dart';
-import 'package:proveedor_servicly_app/core/models/public_profile_view_model.dart';
-import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/tienda_layout.dart';
-import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/cv_layout.dart';
-import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/catalog_layout.dart';
-// Módulo CRM
+// Servicios
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/core/services/analytics_service.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
+// Modelos
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
+// Plantillas
+import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/templates/tienda_layout.dart';
+// (Añade aquí tus otras plantillas si las tienes listas, como CatalogLayout)
 
-// ===================================================================
-// --- DEFINICIONES DE TEMA PÚBLICO (Copiado de brand_settings_screen) ---
-// Esta es la lógica "traductora" que necesitamos
-// ===================================================================
-
-/// Clase de datos simple para nuestros "Skins" de perfil público
-class _PublicThemeData {
-  final String id;
-  final String name;
-  final Color background;
-  final Color surface;
-
-  const _PublicThemeData({
-    required this.id,
-    required this.name,
-    required this.background,
-    required this.surface,
-  });
-}
-
-/// Define los "Skins" permitidos
-final List<_PublicThemeData> _publicProfileThemes = [
-  const _PublicThemeData(
-    id: 'cyber_glow',
-    name: 'Cyber Glow',
-    background: Color(0xFF1A1A2E),
-    surface: Color(0xFF2D2D5A),
-  ),
-  const _PublicThemeData(
-    id: 'nebula_purple',
-    name: 'Nebula Purple',
-    background: Color(0xFF2E1A2E),
-    surface: Color(0xFF4A2D4A),
-  ),
-  const _PublicThemeData(
-    id: 'crimson_red',
-    name: 'Crimson Red',
-    background: Color(0xFF2E1A1A),
-    surface: Color(0xFF4A2D2D),
-  ),
-  const _PublicThemeData(
-    id: 'matrix_green',
-    name: 'Matrix Green',
-    background: Color(0xFF1A2E1A),
-    surface: Color(0xFF2D4A2D),
-  ),
-];
-
-/// Helper para obtener el color de contraste (blanco/negro)
-Color _getOnColor(Color color) {
-  return ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-      ? Colors.white
-      : Colors.black;
-}
-// ===================================================================
-
-
-/// La "mini-app" pública de un proveedor, visible para sus clientes.
-/// Ahora actúa como el inyector del CrmRepository para la captura de Leads.
+/// Esta pantalla actúa como un "Router" inteligente.
+/// 1. Escucha los cambios en el perfil de marca (brandProfiles).
+/// 2. Decide qué plantilla mostrar (Tienda, Catálogo, etc.).
+/// 3. Inyecta los servicios necesarios para la vista pública.
 class PublicProfileScreen extends StatelessWidget {
   final String providerId;
 
@@ -90,131 +21,126 @@ class PublicProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Inyectamos el Repositorio y el ViewModel para que las plantillas puedan acceder al CRM
+    final firestoreService = context.read<FirestoreService>();
+    const accentColor = Color(0xFF00BFFF);
+    const backgroundColor = Color(0xFF1A1A2E);
+
+    // Inyectamos CRM y Analytics aquí para que estén disponibles en toda la rama pública
     return MultiProvider(
       providers: [
-        // 1. Inyectar el ViewModel de Perfil
-        ChangeNotifierProvider(
-          create: (context) => PublicProfileViewModel(
-            providerService: context.read<ProviderService>(),
-          )..fetchProfile(providerId),
-        ),
-        // 2. Inyectar el Repositorio CRM (esencial para la captura de leads)
-        // Ya que el Dashboard no inyecta este Provider, lo hacemos aquí.
         Provider(create: (_) => CrmRepository()),
+        Provider(create: (_) => AnalyticsService()),
       ],
-      child: Consumer<PublicProfileViewModel>(
-        builder: (context, viewModel, child) {
-          
-          // --- Pantalla de Carga (Themeable) ---
-          if (viewModel.isLoading) {
-            return const Scaffold(
-              backgroundColor: Color(0xFF1A1A2E), // Default Cyber Glow BG
-              body: Center(child: CircularProgressIndicator(color: Colors.white)),
-            );
-          }
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        body: StreamBuilder<ProviderProfileModel?>(
+          // --- CORRECCIÓN CLAVE: Apuntamos a 'brandProfiles' ---
+          stream: firestoreService.getBrandProfile(providerId), 
+          builder: (context, snapshot) {
+            
+            // 1. Estado de Carga
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: accentColor),
+              );
+            }
 
-          // --- Pantalla de Error (Themeable) ---
-          if (viewModel.hasError || viewModel.profile == null) {
-            return Scaffold(
-              backgroundColor: const Color(0xFF1A1A2E), // Default Cyber Glow BG
-              appBar: AppBar(
-                backgroundColor: Colors.transparent, 
-                elevation: 0, 
-                iconTheme: const IconThemeData(color: Colors.white)
-              ),
-              body: Center(
-                  child: Text(
-                viewModel.error ?? 'No se pudo encontrar el perfil del proveedor.',
-                style: const TextStyle(color: Colors.white70),
-              )),
-            );
-          }
+            // 2. Estado de Error o Perfil No Encontrado
+            if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+              // Si falla, imprimimos el error en consola para depurar
+              debugPrint("Error cargando perfil: ${snapshot.error}");
+              
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.person_off_outlined, size: 80, color: Colors.white24),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Perfil no disponible',
+                        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'No se pudo encontrar la información pública de este proveedor.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white60),
+                      ),
+                      const SizedBox(height: 32),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Volver'),
+                        style: FilledButton.styleFrom(backgroundColor: accentColor, foregroundColor: Colors.black),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
 
-          // --- Perfil Cargado: Aplicar Tema ---
-          final profile = viewModel.profile!;
+            // 3. ¡Perfil Encontrado! -> Seleccionar Plantilla
+            final profile = snapshot.data!;
+            
+            // Aquí decidimos qué diseño mostrar según la configuración del usuario
+            switch (profile.profileType) {
+              case 'store':
+                return TiendaLayout(
+                  providerId: providerId,
+                  profile: profile,
+                );
+              
+              case 'catalog':
+                // TODO: Si tienes CatalogLayout listo, úsalo aquí.
+                // return CatalogLayout(providerId: providerId, profile: profile);
+                return _PlaceholderTemplate(name: 'Catálogo', profile: profile);
+                
+              case 'cv':
+                // return CvLayout(profile: profile);
+                return _PlaceholderTemplate(name: 'CV Profesional', profile: profile);
+                
+              default:
+                // Por defecto, mostramos la Tienda si no reconocemos el tipo
+                return TiendaLayout(
+                  providerId: providerId,
+                  profile: profile,
+                );
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
 
-          // --- ¡AQUÍ COMIENZA LA MAGIA DEL TEMA! ---
-          
-          // 1. Leer los valores guardados (Usando los campos del Model)
-          final String themeId = profile.publicProfileTheme ?? 'cyber_glow';
-          final Color primaryColor = profile.brandColor; // Leemos el Color directamente
+/// Layout temporal para plantillas en desarrollo
+class _PlaceholderTemplate extends StatelessWidget {
+  final String name;
+  final ProviderProfileModel profile;
 
-          // 2. Encontrar el tema de fondo/superficie
-          final _PublicThemeData publicThemeData = _publicProfileThemes.firstWhere(
-            (t) => t.id == themeId,
-            orElse: () => _publicProfileThemes.first, // Default a cyber_glow
-          );
-          
-          // 3. Crear los colores personalizados
-          final Color backgroundColor = publicThemeData.background;
-          final Color surfaceColor = publicThemeData.surface;
-          final Color onPrimaryColor = _getOnColor(primaryColor);
-          
-          // 4. Crear el ThemeData personalizado
-          final ThemeData baseTheme = Theme.of(context); // Tema base de la app
-          final ThemeData customTheme = baseTheme.copyWith(
-            scaffoldBackgroundColor: backgroundColor,
-            colorScheme: baseTheme.colorScheme.copyWith(
-              primary: primaryColor,
-              onPrimary: onPrimaryColor,
-              surface: surfaceColor,
-              onSurface: Colors.white,
-              background: backgroundColor,
-              onBackground: Colors.white, // Asumimos texto blanco en fondo oscuro
-            ),
-            // Asegurarnos de que los textos sean legibles
-            textTheme: baseTheme.textTheme.apply(
-              bodyColor: Colors.white,
-              displayColor: Colors.white,
-            ),
-            // Estilo de tarjetas
-            cardTheme: baseTheme.cardTheme.copyWith(
-              color: surfaceColor,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            // Estilo de botones
-            filledButtonTheme: FilledButtonThemeData(
-              style: FilledButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: onPrimaryColor,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-              )
-            ),
-            appBarTheme: baseTheme.appBarTheme.copyWith(
-              backgroundColor: backgroundColor,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              titleTextStyle: baseTheme.textTheme.titleLarge?.copyWith(color: Colors.white)
-            )
-          );
-          
-          // 5. Determinar el layout (tu código original)
-          Widget layout;
-          switch (profile.profileType) { 
-            case 'catalog':
-              layout = CatalogLayout(providerId: providerId, profile: profile);
-              break;
-            case 'store':
-              layout = TiendaLayout(providerId: providerId, profile: profile);
-              break;
-            case 'cv':
-              layout = CvLayout(profile: profile);
-              break;
-            default:
-              layout = CvLayout(profile: profile);
-          }
+  const _PlaceholderTemplate({required this.name, required this.profile});
 
-          // 6. Devolver el layout envuelto en el Tema personalizado
-          return Theme(
-            data: customTheme,
-            child: layout,
-          );
-          // --- FIN DE LA INYECCIÓN DE TEMA ---
-        },
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E),
+      appBar: AppBar(
+        title: Text(profile.businessName),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.construction, size: 60, color: Colors.white24),
+            const SizedBox(height: 16),
+            Text('Plantilla "$name"', style: const TextStyle(color: Colors.white, fontSize: 20)),
+            const Text('En construcción', style: TextStyle(color: Colors.white54)),
+          ],
+        ),
       ),
     );
   }

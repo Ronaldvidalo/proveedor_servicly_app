@@ -1,92 +1,151 @@
+// --- INICIO DE ARCHIVO: lead_list_viewmodel.dart ---
+
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 
-// Este ViewModel maneja la lógica y el estado de la pestaña "Leads y Seguimiento"
+/// ViewModel que gestiona la lógica y el estado de la pestaña "Leads y Seguimiento" (Pipeline de Ventas).
 class LeadListViewModel extends ChangeNotifier {
-  final CrmRepository _repository;
+  final CrmRepository _crmRepository;
 
-  // Simulación: Determinar si el usuario es Pro (debería venir de un servicio de Auth/Config)
   final bool _isProUser = true; 
-
   String _searchTerm = '';
 
-  LeadListViewModel(this._repository);
+  StreamSubscription<List<Cliente>>? _clientesSubscription;
+  StreamSubscription<Map<String, dynamic>>? _configSubscription; 
+  
+  int _leadCount = 0; 
+  final int leadLimit = 100;
+
+  LeadListViewModel(this._crmRepository) {
+    _loadClientesStream(isPro: _isProUser);
+    _loadUserConfigStream(); 
+  }
+  
+  // --- GETTERS PÚBLICOS ---
 
   bool get isProUser => _isProUser;
-
-  // Define los estados de Lead disponibles para el pipeline de ventas (Solo Pro)
+  int get leadCount => _leadCount;
+  
   List<CrmEstado> get availableLeadPipelineStates {
-    // Si no es Pro, solo puede convertir a Cliente Activo (mediante el botón Convertir)
     if (!_isProUser) return []; 
     
     return [
       CrmEstado.leadNuevo,
       CrmEstado.contactado,
       CrmEstado.cotizado,
-      CrmEstado.clienteActivo, // Opción final para conversión manual
+      CrmEstado.clienteActivo, 
     ];
   }
 
-  // Stream que obtiene la lista filtrada de Leads desde el Repositorio
   Stream<List<Cliente>> get filteredLeadsStream {
-    return _repository.getLeadsStream(searchTerm: _searchTerm, isPro: _isProUser);
+    return _crmRepository.getLeadsStream(searchTerm: _searchTerm, isPro: _isProUser)
+        .map((leads) {
+          return leads.where((cliente) {
+            if (_searchTerm.isEmpty) return true;
+            final term = _searchTerm.toLowerCase();
+            return cliente.nombreCompleto.toLowerCase().contains(term) ||
+                   cliente.email.toLowerCase().contains(term) ||
+                   cliente.telefono.contains(term);
+          }).toList();
+        });
   }
 
+
+  // --- MÉTODOS DE LÓGICA Y ACTUALIZACIÓN ---
+  
+  void _loadUserConfigStream() {
+    _configSubscription?.cancel();
+    _configSubscription = _crmRepository.getUserConfigStream().listen(
+      (config) {
+        final newCount = (config['clienteCount'] as int?) ?? 0;
+        if (newCount != _leadCount) {
+            _leadCount = newCount;
+            notifyListeners();
+        }
+      },
+      onError: (error) {
+        if (kDebugMode) {
+          print('Error al cargar stream de configuración/conteo: $error');
+        }
+      },
+    );
+  }
+
+
+  void _loadClientesStream({bool isPro = false}) {
+    _clientesSubscription?.cancel();
+    
+    _clientesSubscription = _crmRepository.getLeadsStream(isPro: isPro).listen(
+      (leads) {
+        notifyListeners();
+      },
+      onError: (error) {
+        if (kDebugMode) {
+          print('Error al cargar stream de Leads: $error');
+        }
+      },
+    );
+  }
+  
   void setSearchTerm(String term) {
     if (_searchTerm != term) {
       _searchTerm = term;
-      notifyListeners();
+      notifyListeners(); 
     }
   }
 
-  // --- Lógica de Conversión y Actualización de Pipeline ---
+  /// Función auxiliar para ejecutar el Future y manejar el feedback de UI.
+  void _executeFuture(Future<void> future, CrmEstado newStatus, BuildContext context) {
+      if (!context.mounted) return;
 
-  // Método llamado desde la UI para cambiar el estado de un Lead
-  Future<void> updateLeadStatus(String leadId, CrmEstado newStatus, BuildContext context) async {
-    try {
-      if (newStatus == CrmEstado.clienteActivo) {
-        // Usar la lógica de conversión existente si el destino es CLIENTE_ACTIVO
-        await _repository.convertLeadToClient(leadId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎉 ¡Lead convertido a Cliente Activo exitosamente!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        // Mover el Lead a un nuevo estado del pipeline (Solo Pro)
-        await _repository.updateLeadStatus(leadId, newStatus);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lead movido a ${getLeadStatusLabel(newStatus)}'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-      }
-      
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al actualizar el estado del Lead: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+      future.then((_) {
+        if (context.mounted) {
+          final message = newStatus == CrmEstado.clienteActivo 
+              ? '🎉 ¡Lead convertido a Cliente Activo exitosamente!'
+              : 'Lead movido a ${getLeadStatusLabel(newStatus)}';
+          
+          final color = newStatus == CrmEstado.clienteActivo ? Colors.green : Colors.blue;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: color),
+          );
+        }
+      }).catchError((e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al actualizar el estado del Lead: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      });
+  }
+
+  /// Método llamado desde la UI para cambiar el estado de un Lead o convertirlo.
+  void updateLeadStatus(String leadId, CrmEstado newStatus, BuildContext context) {
+    if (!context.mounted) return;
+    
+    final updateFuture = (newStatus == CrmEstado.clienteActivo) 
+        ? _crmRepository.convertLeadToClient(leadId) 
+        : _crmRepository.updateLeadStatus(leadId, newStatus); 
+    
+    _executeFuture(updateFuture, newStatus, context);
   }
   
-  // El antiguo método de conversión ahora simplemente llama a updateLeadStatus
-  Future<void> convertLeadToClient(String leadId, BuildContext context) async {
-    await updateLeadStatus(leadId, CrmEstado.clienteActivo, context);
+  void convertLeadToClient(String leadId, BuildContext context) {
+    if (!context.mounted) return;
+    updateLeadStatus(leadId, CrmEstado.clienteActivo, context);
   }
 
 
   // --- Utilidades para la UI de Leads ---
 
-  // Obtiene el color asociado al estado del Lead
   Color getLeadStatusColor(CrmEstado estado) {
     switch (estado) {
       case CrmEstado.leadNuevo:
@@ -102,7 +161,6 @@ class LeadListViewModel extends ChangeNotifier {
     }
   }
 
-  // Obtiene la etiqueta del estado (Human-readable label)
   String getLeadStatusLabel(CrmEstado estado) {
     switch (estado) {
       case CrmEstado.leadNuevo:
@@ -120,8 +178,16 @@ class LeadListViewModel extends ChangeNotifier {
     }
   }
   
-  // Obtiene la inicial para el avatar
   String getLeadStatusInitial(CrmEstado estado) {
      return getLeadStatusLabel(estado)[0];
   }
+  
+  @override
+  void dispose() {
+    _clientesSubscription?.cancel();
+    _configSubscription?.cancel(); 
+    super.dispose();
+  }
 }
+
+// --- FIN DE ARCHIVO: lead_list_viewmodel.dart ---

@@ -3,34 +3,17 @@ import 'package:flutter/material.dart';
 
 /// Un modelo de datos que representa el perfil público de un proveedor.
 class ProviderProfileModel {
-  /// El identificador único del proveedor.
   final String providerId;
-
-  /// El nombre comercial personalizado establecido por el proveedor.
   final String businessName;
-
-  /// La URL del logo del proveedor.
   final String logoUrl;
-
-  /// El color de marca principal elegido por el proveedor.
   final Color brandColor;
-
-  /// Una lista de los IDs de los módulos que están activos para este proveedor.
   final List<String> activeModules;
-
-  /// Este campo define el tipo de perfil (ej: 'store', 'booking', 'social').
   final String profileType;
-
-  /// Define el "Skin" de fondo del perfil público
   final String? publicProfileTheme;
-
-  /// El email de contacto público.
   final String contactEmail;
-
-  /// La dirección física del negocio, si se ha proporcionado.
   final String? address;
 
-  // --- Campos Adicionales (Basados en el Mockup) ---
+  // --- Campos Adicionales ---
   final String? slogan;
   final double? averageRating;
   final int? reviewCount;
@@ -51,27 +34,26 @@ class ProviderProfileModel {
   final String? paymentInstructions;
 
   // --- CAMPOS GEO, CATEGORÍA Y DISPONIBILIDAD ---
-  final String? category;   // Ej: "Pintor", "Abogado"
-  final double? latitude;   // Coordenada GPS
-  final double? longitude;  // Coordenada GPS
-  final bool isAvailable;   // Switch "Disponible"
+  final String? category; 
+  final double? latitude; 
+  final double? longitude;
+  final bool isAvailable; 
 
   // --- Campos del Módulo de Bienvenida ---
   final bool showWelcomeModule;
-  final String welcomeModuleType; // 'text' o 'video'
+  final String welcomeModuleType; 
   final String welcomeMessage;
   final String? welcomeVideoUrl;
-  final String? welcomeVideoSourceType; // 'url' o 'upload'
+  final String? welcomeVideoSourceType; 
 
   // --- Campos: Control de Visibilidad de Módulos ---
   final bool showPortfolioModule;
   final bool showReviewsModule;
   final bool showPromotionsModule;
   final bool showGiftCardModule;
-  final bool showBookingModule; // Módulo "Agendar Cita"
-  final bool showQuotesModule; // Módulo de Presupuestos
+  final bool showBookingModule; 
+  final bool showQuotesModule; 
 
-  /// Crea una instancia de [ProviderProfileModel].
   const ProviderProfileModel({
     required this.providerId,
     required this.businessName,
@@ -82,32 +64,27 @@ class ProviderProfileModel {
     this.publicProfileTheme,
     required this.contactEmail,
     this.address,
-    // Campos adicionales
     this.slogan,
     this.averageRating,
     this.reviewCount,
     this.openingHours,
     this.phone,
     this.whatsapp,
-    // Redes y Partners
     this.website,
     this.instagram,
     this.facebook,
     this.tiktok,
     this.partners = const [],
     this.paymentInstructions,
-    // GEO y Disponibilidad
     this.category,
     this.latitude,
     this.longitude,
-    this.isAvailable = true, // Por defecto true para perfiles antiguos
-    // Welcome module fields
+    this.isAvailable = true, 
     required this.welcomeMessage,
     this.showWelcomeModule = true,
     this.welcomeModuleType = 'text',
     this.welcomeVideoUrl,
     this.welcomeVideoSourceType,
-    // Module visibility controls
     this.showPortfolioModule = true,
     this.showReviewsModule = true,
     this.showPromotionsModule = true,
@@ -116,69 +93,73 @@ class ProviderProfileModel {
     this.showQuotesModule = false,
   });
 
-  /// Constructor factory para crear un [ProviderProfileModel] desde un documento de Firestore.
-  factory ProviderProfileModel.fromFirestore(DocumentSnapshot doc) {
+  /// Constructor factory INTELIGENTE para leer desde Firestore.
+  /// Maneja tanto estructuras anidadas ('users') como planas ('brandProfiles').
+ factory ProviderProfileModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
-    final personalization = data['personalization'] as Map<String, dynamic>? ?? {};
+    
+    // 1. Intentamos leer del mapa 'personalization' (Estructura nueva)
+    final nested = data['personalization'] as Map<String, dynamic>? ?? {};
+    
+    // 2. Función auxiliar para buscar el dato en 'nested' y si no, en 'data' (raíz)
+    dynamic get(String key) => nested[key] ?? data[key];
 
-    // Leer mapas de configuración de módulos
-    final welcomeModule = personalization['welcomeModule'] as Map<String, dynamic>? ?? {};
-    final portfolioModule = personalization['portfolioModule'] as Map<String, dynamic>? ?? {};
-    final reviewsModule = personalization['reviewsModule'] as Map<String, dynamic>? ?? {};
-    final promotionsModule = personalization['promotionsModule'] as Map<String, dynamic>? ?? {};
-    final giftCardModule = personalization['giftCardModule'] as Map<String, dynamic>? ?? {};
-    final bookingModule = personalization['bookingModule'] as Map<String, dynamic>? ?? {};
-    final quotesModule = personalization['quotesModule'] as Map<String, dynamic>? ?? {};
+    // Leer mapas de configuración de módulos (estos suelen estar anidados)
+    final welcomeModule = (get('welcomeModule') as Map<String, dynamic>?) ?? {};
+    final portfolioModule = (get('portfolioModule') as Map<String, dynamic>?) ?? {};
+    final reviewsModule = (get('reviewsModule') as Map<String, dynamic>?) ?? {};
+    final promotionsModule = (get('promotionsModule') as Map<String, dynamic>?) ?? {};
+    final giftCardModule = (get('giftCardModule') as Map<String, dynamic>?) ?? {};
+    final bookingModule = (get('bookingModule') as Map<String, dynamic>?) ?? {};
+    final quotesModule = (get('quotesModule') as Map<String, dynamic>?) ?? {};
 
-    // Leer la lista de partners de forma segura
+    // Leer listas de forma segura
     final List<Map<String, dynamic>> partnersList =
-        (personalization['partners'] as List<dynamic>?)
+        (get('partners') as List<dynamic>?)
                 ?.map((item) => Map<String, dynamic>.from(item as Map))
-                .toList() ??
-            [];
+                .toList() ?? [];
+                
+    final List<Map<String, dynamic>> paymentMethodsList =
+        (get('paymentMethods') as List<dynamic>?)
+                ?.map((item) => Map<String, dynamic>.from(item as Map))
+                .toList() ?? [];
 
     return ProviderProfileModel(
       providerId: doc.id,
-      businessName: personalization['businessName'] as String? ?? 'Nombre del Negocio',
-      logoUrl: personalization['logoUrl'] as String? ?? '',
-      brandColor: _colorFromHex(personalization['primaryColor'] as String?) ?? Colors.deepPurple,
+      // Usamos 'get()' para buscar en ambos lugares
+      businessName: get('businessName') as String? ?? 'Nombre del Negocio',
+      logoUrl: get('logoUrl') as String? ?? '',
+      brandColor: _colorFromHex(get('primaryColor') as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
-      profileType: data['publicProfileTemplate'] as String? ?? 'social',
-      publicProfileTheme: personalization['publicProfileTheme'] as String?,
-      contactEmail: personalization['contactEmail'] as String? ?? data['email'] as String? ?? '',
-      address: personalization['address'] as String?,
+      profileType: data['publicProfileTemplate'] as String? ?? get('publicProfileTemplate') as String? ?? 'store',
+      contactEmail: get('contactEmail') as String? ?? data['email'] as String? ?? '',
+      address: get('address') as String?,
 
-      // Leer campos adicionales
-      slogan: personalization['slogan'] as String?,
-      averageRating: (personalization['averageRating'] as num?)?.toDouble(),
-      reviewCount: personalization['reviewCount'] as int?,
-      openingHours: personalization['openingHours'] as String?,
-      phone: personalization['phone'] as String?,
-      whatsapp: personalization['whatsapp'] as String?,
+      // Campos adicionales
+      slogan: get('slogan') as String?,
+      averageRating: (get('averageRating') as num?)?.toDouble(),
+      reviewCount: get('reviewCount') as int?,
+      openingHours: get('openingHours') as String?,
+      phone: get('phone') as String?,
+      whatsapp: get('whatsapp') as String?,
 
-      // Redes, Partners y Pagos
-      website: personalization['website'] as String?,
-      instagram: personalization['instagram'] as String?,
-      facebook: personalization['facebook'] as String?,
-      tiktok: personalization['tiktok'] as String?,
+      // Redes Sociales
+      website: get('website') as String?,
+      instagram: get('instagram') as String?,
+      facebook: get('facebook') as String?,
+      tiktok: get('tiktok') as String?,
+      
+      // Listas
       partners: partnersList,
-      paymentInstructions: personalization['paymentInstructions'] as String?,
+     
 
-      // --- LECTURA DE GEO Y DISPONIBILIDAD ---
-      category: personalization['category'] as String?,
-      latitude: (personalization['latitude'] as num?)?.toDouble(),
-      longitude: (personalization['longitude'] as num?)?.toDouble(),
-      // isAvailable suele estar en la raíz de 'users' o en 'brandProfiles', aquí asumimos la raíz del doc
-      isAvailable: data['isAvailable'] as bool? ?? true,
-
-      // Leer campos del módulo de bienvenida
+      // Módulos
       showWelcomeModule: welcomeModule['show'] as bool? ?? true,
       welcomeModuleType: welcomeModule['type'] as String? ?? 'text',
-      welcomeMessage: welcomeModule['text_content'] as String? ?? personalization['welcomeMessage'] as String? ?? 'Bienvenido a mi perfil.',
+      welcomeMessage: welcomeModule['text_content'] as String? ?? get('welcomeMessage') as String? ?? 'Bienvenido a mi perfil.',
       welcomeVideoUrl: welcomeModule['video_url'] as String?,
       welcomeVideoSourceType: welcomeModule['video_source_type'] as String?,
 
-      // Leer visibilidad de otros módulos
       showPortfolioModule: portfolioModule['show'] as bool? ?? true,
       showReviewsModule: reviewsModule['show'] as bool? ?? true,
       showPromotionsModule: promotionsModule['show'] as bool? ?? true,
@@ -188,7 +169,6 @@ class ProviderProfileModel {
     );
   }
 
-  /// Crea una copia de este modelo con los campos proporcionados sobrescritos.
   ProviderProfileModel copyWith({
     String? providerId,
     String? businessName,
@@ -199,32 +179,27 @@ class ProviderProfileModel {
     String? publicProfileTheme,
     String? contactEmail,
     String? address,
-    // Nuevos campos
     String? slogan,
     double? averageRating,
     int? reviewCount,
     String? openingHours,
     String? phone,
     String? whatsapp,
-    // Redes y Partners
     String? website,
     String? instagram,
     String? facebook,
     String? tiktok,
     List<Map<String, dynamic>>? partners,
     String? paymentInstructions,
-    // GEO y Disponibilidad
     String? category,
     double? latitude,
     double? longitude,
     bool? isAvailable,
-    // Welcome module
     String? welcomeMessage,
     bool? showWelcomeModule,
     String? welcomeModuleType,
     String? welcomeVideoUrl,
     String? welcomeVideoSourceType,
-    // Module visibility
     bool? showPortfolioModule,
     bool? showReviewsModule,
     bool? showPromotionsModule,
@@ -248,25 +223,21 @@ class ProviderProfileModel {
       openingHours: openingHours ?? this.openingHours,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
-      // Redes
       website: website ?? this.website,
       instagram: instagram ?? this.instagram,
       facebook: facebook ?? this.facebook,
       tiktok: tiktok ?? this.tiktok,
       partners: partners ?? this.partners,
       paymentInstructions: paymentInstructions ?? this.paymentInstructions,
-      // GEO y Disponibilidad
       category: category ?? this.category,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       isAvailable: isAvailable ?? this.isAvailable,
-      // Welcome module
       welcomeMessage: welcomeMessage ?? this.welcomeMessage,
       showWelcomeModule: showWelcomeModule ?? this.showWelcomeModule,
       welcomeModuleType: welcomeModuleType ?? this.welcomeModuleType,
       welcomeVideoUrl: welcomeVideoUrl ?? this.welcomeVideoUrl,
       welcomeVideoSourceType: welcomeVideoSourceType ?? this.welcomeVideoSourceType,
-      // Module visibility
       showPortfolioModule: showPortfolioModule ?? this.showPortfolioModule,
       showReviewsModule: showReviewsModule ?? this.showReviewsModule,
       showPromotionsModule: showPromotionsModule ?? this.showPromotionsModule,
@@ -276,11 +247,8 @@ class ProviderProfileModel {
     );
   }
 
-  /// Convierte este objeto ProviderProfileModel de nuevo a un Map anidado,
-  /// listo para ser guardado en el campo 'personalization' de Firestore.
   Map<String, dynamic> toMap() {
     return {
-      // Campos planos en 'personalization'
       'businessName': businessName,
       'logoUrl': logoUrl,
       'primaryColor': brandColor.value.toRadixString(16).padLeft(8, '0').substring(2),
@@ -293,23 +261,16 @@ class ProviderProfileModel {
       'openingHours': openingHours,
       'phone': phone,
       'whatsapp': whatsapp,
-      // Redes
       'website': website,
       'instagram': instagram,
       'facebook': facebook,
       'tiktok': tiktok,
       'partners': partners,
       'paymentInstructions': paymentInstructions,
-
-      // --- GEO Y CATEGORÍA ---
       'category': category,
       'latitude': latitude,
       'longitude': longitude,
-      // Nota: 'isAvailable' generalmente se guarda en la raíz del documento del usuario,
-      // pero si lo guardas dentro de 'personalization' o 'brandProfiles', esta línea lo incluye.
       'isAvailable': isAvailable,
-
-      // --- Módulos Anidados ---
       'welcomeModule': {
         'show': showWelcomeModule,
         'type': welcomeModuleType,
@@ -317,29 +278,16 @@ class ProviderProfileModel {
         'video_url': welcomeVideoUrl,
         'video_source_type': welcomeVideoSourceType,
       },
-      'portfolioModule': {
-        'show': showPortfolioModule,
-      },
-      'reviewsModule': {
-        'show': showReviewsModule,
-      },
-      'promotionsModule': {
-        'show': showPromotionsModule,
-      },
-      'giftCardModule': {
-        'show': showGiftCardModule,
-      },
-      'bookingModule': {
-        'show': showBookingModule,
-      },
-      'quotesModule': {
-        'show': showQuotesModule,
-      },
+      'portfolioModule': { 'show': showPortfolioModule },
+      'reviewsModule': { 'show': showReviewsModule },
+      'promotionsModule': { 'show': showPromotionsModule },
+      'giftCardModule': { 'show': showGiftCardModule },
+      'bookingModule': { 'show': showBookingModule },
+      'quotesModule': { 'show': showQuotesModule },
     };
   }
-} // Fin de la clase ProviderProfileModel
+} 
 
-/// Función de utilidad para convertir un string de color hexadecimal a un objeto [Color].
 Color? _colorFromHex(String? hexColor) {
   if (hexColor == null) return null;
   final hexCode = hexColor.replaceAll('#', '');
@@ -347,7 +295,6 @@ Color? _colorFromHex(String? hexColor) {
     try {
       return Color(int.parse('FF$hexCode', radix: 16));
     } catch (e) {
-      debugPrint("Error parsing color: $hexColor");
       return null;
     }
   }

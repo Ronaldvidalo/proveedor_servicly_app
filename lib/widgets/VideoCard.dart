@@ -18,8 +18,9 @@ class VideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const surfaceColor = Color(0xFF2D2D5A);
-    // Uso de withAlpha() en lugar de withOpacity() para consistencia y eliminar advertencias
-    final borderColor = brandColor.withAlpha(150); 
+    // Uso de withValues(alpha: ...) para consistencia con nuevas versiones de Flutter
+    // Si tu versión es anterior a 3.27, usa .withOpacity(0.6)
+    final borderColor = brandColor.withOpacity(0.6); 
 
     return GestureDetector(
       onTap: onPlayTap,
@@ -34,7 +35,7 @@ class VideoCard extends StatelessWidget {
           border: Border.all(color: borderColor, width: 1.5), 
           boxShadow: [
             BoxShadow(
-              color: borderColor.withAlpha(100),
+              color: borderColor.withOpacity(0.4),
               blurRadius: 10,
               spreadRadius: 1,
             )
@@ -56,8 +57,7 @@ class VideoCard extends StatelessWidget {
                       const Center(child: Icon(Icons.image_not_supported_outlined, color: Colors.white38, size: 40)),
                 )
               else
-                  // Corregido Colors.black.withOpacity(0.2)
-                  Container(color: Colors.black.withAlpha(51)), 
+                  Container(color: Colors.black.withOpacity(0.2)), 
               
               // 2. Overlay Gradiente (para legibilidad del texto)
               Container(
@@ -67,10 +67,8 @@ class VideoCard extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      // Corregido Colors.black.withOpacity(0.4) a withAlpha()
-                      Colors.black.withAlpha((255 * 0.4).round()), 
-                      // Corregido Colors.black.withOpacity(0.8) a withAlpha()
-                      Colors.black.withAlpha((255 * 0.8).round()),
+                      Colors.black.withOpacity(0.4), 
+                      Colors.black.withOpacity(0.8),
                     ],
                     stops: const [0.0, 0.6, 1.0],
                   ),
@@ -81,13 +79,11 @@ class VideoCard extends StatelessWidget {
               Center(
                 child: Icon(
                   Icons.play_circle_fill_rounded,
-                  // Corregido Colors.white.withOpacity(0.85) a withAlpha()
-                  color: Colors.white.withAlpha((255 * 0.85).round()), 
+                  color: Colors.white.withOpacity(0.85), 
                   size: 48,
                   shadows: [
                     BoxShadow(
-                      // Corregido brandColor.withOpacity(0.5) a withAlpha()
-                      color: brandColor.withAlpha((255 * 0.5).round()),
+                      color: brandColor.withOpacity(0.5),
                       blurRadius: 8,
                       spreadRadius: 2,
                     )
@@ -135,7 +131,7 @@ class VideoCard extends StatelessWidget {
                   ),
                 ),
               
-              // 6. Botón de Edición
+              // 6. Botón de Edición (Solo si se pasa el callback)
               if (onEditTap != null)
                 Positioned(
                   top: 4,

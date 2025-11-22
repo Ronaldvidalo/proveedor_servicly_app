@@ -7,7 +7,6 @@ import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 class CrmRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   // Asume que el usuario ya está autenticado y tenemos su UID
-  // TODO: Manejar la inicialización asíncrona de FirebaseAuth correctamente.
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? 'default_user_id'; 
 
   // Referencia a la colección 'clientes' para el usuario actual
@@ -17,7 +16,6 @@ class CrmRepository {
   // Referencia al documento de configuración del usuario (para plan y límites)
   DocumentReference get _userDocRef => 
     _firestore.collection('users').doc(_userId);
-
 
   // Stream 1: Clientes Activos (Pestaña Clientes)
   Stream<List<Cliente>> getClientesActivos({String? searchTerm, bool isPro = false}) {
@@ -45,20 +43,21 @@ class CrmRepository {
     return _userDocRef.snapshots().map((doc) => doc.data() as Map<String, dynamic>? ?? {});
   }
 
-
   // --- MÉTODOS DE ACTUALIZACIÓN DEL PIPELINE ---
 
   // Método para convertir un Lead a Cliente (Conversión Manual o Automática)
+  // FIX CLAVE: Se asegura de que la firma sea Future<void> y devuelve explícitamente el Future de la operación.
   Future<void> convertLeadToClient(String leadId) async {
     final clientRef = _clientesRef.doc(leadId);
-    await clientRef.update({
+    return clientRef.update({ // Retornamos el Future de la operación de actualización
       'estadoCRM': CrmEstado.clienteActivo.name,
     });
   }
   
-  // Método para actualizar el estado del Lead en el pipeline (Solo Pro)
+  // Método para actualizar el estado del Lead en el pipeline (Pro only)
+  // FIX CLAVE: Se asegura de que la firma sea Future<void> y devuelve explícitamente el Future de la operación.
   Future<void> updateLeadStatus(String leadId, CrmEstado newStatus) async {
-    await _clientesRef.doc(leadId).update({
+    return _clientesRef.doc(leadId).update({ // Retornamos el Future de la operación de actualización
       'estadoCRM': newStatus.name,
     });
   }
@@ -77,8 +76,7 @@ class CrmRepository {
     });
   }
   
-  /// Registra un Lead automáticamente desde una interacción pública (e.g., clic en WhatsApp).
-  /// Esta funcionalidad es clave para la versión Pro.
+  /// Registra un Lead automáticamente desde una interacción pública (e.g., click en WhatsApp).
   Future<void> captureLeadFromPublicProfile({
     required String? email, 
     required String? nombreCompleto, 
@@ -86,10 +84,8 @@ class CrmRepository {
     required String providerId, // ID del proveedor que recibe el lead
     String? telefono,
   }) async {
-    // 1. Determinar el estado inicial del Lead (Asumimos 'LEAD_NUEVO' para Pros, 'LEAD' para Free)
-    // Nota: El estado real debería determinarse con una consulta al plan del proveedor, 
-    // pero por simplicidad de la captura asíncrona, usamos una lógica básica.
-    final estado = source.contains('whatsapp') || source.contains('email') ? CrmEstado.leadNuevo.name : CrmEstado.lead.name;
+    // 1. Determinar el estado inicial del Lead
+    final estado = CrmEstado.leadNuevo.name;
     
     // 2. Crear el documento del Lead
     await _clientesRef.add({
@@ -100,9 +96,9 @@ class CrmRepository {
       'fechaAlta': FieldValue.serverTimestamp(),
       'ultimaInteraccion': FieldValue.serverTimestamp(),
       'source': source,
-      // Campos Pro inicializados
+      // Initial Pro fields
       'montoTotalFacturado': 0.0,
-      'etiquetas': ['public_lead', source.split('_').first], // Etiquetar automáticamente la fuente
+      'etiquetas': ['public_lead', source.split('_').first], // Auto-tagging the source
       'notasInternas': 'Capturado automáticamente el: ${Timestamp.now().toDate().toIso8601String()} desde $source.',
     });
   }

@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/crm_enums.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 
-// La clase Cliente será la representación de la fuente de verdad de Firestore
+/// La clase Cliente es el modelo de datos para Leads y Clientes
 class Cliente {
   final String id;
   final String nombreCompleto;
@@ -15,47 +17,60 @@ class Cliente {
   final String notasInternas;
   final List<String> etiquetas;
   final DateTime ultimaInteraccion;
+  
+  // Campos auxiliares para la UI
+  final String source; // Origen del lead
+  final String? displayName;
 
-  Cliente({
+  const Cliente({
     required this.id,
     required this.nombreCompleto,
     required this.email,
     required this.telefono,
     required this.estadoCRM,
     required this.fechaAlta,
-    // Valores por defecto seguros para campos Pro (aunque se lean desde Firestore)
     this.montoTotalFacturado = 0.0,
     this.notasInternas = '',
     this.etiquetas = const [],
     required this.ultimaInteraccion,
+    this.source = '',
+    this.displayName,
   });
 
-  // Factory para crear desde un DocumentSnapshot de Firestore
+  // Constructor robusto para leer desde Firestore
   factory Cliente.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
     if (data == null) {
       throw Exception("Documento de cliente nulo");
     }
 
-    // Mapeo seguro y robusto del estado CRM
-    CrmEstado estado = CrmEstado.lead; // Default seguro
+    // --- LECTURA ROBUSTA DEL ESTADO (Para manejar inconsistencias en Firestore) ---
+    final firestoreState = data['estadoCRM'] as String? ?? 'lead';
+    final estadoStr = firestoreState.toLowerCase(); 
+
+    CrmEstado estado = CrmEstado.lead;
     try {
-      final estadoStr = (data['estadoCRM'] as String? ?? 'lead').toLowerCase();
-      estado = CrmEstado.values.firstWhere(
-        (e) => e.name.toLowerCase() == estadoStr,
-        orElse: () => CrmEstado.lead,
-      );
-    } catch (_) {
-      // Si falla la conversión del enum, se mantiene el default
+        estado = CrmEstado.values.firstWhere(
+            (e) => e.name.toLowerCase() == estadoStr,
+            // Fallback: si no encuentra el estado, regresa a 'lead'
+            orElse: () {
+              if (kDebugMode) {
+                debugPrint('Advertencia: Estado CRM desconocido "$estadoStr". Usando "lead".');
+              }
+              return CrmEstado.lead;
+            },
+        );
+    } catch (e) {
+        estado = CrmEstado.lead;
     }
+    // --------------------------------------------------------------------------
 
     return Cliente(
       id: doc.id,
-      nombreCompleto: data['nombreCompleto'] ?? 'Cliente sin nombre',
+      nombreCompleto: data['nombreCompleto'] ?? 'Visitante Anónimo',
       email: data['email'] ?? '',
       telefono: data['telefono'] ?? '',
       estadoCRM: estado,
-      // Conversión de Timestamp a DateTime
       fechaAlta: (data['fechaAlta'] as Timestamp?)?.toDate() ?? DateTime.now(),
       
       // Campos Pro
@@ -63,28 +78,14 @@ class Cliente {
       notasInternas: data['notasInternas'] ?? '',
       etiquetas: List<String>.from(data['etiquetas'] ?? []),
       ultimaInteraccion: (data['ultimaInteraccion'] as Timestamp?)?.toDate() ?? (data['fechaAlta'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      
+      // Campos auxiliares
+      source: data['source'] ?? '',
+      displayName: data['displayName'] as String?,
     );
   }
 
-  // Método para crear el mapa de datos para enviar a Firestore
-  Map<String, dynamic> toMap() {
-    return {
-      'nombreCompleto': nombreCompleto,
-      'email': email,
-      'telefono': telefono,
-      'estadoCRM': estadoCRM.name,
-      'fechaAlta': Timestamp.fromDate(fechaAlta),
-      'montoTotalFacturado': montoTotalFacturado,
-      'notasInternas': notasInternas,
-      'etiquetas': etiquetas,
-      'ultimaInteraccion': Timestamp.fromDate(ultimaInteraccion),
-    };
-  }
-
-  // Helper para verificar el plan de forma segura
-  bool get isProState => [CrmEstado.leadNuevo, CrmEstado.contactado, CrmEstado.cotizado, CrmEstado.clienteInactivo].contains(estadoCRM);
-  bool get isLead => estadoCRM.name.contains('lead') || estadoCRM == CrmEstado.contactado || estadoCRM == CrmEstado.cotizado;
-
+  // Método de utilidad para simplificar la copia de objetos
   Cliente copyWith({
     String? id,
     String? nombreCompleto,
@@ -96,6 +97,8 @@ class Cliente {
     String? notasInternas,
     List<String>? etiquetas,
     DateTime? ultimaInteraccion,
+    String? source,
+    String? displayName,
   }) {
     return Cliente(
       id: id ?? this.id,
@@ -108,6 +111,8 @@ class Cliente {
       notasInternas: notasInternas ?? this.notasInternas,
       etiquetas: etiquetas ?? this.etiquetas,
       ultimaInteraccion: ultimaInteraccion ?? this.ultimaInteraccion,
+      source: source ?? this.source,
+      displayName: displayName ?? this.displayName,
     );
   }
 }

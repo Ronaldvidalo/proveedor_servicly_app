@@ -1,14 +1,3 @@
-// --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 19/11/2025
-// Style: Cyber Glow
-// Feature: Virtual Tour + Geocoding Integration
-//
-// 1. (FIX) Eliminado parámetro 'shapeBorder' que causaba error en Showcase.
-// 2. (FIX) Actualizado 'withOpacity' a 'withValues(alpha: ...)' (Nueva API Flutter).
-// 3. (FIX) Reemplazado 'background'/'onBackground' por 'surface'/'onSurface'.
-// 4. (NEW) Integración de GeocodingService para convertir dirección a coordenadas GPS.
-// ---------------------------------
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -202,6 +191,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
 
   void _initializeFields() {
+    // Lee la clave 'personalization' del UserModel (User Document)
     final personalization = widget.user.personalization;
 
     _businessNameController.text =
@@ -217,6 +207,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         '';
     _countryController.text = personalization['country'] as String? ?? '';
 
+    // Lectura de Campos de Contacto/Redes Sociales
     _phoneController.text = personalization['phone'] as String? ?? '';
     _whatsappController.text = personalization['whatsapp'] as String? ?? '';
     _websiteController.text = personalization['website'] as String? ?? '';
@@ -269,6 +260,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     }
   }
 
+  // ===================================================================================
+  // --- FUNCIÓN DE GUARDADO (ACTUALIZADA PARA EVITAR DUPLICACIÓN) ---
+  // ===================================================================================
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
     setState(() => _isLoading = true);
@@ -278,7 +272,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     final userModel = widget.user;
     String? newLogoUrl;
 
-    // --- NUEVO: Instancia del servicio de Geocoding ---
+    // Instancia del servicio de Geocoding
     final geocodingService = GeocodingService();
     double? newLatitude;
     double? newLongitude;
@@ -292,6 +286,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
             'brandProfiles/${userModel.uid}/profile_logo.jpg';
         if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
           try {
+            // Intentamos eliminar el logo anterior para limpiar Storage
             await storageService.deleteFileByUrl(_existingLogoUrl!);
           } catch (e) {
             debugPrint("No se pudo borrar logo anterior: $e");
@@ -308,10 +303,8 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       final addressText = _addressController.text.trim();
       if (addressText.isNotEmpty) {
         try {
-          // Tip: Concatenar el país ayuda a la precisión si el usuario no lo escribió en la dirección
           String queryAddress = addressText;
           if (_countryController.text.trim().isNotEmpty) {
-             // Evita duplicar si ya lo escribió
              if (!addressText.toLowerCase().contains(_countryController.text.trim().toLowerCase())) {
                 queryAddress = "$addressText, ${_countryController.text.trim()}";
              }
@@ -333,9 +326,14 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       final hexColor =
           '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}';
 
-      final Map<String, dynamic> updatedPersonalization =
-          Map<String, dynamic>.from(userModel.personalization);
+      // 3. CREAMOS EL MAPA COMPLETO DE PERSONALIZACIÓN
+      // Este mapa se usa para: A) Guardar en el doc de Usuario y B) Guardar en el doc de Perfil Público.
+      final Map<String, dynamic> updatedPersonalization = {};
+      
+      // Copiamos módulos existentes para no borrarlos, si existen
+      updatedPersonalization.addAll(userModel.personalization); 
 
+      // Actualizamos campos modificables
       updatedPersonalization.addAll({
         'businessName': _businessNameController.text.trim(),
         'logoUrl': newLogoUrl ?? _existingLogoUrl ?? '',
@@ -345,6 +343,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'country': _countryController.text.trim(),
         'slogan': _sloganController.text.trim(),
         'welcomeMessage': _sloganController.text.trim(),
+        // --- CAMPOS DE CONTACTO (CRÍTICO) ---
         'phone': _phoneController.text.trim(),
         'whatsapp': _whatsappController.text.trim(),
         'website': _websiteController.text.trim(),
@@ -352,14 +351,15 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'facebook': _facebookController.text.trim(),
         'tiktok': _tiktokController.text.trim(),
         'publicProfileTheme': _selectedPublicTheme,
-        
-        // --- GUARDADO DE COORDENADAS ---
-        // Si obtuvimos nuevas, las guardamos. Si no, intentamos mantener las viejas si existen.
-        // Nota: Si el usuario borra la dirección, quizás quieras borrar las coordenadas (opcional)
-        if (newLatitude != null) 'latitude': newLatitude,
-        if (newLongitude != null) 'longitude': newLongitude,
       });
 
+      // --- Guardado de Coordenadas (Solo si existen) ---
+      if (newLatitude != null) updatedPersonalization['latitude'] = newLatitude;
+      if (newLongitude != null) updatedPersonalization['longitude'] = newLongitude;
+
+
+      // 4. ESCRITURA 1: Actualizar el Documento del Usuario (anidado)
+      // Esto mantiene los datos de configuración en el documento base del usuario.
       await firestoreService.updateUser(userModel.uid, {
         'personalization': updatedPersonalization,
         'publicProfileTemplate': _selectedFormat,
@@ -367,16 +367,24 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'publicProfileCreated': true,
       });
 
+      // 5. ESCRITURA 2: Actualizar el Documento del Perfil Público (PLANO)
+      // Usamos updatedPersonalization, que contiene todos los campos, y evitamos la clave 'personalization' anidada aquí.
+      // Esto resuelve la duplicación en la colección brandProfiles.
       try {
+        // Añadimos la plantilla y el providerId al mapa antes de enviarlo
+        updatedPersonalization['publicProfileTemplate'] = _selectedFormat;
+        updatedPersonalization['providerId'] = userModel.uid;
+        
         await firestoreService.setBrandProfile(
             userModel.uid, updatedPersonalization);
       } catch (e) {
-        debugPrint("No se pudo actualizar brandProfiles (puede ser normal): $e");
+        debugPrint("Error al actualizar brandProfiles (puede ser un problema de permisos en Cloud Functions o Services, revisar): $e");
       }
 
       if (!mounted) return;
       _showSnackbar('¡Perfil público guardado con éxito!');
 
+      // 6. Navegación
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const AuthWrapper()),
         (route) => false,
@@ -391,6 +399,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       }
     }
   }
+  // ===================================================================================
+  // RESTO DEL CÓDIGO PERMANECE IGUAL
+  // ===================================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -680,7 +691,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 }
 
 // ===================================================================
-// --- WIDGETS DE SECCIÓN PERSONALIZADOS ---
+// --- WIDGETS DE SECCIÓN PERSONALIZADOS (SIN CAMBIOS) ---
 // ===================================================================
 
 class _LogoAndNameCard extends StatelessWidget {
@@ -828,7 +839,7 @@ class _ColorSelectorCard extends StatelessWidget {
                 child: isSelected
                     ? Icon(Icons.check, color: _getOnColor(color), size: 24)
                     : null,
-              ),
+                ),
             );
           }).toList(),
         ),
