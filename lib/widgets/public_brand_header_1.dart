@@ -8,10 +8,6 @@ import 'package:proveedor_servicly_app/widgets/follow_button.dart'; // <-- ¡NUE
 class PublicBrandHeader1 extends StatelessWidget {
   final ProviderProfileModel profile;
   final Function(String) onLaunchUrl;
-  
-  // --- CAMPOS MODIFICADOS ---
-  // Ya no recibimos 'isFollowing' ni 'onFollowTap'
-  // Recibimos el ID del cliente que está viendo.
   final String? clientId;
 
   const PublicBrandHeader1({

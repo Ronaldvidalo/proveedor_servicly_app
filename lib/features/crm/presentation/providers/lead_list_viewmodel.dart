@@ -12,7 +12,8 @@ import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 class LeadListViewModel extends ChangeNotifier {
   final CrmRepository _crmRepository;
 
-  final bool _isProUser = true; 
+  // --- CORRECCIÓN: Inicializar en false y actualizar vía init() ---
+  bool _isProUser = false; 
   String _searchTerm = '';
 
   StreamSubscription<List<Cliente>>? _clientesSubscription;
@@ -22,8 +23,17 @@ class LeadListViewModel extends ChangeNotifier {
   final int leadLimit = 100;
 
   LeadListViewModel(this._crmRepository) {
+    // Ya no cargamos aquí, esperamos al init()
+    // _loadClientesStream(isPro: _isProUser);
+    // _loadUserConfigStream(); 
+  }
+
+  // --- MÉTODO DE INICIALIZACIÓN (NUEVO) ---
+  void init(bool isPro) {
+    _isProUser = isPro;
     _loadClientesStream(isPro: _isProUser);
-    _loadUserConfigStream(); 
+    _loadUserConfigStream();
+    notifyListeners();
   }
   
   // --- GETTERS PÚBLICOS ---
@@ -32,7 +42,13 @@ class LeadListViewModel extends ChangeNotifier {
   int get leadCount => _leadCount;
   
   List<CrmEstado> get availableLeadPipelineStates {
-    if (!_isProUser) return []; 
+    // --- CORRECCIÓN: Devolver estados básicos si no es Pro ---
+    if (!_isProUser) {
+      return [
+        CrmEstado.leadNuevo,
+        CrmEstado.lead,
+      ]; 
+    }
     
     return [
       CrmEstado.leadNuevo,
@@ -179,7 +195,7 @@ class LeadListViewModel extends ChangeNotifier {
   }
   
   String getLeadStatusInitial(CrmEstado estado) {
-     return getLeadStatusLabel(estado)[0];
+      return getLeadStatusLabel(estado)[0];
   }
   
   @override

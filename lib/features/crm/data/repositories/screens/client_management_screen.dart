@@ -9,6 +9,7 @@ import 'package:proveedor_servicly_app/features/crm/presentation/providers/clien
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; 
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/client_detail_screen.dart'; 
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/contact_form_screen.dart'; // PANTALLA A NAVEGAR
+import 'package:proveedor_servicly_app/features/crm/presentation/screens/simple_leads_tab.dart';
 
 // --- WIDGETS AUXILIARES (Definidos aquí para que la pantalla sea self-contained) ---
 
@@ -271,7 +272,8 @@ class ClientManagementScreen extends StatelessWidget {
           body: const TabBarView(
             children: [
               ClientsTab(), 
-              LeadsTab(), 
+              //LeadsTab(), 
+              SimpleLeadsTab(),
             ],
           ),
           // Botón flotante para la creación rápida de leads (Web/Mobile)

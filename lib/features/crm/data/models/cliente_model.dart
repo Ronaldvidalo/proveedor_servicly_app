@@ -22,6 +22,11 @@ class Cliente {
   final String source; // Origen del lead
   final String? displayName;
 
+  // --- ¡NUEVOS CAMPOS INYECTADOS! ---
+  final String? photoUrl;
+  final String? location;
+  // ----------------------------------
+
   const Cliente({
     required this.id,
     required this.nombreCompleto,
@@ -35,6 +40,9 @@ class Cliente {
     required this.ultimaInteraccion,
     this.source = '',
     this.displayName,
+    // --- ¡NUEVO! ---
+    this.photoUrl,
+    this.location,
   });
 
   // Constructor robusto para leer desde Firestore
@@ -44,7 +52,7 @@ class Cliente {
       throw Exception("Documento de cliente nulo");
     }
 
-    // --- LECTURA ROBUSTA DEL ESTADO (Para manejar inconsistencias en Firestore) ---
+    // --- LECTURA ROBUSTA DEL ESTADO (Tu lógica original intacta) ---
     final firestoreState = data['estadoCRM'] as String? ?? 'lead';
     final estadoStr = firestoreState.toLowerCase(); 
 
@@ -52,7 +60,6 @@ class Cliente {
     try {
         estado = CrmEstado.values.firstWhere(
             (e) => e.name.toLowerCase() == estadoStr,
-            // Fallback: si no encuentra el estado, regresa a 'lead'
             orElse: () {
               if (kDebugMode) {
                 debugPrint('Advertencia: Estado CRM desconocido "$estadoStr". Usando "lead".');
@@ -82,6 +89,10 @@ class Cliente {
       // Campos auxiliares
       source: data['source'] ?? '',
       displayName: data['displayName'] as String?,
+      
+      // --- ¡LECTURA DE NUEVOS CAMPOS! ---
+      photoUrl: data['photoUrl'] as String?,
+      location: data['location'] as String?,
     );
   }
 
@@ -99,6 +110,9 @@ class Cliente {
     DateTime? ultimaInteraccion,
     String? source,
     String? displayName,
+    // --- ¡NUEVO! ---
+    String? photoUrl,
+    String? location,
   }) {
     return Cliente(
       id: id ?? this.id,
@@ -113,6 +127,9 @@ class Cliente {
       ultimaInteraccion: ultimaInteraccion ?? this.ultimaInteraccion,
       source: source ?? this.source,
       displayName: displayName ?? this.displayName,
+      // --- ¡ASIGNACIÓN DE NUEVOS CAMPOS! ---
+      photoUrl: photoUrl ?? this.photoUrl,
+      location: location ?? this.location,
     );
   }
 }

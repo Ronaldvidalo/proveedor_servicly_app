@@ -8,17 +8,14 @@ import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 
 // Pantalla modal para la creación manual de Leads o Clientes.
 class ContactFormScreen extends StatelessWidget {
-  // ELIMINAMOS LA LECTURA DEL REPOSITORIO DESDE EL MÉTODO CREATE
-  // Y LO ACEPTAMOS COMO PARÁMETRO REQUERIDO.
   final CrmRepository crmRepository;
 
   const ContactFormScreen({required this.crmRepository, super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Inyectamos el ViewModel del formulario, pasando el Repositorio ACEPTADO
     return ChangeNotifierProvider(
-      create: (context) => ContactFormViewModel(crmRepository), // <-- Repositorio inyectado aquí
+      create: (context) => ContactFormViewModel(crmRepository),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Añadir Nuevo Contacto', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -27,8 +24,6 @@ class ContactFormScreen extends StatelessWidget {
         ),
         body: Consumer<ContactFormViewModel>(
           builder: (context, viewModel, child) {
-            // ... (resto del cuerpo del formulario, que es funcionalmente correcto)
-            // CÓDIGO DEL CUERPO DEL FORMULARIO:
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -40,7 +35,6 @@ class ContactFormScreen extends StatelessWidget {
                   ),
                   const Divider(),
                   
-                  // Campo Nombre Completo
                   _buildTextField(
                     context,
                     label: 'Nombre Completo (*)',
@@ -50,7 +44,6 @@ class ContactFormScreen extends StatelessWidget {
                     keyboardType: TextInputType.name,
                   ),
 
-                  // Campo Email
                   _buildTextField(
                     context,
                     label: 'Email',
@@ -60,7 +53,6 @@ class ContactFormScreen extends StatelessWidget {
                     keyboardType: TextInputType.emailAddress,
                   ),
 
-                  // Campo Teléfono
                   _buildTextField(
                     context,
                     label: 'Teléfono',
@@ -72,7 +64,6 @@ class ContactFormScreen extends StatelessWidget {
                   
                   const SizedBox(height: 20),
                   
-                  // Selector de Estado (Lead o Cliente Activo)
                   const Text(
                     'Tipo de Contacto',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
@@ -84,7 +75,7 @@ class ContactFormScreen extends StatelessWidget {
                       labelText: 'Estado CRM Inicial',
                       border: OutlineInputBorder(),
                     ),
-                    initialValue: viewModel.estadoSeleccionado,
+                    value: viewModel.estadoSeleccionado, // Corregido: value en lugar de initialValue
                     items: viewModel.availableStates.map((CrmEstado estado) {
                       return DropdownMenuItem<CrmEstado>(
                         value: estado,
@@ -96,7 +87,6 @@ class ContactFormScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  // Botón de Guardar
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -130,7 +120,6 @@ class ContactFormScreen extends StatelessWidget {
     );
   }
 
-  // Helper para construir campos de texto
   Widget _buildTextField(
     BuildContext context, {
     required String label,
@@ -155,7 +144,6 @@ class ContactFormScreen extends StatelessWidget {
     );
   }
 
-  // Helper para obtener la etiqueta visible del estado
   String _getEstadoLabel(CrmEstado estado) {
     if (estado == CrmEstado.lead) {
       return 'Lead (Contacto Potencial)';

@@ -21,6 +21,8 @@ import 'package:proveedor_servicly_app/widgets/partners_carousel.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_button.dart'; // Contiene ContactAction enum
 import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/contact_action_row.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/social_media_row.dart';
+// Importar el repositorio CRM para la captura manual
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 // --- Servicios ---
 import 'package:proveedor_servicly_app/core/services/auth_service.dart'; 
@@ -30,8 +32,35 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
   int quantity = 1;
   final theme = Theme.of(context);
   final colors = theme.colorScheme;
+  
   final profile = context.read<ProviderProfileModel>();
   final providerId = profile.providerId;
+
+  // --- LÓGICA DE CAPTURA AUTOMÁTICA "VIO PRODUCTO" ---
+  // Intentamos registrar que el usuario vio este producto
+  try {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+
+    if (currentUser != null) {
+      final crmRepository = context.read<CrmRepository>();
+      // Registramos el evento sin esperar (fire & forget)
+      crmRepository.captureLeadFromPublicProfile(
+        providerId: providerId,
+        source: 'view_product', // <--- MARCA CLAVE PARA EL PLAN MAX
+        email: currentUser.email,
+        nombreCompleto: currentUser.displayName ?? 'Visitante Registrado',
+        // CORRECCIÓN: Eliminado 'interes' que no existe en el repo
+        // interes: 'Vio el producto: ${product.name}', 
+      ).then((_) {
+         debugPrint("Lead 'Vio Producto' capturado silenciosamente.");
+      });
+    }
+  } catch (e) {
+    debugPrint("Error capturando lead silencioso: $e");
+    // No mostramos error al usuario, es un proceso de fondo.
+  }
+  // --- FIN DE LÓGICA NUEVA ---
 
   showDialog(
     context: context,
@@ -99,7 +128,7 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                             Text('Cantidad:', style: TextStyle(fontSize: 16, color: colors.onSurface)),
                             Container(
                               decoration: BoxDecoration(
-                                color: colors.background, 
+                                color: colors.surface.withAlpha(50), 
                                 borderRadius: BorderRadius.circular(30)
                               ),
                               child: Row(
@@ -121,18 +150,20 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                           ],
                         ),
                         const SizedBox(height: 16),
-                        // --- BOTÓN DE CONTACTO REUTILIZABLE ---
+                        
+                        // --- BOTÓN DE CONTACTO REUTILIZABLE (WHATSAPP) ---
                         if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty)
                           LeadCaptureButton(
                             actionType: ContactAction.whatsapp,
                             contactValue: profile.whatsapp!,
                             providerId: providerId,
-                            label: 'Contactar por Producto',
+                            label: 'Consultar por WhatsApp',
                             brandColor: brandColor,
-                            message: 'Hola, me gustaría comprar/cotizar el producto: ${product.name}',
+                            message: 'Hola, estoy interesado en el producto: ${product.name}',
                             isOutline: true, 
+                            // Cierra el diálogo al presionar, luego LeadCaptureButton hace su magia
+                            onPressedOverride: () => Navigator.pop(dialogContext),
                           ),
-                        // --- FIN BOTÓN DE CONTACTO ---
                       ],
                     ),
                   ),
@@ -188,7 +219,7 @@ class TiendaLayout extends StatefulWidget {
 
 class _TiendaLayoutState extends State<TiendaLayout> {
 
-  String? _selectedCategoryId; // Variable de estado para el filtro
+  String? _selectedCategoryId; 
   late final String? _currentClientId;
 
   @override
@@ -208,18 +239,8 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     
-    // =======================================================
-    // IMPRESIÓN DE DEPURACIÓN CRÍTICA (Punto de Falla 1)
-    // Verificamos que los datos EXISTAN en el modelo antes de inyectarlo.
-    // =======================================================
-    debugPrint('--- DIAGNÓSTICO TIENDA LAYOUT (DATOS BASE) ---');
+    debugPrint('--- DIAGNÓSTICO TIENDA LAYOUT ---');
     debugPrint('Profile: ${widget.profile.businessName}');
-    debugPrint('WhatsApp: ${widget.profile.whatsapp}');
-    debugPrint('Phone: ${widget.profile.phone}');
-    debugPrint('Instagram: ${widget.profile.instagram}');
-    debugPrint('Facebook: ${widget.profile.facebook}');
-    debugPrint('----------------------------------------------');
-
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor, 
@@ -239,18 +260,16 @@ class _TiendaLayoutState extends State<TiendaLayout> {
         value: widget.profile,
         child: CustomScrollView(
           slivers: [
-            // --- SECCIÓN 1: Header (Identidad de Marca) ---
+            // --- SECCIÓN 1: Header ---
             SliverToBoxAdapter(
               child: PublicBrandHeader1(
                 profile: widget.profile,
-                onLaunchUrl: (url) {
-                  debugPrint('Lanzando URL genérica: $url');
-                },
-                clientId: _currentClientId,
+                onLaunchUrl: (url) => debugPrint('Lanzando: $url'), 
+                clientId: _currentClientId, 
               ),
             ),
             
-            // --- NUEVA FILA: REDES SOCIALES ---
+            // --- Redes Sociales ---
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(top: 16.0),
@@ -258,7 +277,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
               ),
             ),
             
-            // --- NUEVA FILA: Botones de Contacto CRM (WhatsApp/Teléfono/Cotizar) ---
+            // --- Botones de Contacto (Header) ---
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(top: 24.0),
@@ -280,10 +299,9 @@ class _TiendaLayoutState extends State<TiendaLayout> {
             _buildSectionTitle('Videos del Proveedor', false, theme),
             _buildVideoPromoSection(context, widget.profile.providerId, theme),
 
-            // --- SECCIÓN 4: Productos (Categorías) ---
+            // --- SECCIÓN 4: Productos ---
             _buildSectionTitle('Nuestros Productos', false, theme),
             
-            // Selector de Categorías 
             _CategorySelector(
               providerId: widget.profile.providerId,
               selectedCategoryId: _selectedCategoryId, 
@@ -295,7 +313,6 @@ class _TiendaLayoutState extends State<TiendaLayout> {
               },
             ),
 
-            // Carrete de Productos Filtrados
             _buildProductsGridSection(context, widget.profile.providerId, _selectedCategoryId, colors.primary, theme),
 
 
@@ -322,8 +339,6 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     );
   }
 
-  // --- WIDGETS DE CONSTRUCCIÓN INTERNA ---
-
   SliverToBoxAdapter _buildSectionTitle(String title, bool isFirst, ThemeData theme) {
     return SliverToBoxAdapter(
       child: Padding(
@@ -340,7 +355,6 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     );
   }
   
-  // WIDGET que carga el Grid de Productos
   Widget _buildProductsGridSection(BuildContext context, String providerId, String? selectedCategoryId, Color brandColor, ThemeData theme) {
     final productService = context.read<ProductService>();
 
@@ -386,7 +400,6 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     );
   }
 
-  // WIDGET que construye la sección de videos (asumido)
   Widget _buildVideoPromoSection(BuildContext context, String providerId, ThemeData theme) {
     final videoService = context.read<VideoService>();
     final colors = theme.colorScheme;
@@ -421,7 +434,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
                 final video = videos[index];
                 return VideoCard(
                   video: video,
-                  brandColor: colors.primary, // Color dinámico
+                  brandColor: colors.primary, 
                   onPlayTap: () {
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => VideoPlayerScreen(videoShowcase: video),
@@ -437,9 +450,9 @@ class _TiendaLayoutState extends State<TiendaLayout> {
   }
 } 
 
-// ===================================================================
-// --- WIDGETS AUXILIARES (DEFINICIONES ÚNICAS) ---
-// ===================================================================
+// =================================================================
+// WIDGETS AUXILIARES LOCALES
+// =================================================================
 
 class _CartBadge extends StatelessWidget {
   const _CartBadge({required this.brandColor});
@@ -493,7 +506,6 @@ class _CartBadge extends StatelessWidget {
   }
 }
 
-
 class _CategorySelector extends StatelessWidget {
   final String providerId;
   final String? selectedCategoryId;
@@ -513,7 +525,6 @@ class _CategorySelector extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-
     return StreamBuilder<List<CategoryModel>>(
       stream: categoryService.getCategories(providerId),
       builder: (context, snapshot) {
@@ -531,8 +542,6 @@ class _CategorySelector extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               itemCount: categories.length + 1,
               itemBuilder: (context, index) {
-                // El primer chip siempre es "Todos"
-
                 if (index == 0) {
                   final isSelected = selectedCategoryId == null;
                   return Padding(
@@ -572,7 +581,6 @@ class _CategorySelector extends StatelessWidget {
   }
 }
 
-
 class _ProductCard extends StatelessWidget {
   final ProductModel product;
   final Color brandColor;
@@ -605,18 +613,18 @@ class _ProductCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     product.imageUrl.isNotEmpty
-                      ? Image.network(
-                          product.imageUrl,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, progress) => 
-                            progress == null ? child : Center(child: CircularProgressIndicator(strokeWidth: 2, color: brandColor)),
-                          errorBuilder: (context, error, stackTrace) => 
-                            Center(child: Icon(Icons.image_not_supported_outlined, color: colors.onSurface.withAlpha(102), size: 40)), 
-                        )
-                      : Container(
-                          color: colors.onSurface.withAlpha(25), 
-                          child: Center(child: Icon(Icons.shopping_bag_outlined, size: 50, color: colors.onSurface.withAlpha(102))),
-                        ),
+                        ? Image.network(
+                            product.imageUrl,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) => 
+                                progress == null ? child : Center(child: CircularProgressIndicator(strokeWidth: 2, color: brandColor)),
+                            errorBuilder: (context, error, stackTrace) => 
+                                Center(child: Icon(Icons.image_not_supported_outlined, color: colors.onSurface.withAlpha(102), size: 40)), 
+                          )
+                        : Container(
+                            color: colors.onSurface.withAlpha(25), 
+                            child: Center(child: Icon(Icons.shopping_bag_outlined, size: 50, color: colors.onSurface.withAlpha(102))),
+                          ),
                     if (product.promoText != null && product.promoText!.isNotEmpty)
                       Positioned(
                         top: 8,
@@ -681,9 +689,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-
 class _LoadingSkeleton extends StatelessWidget {
-// ...
   const _LoadingSkeleton();
 
   @override
@@ -709,9 +715,7 @@ class _LoadingSkeleton extends StatelessWidget {
   }
 }
 
-
 class _EmptyState extends StatelessWidget {
-// ...
   const _EmptyState();
   @override
   Widget build(BuildContext context) {
@@ -745,7 +749,6 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
-
 
 class _ErrorState extends StatelessWidget {
   final String error;
