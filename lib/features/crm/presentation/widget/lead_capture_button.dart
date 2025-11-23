@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/services/auth_service.dart'; // Importante para datos de Google
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 enum ContactAction { whatsapp, phone, email, website, quote }
@@ -29,18 +30,56 @@ class LeadCaptureButton extends StatelessWidget {
   });
 
   Future<void> _handlePress(BuildContext context) async {
-    // 1. Ejecutar override si existe (ej: cerrar diálogo)
-    if (onPressedOverride != null) {
-      onPressedOverride!();
+    if (onPressedOverride != null) onPressedOverride!();
+
+    final crmRepo = context.read<CrmRepository>();
+    
+    // 1. INTENTAMOS OBTENER EL USUARIO DE LA BASE DE DATOS
+    final userModel = context.read<UserModel?>();
+    
+    // 2. INTENTAMOS OBTENER EL USUARIO DE FIREBASE AUTH (Google/Email)
+    final authService = context.read<AuthService>();
+    final firebaseUser = authService.currentUser;
+
+    // --- LÓGICA DE EXTRACCIÓN ROBUSTA ---
+    String name = 'Visitante Anónimo';
+    String email = '';
+    String? photoUrl;
+    String? location;
+
+    // A. Prioridad: Datos de Firebase Auth (Siempre están si está logueado)
+    if (firebaseUser != null) {
+      name = firebaseUser.displayName ?? 'Usuario Registrado';
+      email = firebaseUser.email ?? '';
+      photoUrl = firebaseUser.photoURL; // Foto de Google
     }
 
-    final currentUser = context.read<UserModel?>();
-    final crmRepo = context.read<CrmRepository>();
+    // B. Prioridad: Datos de tu Base de Datos (Sobrescriben si existen)
+    if (userModel != null) {
+      if (userModel.displayName != null && userModel.displayName!.isNotEmpty) {
+        name = userModel.displayName!;
+      }
+      
+      // Buscamos la foto en la raíz O en personalización
+      String? dbPhoto = userModel.logoUrl;
+      if (dbPhoto == null || dbPhoto.isEmpty) {
+         dbPhoto = userModel.personalization['logoUrl'] as String?;
+      }
+      
+      // Si encontramos foto en BDD, la usamos. Si no, nos quedamos con la de Google.
+      if (dbPhoto != null && dbPhoto.isNotEmpty) {
+        photoUrl = dbPhoto;
+      }
+
+      // Ubicación
+      location = userModel.personalization['address'] as String? 
+              ?? userModel.personalization['country'] as String?;
+    }
+    // ---------------------------------------
 
     Uri? launchUri;
     String source = '';
 
-    // Lógica de URLs
     switch (actionType) {
       case ContactAction.whatsapp:
         source = 'whatsapp';
@@ -69,37 +108,23 @@ class LeadCaptureButton extends StatelessWidget {
         break;
     }
 
-    // 2. Capturar Lead con datos enriquecidos (Foto y Ubicación)
+    // Capturar Lead
     try {
-      // Intentamos obtener datos extras si el usuario está logueado
-      String? photoUrl;
-      String? location;
-
-      if (currentUser != null) {
-        // Priorizamos el logo del perfil público, si no, la foto de auth
-        photoUrl = currentUser.personalization['logoUrl'] as String?;
-        
-        // Intentamos obtener país o dirección
-        location = currentUser.personalization['country'] as String? ?? 
-                   currentUser.personalization['address'] as String?;
-      }
-
+      debugPrint("Capturando lead: $name, Foto: $photoUrl"); // Debug
+      
       await crmRepo.captureLeadFromPublicProfile(
         providerId: providerId,
         source: source,
-        email: currentUser?.email,
-        nombreCompleto: currentUser?.displayName,
-        telefono: null, // Se podría sacar del perfil si existiera
-        // --- NUEVOS CAMPOS ---
-        photoUrl: photoUrl,
+        email: email,
+        nombreCompleto: name,
+        telefono: null,
+        logoUrl: photoUrl, // Enviamos la foto encontrada
         location: location,
-        // ---------------------
       );
     } catch (e) {
       debugPrint("Error capturando lead: $e");
     }
 
-    // 3. Lanzar acción
     if (launchUri != null) {
       try {
         await launchUrl(launchUri, mode: LaunchMode.externalApplication);
@@ -121,25 +146,14 @@ class LeadCaptureButton extends StatelessWidget {
         onPressed: () => _handlePress(context),
         icon: Icon(icon, size: 18),
         label: Text(text),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: brandColor, 
-          side: BorderSide(color: brandColor),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+        style: OutlinedButton.styleFrom(foregroundColor: brandColor, side: BorderSide(color: brandColor)),
       );
     } else {
       return FilledButton.icon(
         onPressed: () => _handlePress(context),
         icon: Icon(icon, size: 18),
         label: Text(text),
-        style: FilledButton.styleFrom(
-          backgroundColor: brandColor,
-          foregroundColor: ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark 
-              ? Colors.white : Colors.black,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+        style: FilledButton.styleFrom(backgroundColor: brandColor, foregroundColor: Colors.white),
       );
     }
   }

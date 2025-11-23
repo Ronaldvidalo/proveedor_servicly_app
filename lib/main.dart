@@ -51,6 +51,7 @@ import 'package:proveedor_servicly_app/core/services/order_service.dart';
 
 // --- UI ---
 import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; 
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; // <--- IMPORTAR ESTO
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -104,8 +105,8 @@ class MyApp extends StatelessWidget {
         Provider<FollowService>(create: (_) => FollowService()),
         Provider<PaymentService>(create: (_) => PaymentService()),
         Provider<FirestoreService>(create: (_) => FirestoreService()),
-        Provider<AuthService>(
-          create: (context) => AuthService(
+        Provider<CrmRepository>(create: (_) => CrmRepository()),
+        Provider<AuthService>(create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
           ),

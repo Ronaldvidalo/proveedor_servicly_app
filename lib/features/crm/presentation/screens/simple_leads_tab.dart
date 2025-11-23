@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'dart:ui'; // Necesario para ImageFiltered (ImageFilter)
 
 // Modelos
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
-import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart'; // Asegúrate de tener este archivo
+import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart';
 
 // Pantallas
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart';
@@ -69,16 +70,12 @@ class SimpleLeadsTab extends StatelessWidget {
               final cliente = Cliente.fromFirestore(docs[index]);
               
               // 1. Filtro de Retención
-              // Usamos el '!' porque la lógica de isLeadExpired espera un Timestamp, 
-              // pero tu modelo Cliente ya lo convirtió a DateTime.
-              // Vamos a ajustar esto para que funcione:
+              // CORRECCIÓN: Convertimos DateTime a Timestamp para el helper
               if (cliente.fechaAlta != null) {
-                 // Convertimos de nuevo a Timestamp para el helper, o ajustamos el helper.
-                 // Asumiendo que el helper espera Timestamp:
-                 final timestamp = Timestamp.fromDate(cliente.fechaAlta!);
-                 if (LeadAccessHelper.isLeadExpired(userPlan, timestamp)) {
-                    return const SizedBox.shrink(); 
-                 }
+                  final timestamp = Timestamp.fromDate(cliente.fechaAlta!);
+                  if (LeadAccessHelper.isLeadExpired(userPlan, timestamp)) {
+                     return const SizedBox.shrink(); 
+                  }
               }
 
               // 2. Verificación de Acceso
@@ -110,23 +107,39 @@ class _LeadCard extends StatelessWidget {
     required this.userPlan,
   });
 
+  // --- Helper Visual (Traducción) ---
+  String _getFriendlySource(String? source) {
+    if (source == null) return 'Consulta';
+    final s = source.toLowerCase();
+    if (s.contains('whatsapp')) return 'WhatsApp';
+    if (s.contains('view_product')) return 'Vio Producto';
+    if (s.contains('cart')) return 'Carrito Abandonado';
+    if (s.contains('telefono') || s.contains('phone')) return 'Llamada';
+    if (s.contains('email') || s.contains('mail')) return 'Email';
+    if (s.contains('presupuesto')) return 'Presupuesto';
+    return 'Consulta';
+  }
+
   @override
   Widget build(BuildContext context) {
     const surfaceColor = Color(0xFF2D2D5A);
     
-    // Lógica de Visualización
+    // --- Lógica de Visualización ---
     final displayName = hasAccess 
         ? lead.nombreCompleto 
         : 'Oportunidad Detectada'; 
-        
+    
+    // Usamos el helper para traducir la fuente
     final displaySource = hasAccess
-        ? (lead.source ?? "Desconocido")
-        : "Carrito/Interés (Requiere Plan PRO)";
+        ? _getFriendlySource(lead.source)
+        : "Carrito/Interés (Solo PRO)";
 
-    // Colores de estado (Usando Enum.name para comparar con seguridad)
     Color statusColor = Colors.blueGrey;
-    String statusText = lead.estadoCRM.name; // Usamos .name del Enum
+    
+    // CORRECCIÓN: Usar .name para obtener el String del Enum
+    String statusText = lead.estadoCRM.name; 
 
+    // CORRECCIÓN: Comparar Enum con Enum (no con String)
     if (lead.estadoCRM == CrmEstado.leadNuevo) {
       statusColor = Colors.blueAccent;
       statusText = 'NUEVO';
@@ -135,10 +148,9 @@ class _LeadCard extends StatelessWidget {
       statusText = 'Contactado';
     }
 
-    // --- CORRECCIÓN DEL ERROR ---
-    // lead.fechaAlta ya es DateTime?, no hace falta .toDate()
+    // CORRECCIÓN: fechaAlta ya es DateTime, no usar .toDate()
     final dateStr = lead.fechaAlta != null 
-        ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!) // <-- CORREGIDO AQUÍ
+        ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!) 
         : '--/--';
 
     return Card(
@@ -157,11 +169,12 @@ class _LeadCard extends StatelessWidget {
         },
         child: Stack(
           children: [
-            // CONTENIDO
+            // CONTENIDO DE LA TARJETA
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
+                   // Indicador de Estado
                    Container(
                     width: 4,
                     height: 40,
@@ -175,24 +188,27 @@ class _LeadCard extends StatelessWidget {
                      child: Column(
                        crossAxisAlignment: CrossAxisAlignment.start,
                        children: [
-                         Text(
-                           displayName,
-                           style: TextStyle(
-                             color: hasAccess ? Colors.white : Colors.white38,
-                             fontWeight: FontWeight.bold,
-                             fontSize: 16,
-                           ),
-                         ),
+                         // Nombre (Borroso si no hay acceso)
+                         hasAccess 
+                           ? Text(displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
+                           : ImageFiltered(
+                               imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                               child: Text(displayName, style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 16)),
+                             ),
+                             
                          const SizedBox(height: 4),
+                         
+                         // Fuente (Traducida)
                          Text(
                            displaySource,
                            style: TextStyle(
-                               color: hasAccess ? Colors.white38 : Colors.amber, 
-                               fontSize: 12, 
+                               color: hasAccess ? Colors.white70 : Colors.amber, 
+                               fontSize: 13, 
                                fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
                            ),
                          ),
                          const SizedBox(height: 8),
+                         
                          Row(
                            children: [
                              Container(
@@ -281,7 +297,7 @@ class _LeadCard extends StatelessWidget {
             child: const Text('MEJORAR PLAN'),
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navegando a planes...')));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Redirigiendo a planes...')));
             }, 
           ),
         ],

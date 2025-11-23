@@ -23,7 +23,7 @@ class Cliente {
   final String? displayName;
 
   // --- ¡NUEVOS CAMPOS INYECTADOS! ---
-  final String? photoUrl;
+  final String? logoUrl;
   final String? location;
   // ----------------------------------
 
@@ -41,7 +41,7 @@ class Cliente {
     this.source = '',
     this.displayName,
     // --- ¡NUEVO! ---
-    this.photoUrl,
+    this.logoUrl,
     this.location,
   });
 
@@ -91,7 +91,7 @@ class Cliente {
       displayName: data['displayName'] as String?,
       
       // --- ¡LECTURA DE NUEVOS CAMPOS! ---
-      photoUrl: data['photoUrl'] as String?,
+      logoUrl: data['logoUrl'] as String?,
       location: data['location'] as String?,
     );
   }
@@ -128,7 +128,7 @@ class Cliente {
       source: source ?? this.source,
       displayName: displayName ?? this.displayName,
       // --- ¡ASIGNACIÓN DE NUEVOS CAMPOS! ---
-      photoUrl: photoUrl ?? this.photoUrl,
+      logoUrl: logoUrl ?? this.logoUrl,
       location: location ?? this.location,
     );
   }

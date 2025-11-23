@@ -86,6 +86,7 @@ class CrmRepository {
       'montoTotalFacturado': 0.0,
       'etiquetas': [],
       'notasInternas': '',
+      
     });
   }
   
@@ -97,7 +98,7 @@ class CrmRepository {
     required String source, // e.g., 'tienda_whatsapp', 'catalogo_telefono'
     required String providerId, // ID del proveedor que recibe el lead
     String? telefono,
-    String? photoUrl,
+    String? logoUrl, 
     String? location,
   }) async {
     // 1. Determinar el estado inicial del Lead
@@ -122,8 +123,9 @@ class CrmRepository {
       'montoTotalFacturado': 0.0,
       'etiquetas': ['public_lead', source.split('_').first], // Tag automático
       'notasInternas': 'Capturado automáticamente el: ${DateTime.now()} desde $source.',
-      'photoUrl': photoUrl,
+      'logoUrl': logoUrl,
       'location': location,
+      
     });
   }
 

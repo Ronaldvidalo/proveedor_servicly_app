@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 
+// Modelos y Servicios
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
@@ -20,20 +21,23 @@ class LeadDetailScreen extends StatefulWidget {
 class _LeadDetailScreenState extends State<LeadDetailScreen> {
   bool _isLoading = false;
 
-  // --- Helpers de Traducción ---
+  // --- Helpers de Traducción (UI Amigable) ---
   String _getFriendlySource(String? source) {
     if (source == null) return 'Consulta general';
     final s = source.toLowerCase();
-    if (s.contains('whatsapp')) return 'Te escribió por WhatsApp';
+    
+    if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio un Producto';
     if (s.contains('cart')) return 'Carrito Abandonado';
-    if (s.contains('telefono') || s.contains('phone')) return 'Consultó tu Teléfono';
-    if (s.contains('email') || s.contains('mail')) return 'Solicitó tu Email';
-    return 'Realizó una consulta';
+    if (s.contains('telefono') || s.contains('phone')) return 'Llamada';
+    if (s.contains('email') || s.contains('mail')) return 'Email';
+    if (s.contains('presupuesto')) return 'Solicitó Presupuesto';
+    
+    return 'Consulta';
   }
 
   String _getFriendlyName(String originalName) {
-    if (originalName == 'Visitante CTA' || originalName == 'Visitante Anónimo' || originalName == 'Visitante Registrado') {
+    if (originalName.startsWith('Visitante') || originalName == 'Usuario Registrado') {
       return 'Nuevo Interesado';
     }
     return originalName;
@@ -87,6 +91,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<CrmRepository>();
+      
       if (newStatus == CrmEstado.clienteActivo) {
         await repo.convertLeadToClient(widget.lead.id);
         _showSnack('¡Excelente! Has ganado un nuevo Cliente.', isSuccess: true);
@@ -117,7 +122,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     const accentColor = Color(0xFF00BFFF);
 
     // 1. VERIFICACIÓN DE SEGURIDAD
-    // TODO: Conectar con el plan real del usuario
+    // TODO: Usar plan real del usuario (Provider)
     const String userPlan = 'free'; 
     
     if (!LeadAccessHelper.canAccessLead(userPlan, widget.lead.source ?? '')) {
@@ -172,15 +177,13 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                 ),
                 child: Row(
                   children: [
-                    // --- AQUÍ USAMOS EL SAFE AVATAR PARA EVITAR PANTALLA ROJA ---
+                    // FOTO DE PERFIL (USANDO SAFE AVATAR)
                     SafeAvatar(
-                      imageUrl: lead.photoUrl,
+                      imageUrl: lead.logoUrl, // Usamos el campo correcto
                       name: friendlyName,
                       size: 70,
                       accentColor: accentColor,
                     ),
-                    // -----------------------------------------------------------
-                    
                     const SizedBox(width: 16),
                     
                     Expanded(
@@ -192,18 +195,16 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                             style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                           ),
                           
+                          // UBICACIÓN
                           if (lead.location != null && lead.location!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(
                               children: [
                                 const Icon(Icons.location_on, size: 14, color: Colors.white54),
                                 const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    lead.location!,
-                                    style: const TextStyle(color: Colors.white70, fontSize: 13),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                Text(
+                                  lead.location!,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                                 ),
                               ],
                             ),
@@ -211,6 +212,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
                           const SizedBox(height: 8),
                           
+                          // BADGES
                           Wrap(
                             spacing: 8,
                             children: [
@@ -252,7 +254,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
               const SizedBox(height: 32),
 
-              // --- MENSAJE / NOTAS ---
+              // --- HISTORIAL / CONTEXTO ---
               const Text('Resumen de Actividad', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Container(
@@ -323,7 +325,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   ),
                 ),
               ),
-               const SizedBox(height: 40),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -332,11 +334,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 }
 
 // =====================================================
-// WIDGETS AUXILIARES Y SAFE AVATAR
+// WIDGETS AUXILIARES
 // =====================================================
 
 /// WIDGET A PRUEBA DE FALLOS PARA EL AVATAR
-/// Si la imagen da 403/404, muestra la inicial en vez de romper la app.
 class SafeAvatar extends StatelessWidget {
   final String? imageUrl;
   final String name;
@@ -369,7 +370,7 @@ class SafeAvatar extends StatelessWidget {
                 fit: BoxFit.cover,
                 width: size,
                 height: size,
-                // MANEJO DE ERRORES (La clave del fix)
+                // Si la imagen falla, mostramos la inicial (evita pantalla roja)
                 errorBuilder: (context, error, stackTrace) {
                   return Center(
                     child: Text(initial, style: TextStyle(fontSize: size * 0.4, color: accentColor, fontWeight: FontWeight.bold)),
