@@ -12,6 +12,7 @@ class ProviderProfileModel {
   final String? publicProfileTheme;
   final String contactEmail;
   final String? address;
+  final String planType; // 'free', 'pro', 'max'
 
   // --- Campos Adicionales ---
   final String? slogan;
@@ -55,6 +56,7 @@ class ProviderProfileModel {
   final bool showQuotesModule; 
 
   const ProviderProfileModel({
+    this.planType = 'free',
     required this.providerId,
     required this.businessName,
     required this.logoUrl,
@@ -179,6 +181,7 @@ class ProviderProfileModel {
     String? publicProfileTheme,
     String? contactEmail,
     String? address,
+    String? planType,
     String? slogan,
     double? averageRating,
     int? reviewCount,
@@ -217,6 +220,7 @@ class ProviderProfileModel {
       publicProfileTheme: publicProfileTheme ?? this.publicProfileTheme,
       contactEmail: contactEmail ?? this.contactEmail,
       address: address ?? this.address,
+      planType: planType ?? this.planType, // --- NUEVO --
       slogan: slogan ?? this.slogan,
       averageRating: averageRating ?? this.averageRating,
       reviewCount: reviewCount ?? this.reviewCount,
@@ -255,6 +259,7 @@ class ProviderProfileModel {
       'publicProfileTheme': publicProfileTheme,
       'contactEmail': contactEmail,
       'address': address,
+      'planType': planType, // --- NUEVO ---
       'slogan': slogan,
       'averageRating': averageRating,
       'reviewCount': reviewCount,

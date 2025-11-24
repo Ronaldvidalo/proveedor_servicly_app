@@ -1,33 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/product_card.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui'; 
-// Modelos y Servicios
+
+// --- Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
 import 'package:proveedor_servicly_app/core/services/video_service.dart';
 import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/models/category_model.dart';
+import 'package:proveedor_servicly_app/core/services/auth_service.dart'; 
+import 'package:proveedor_servicly_app/core/services/analytics_service.dart';
+
+// --- Widgets Reutilizables Externos ---
 import 'package:proveedor_servicly_app/widgets/VideoCard.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/video_player_screen.dart';
-// Widgets del Perfil Público
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/cart/screens/cart_screen.dart';
 import 'package:proveedor_servicly_app/widgets/public_brand_header_1.dart';
 import 'package:proveedor_servicly_app/widgets/partners_carousel.dart';
-// --- CRM WIDGETS ---
-import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_button.dart'; // Contiene ContactAction enum
+
+// --- CRM WIDGETS & REPO ---
+import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_button.dart'; 
 import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/contact_action_row.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/social_media_row.dart';
-// Importar el repositorio CRM para la captura manual
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
-// --- Servicios ---
-import 'package:proveedor_servicly_app/core/services/auth_service.dart'; 
+// --- IMPORTAR NUEVA TARJETA ---
+import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/product_card.dart';
 
-// --- DEFINICIÓN ÚNICA DE LA FUNCIÓN DE DIÁLOGO ---
+
+// =================================================================
+// FUNCIÓN DE DIÁLOGO (DETALLE DE PRODUCTO + CAPTURA "VIO PRODUCTO")
+// =================================================================
 void _showProductDetailDialog(BuildContext context, ProductModel product, Color brandColor) {
   int quantity = 1;
   final theme = Theme.of(context);
@@ -36,31 +43,36 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
   final profile = context.read<ProviderProfileModel>();
   final providerId = profile.providerId;
 
-  // --- LÓGICA DE CAPTURA AUTOMÁTICA "VIO PRODUCTO" ---
-  // Intentamos registrar que el usuario vio este producto
+  // 1. ANALÍTICA (Hitos)
+  try {
+    final analytics = context.read<AnalyticsService>();
+    analytics.trackProductView(
+      providerId: providerId,
+      planType: profile.planType,
+      productName: product.name,
+    );
+  } catch (_) {}
+
+  // 2. CAPTURA DE LEAD "VIO PRODUCTO"
   try {
     final authService = context.read<AuthService>();
     final currentUser = authService.currentUser;
 
     if (currentUser != null) {
       final crmRepository = context.read<CrmRepository>();
-      // Registramos el evento sin esperar (fire & forget)
       crmRepository.captureLeadFromPublicProfile(
         providerId: providerId,
-        source: 'view_product', // <--- MARCA CLAVE PARA EL PLAN MAX
+        source: 'view_product', 
         email: currentUser.email,
         nombreCompleto: currentUser.displayName ?? 'Visitante Registrado',
-        // CORRECCIÓN: Eliminado 'interes' que no existe en el repo
-        // interes: 'Vio el producto: ${product.name}', 
+        logoUrl: currentUser.photoURL,
       ).then((_) {
          debugPrint("Lead 'Vio Producto' capturado silenciosamente.");
       });
     }
   } catch (e) {
     debugPrint("Error capturando lead silencioso: $e");
-    // No mostramos error al usuario, es un proceso de fondo.
   }
-  // --- FIN DE LÓGICA NUEVA ---
 
   showDialog(
     context: context,
@@ -78,13 +90,19 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Imagen
                   SizedBox(
                     height: 200,
                     width: double.infinity,
                     child: product.imageUrl.isNotEmpty
-                        ? Image.network(product.imageUrl, fit: BoxFit.cover)
+                        ? Image.network(
+                            product.imageUrl, 
+                            fit: BoxFit.cover,
+                            errorBuilder: (_,__,___) => Icon(Icons.broken_image, size: 50, color: colors.onSurface.withAlpha(100)),
+                          )
                         : Icon(Icons.shopping_bag_outlined, size: 80, color: colors.onSurface.withAlpha(102)),
                   ),
+                  
                   Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -95,6 +113,7 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                           const SizedBox(height: 24),
                         ],
                         
+                        // Precios
                         Padding(
                           padding: const EdgeInsets.only(bottom: 16.0),
                           child: Wrap(
@@ -122,6 +141,7 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                           ),
                         ),
 
+                        // Cantidad
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -151,7 +171,7 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                         ),
                         const SizedBox(height: 16),
                         
-                        // --- BOTÓN DE CONTACTO REUTILIZABLE (WHATSAPP) ---
+                        // Botón WhatsApp
                         if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty)
                           LeadCaptureButton(
                             actionType: ContactAction.whatsapp,
@@ -161,7 +181,6 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
                             brandColor: brandColor,
                             message: 'Hola, estoy interesado en el producto: ${product.name}',
                             isOutline: true, 
-                            // Cierra el diálogo al presionar, luego LeadCaptureButton hace su magia
                             onPressedOverride: () => Navigator.pop(dialogContext),
                           ),
                       ],
@@ -203,6 +222,9 @@ void _showProductDetailDialog(BuildContext context, ProductModel product, Color 
   );
 }
 
+// =================================================================
+// CLASE PRINCIPAL: TIENDA LAYOUT
+// =================================================================
 class TiendaLayout extends StatefulWidget {
   final String providerId;
   final ProviderProfileModel profile;
@@ -218,7 +240,6 @@ class TiendaLayout extends StatefulWidget {
 }
 
 class _TiendaLayoutState extends State<TiendaLayout> {
-
   String? _selectedCategoryId; 
   late final String? _currentClientId;
 
@@ -230,18 +251,10 @@ class _TiendaLayoutState extends State<TiendaLayout> {
   }
 
   @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     
-    debugPrint('--- DIAGNÓSTICO TIENDA LAYOUT ---');
-    debugPrint('Profile: ${widget.profile.businessName}');
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor, 
       
@@ -260,46 +273,30 @@ class _TiendaLayoutState extends State<TiendaLayout> {
         value: widget.profile,
         child: CustomScrollView(
           slivers: [
-            // --- SECCIÓN 1: Header ---
+                    //// --- 1. HEADER PÚBLICO (Aquí estaba el error) ---
             SliverToBoxAdapter(
               child: PublicBrandHeader1(
                 profile: widget.profile,
-                onLaunchUrl: (url) => debugPrint('Lanzando: $url'), 
-                clientId: _currentClientId, 
+                // La lógica de lanzamiento la maneja internamente el widget ahora
+                onLaunchUrl: (url) => debugPrint('Launch: $url'), 
+                clientId: _currentClientId,
               ),
-            ),
-            
-            // --- Redes Sociales ---
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: SocialMediaRow(brandColor: colors.primary),
-              ),
-            ),
-            
-            // --- Botones de Contacto (Header) ---
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 24.0),
-                child: ContactActionRow(
-                  brandColor: colors.primary,
-                  useOutlineStyle: true,
-                ),
-              ),
-            ),
+            ),        
 
-            // --- SECCIÓN 2: Partners ---
+
+
+            // Partners
             SliverToBoxAdapter(
               child: PartnersCarousel(
                 partners: widget.profile.partners,
               ),
             ),
             
-            // --- SECCIÓN 3: Videos ---
+            // Videos
             _buildSectionTitle('Videos del Proveedor', false, theme),
             _buildVideoPromoSection(context, widget.profile.providerId, theme),
 
-            // --- SECCIÓN 4: Productos ---
+            // Productos
             _buildSectionTitle('Nuestros Productos', false, theme),
             
             _CategorySelector(
@@ -315,8 +312,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
 
             _buildProductsGridSection(context, widget.profile.providerId, _selectedCategoryId, colors.primary, theme),
 
-
-            // --- SECCIÓN 5: Calificaciones ---
+            // Calificaciones
             _buildSectionTitle('Calificaciones y Comentarios', false, theme),
             SliverToBoxAdapter(
               child: Container(
@@ -324,10 +320,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
                 alignment: Alignment.center,
                 child: Text(
                   '(Próximamente: Módulo de Reseñas)',
-                  style: TextStyle(
-                    color: colors.onSurface.withOpacity(0.5), 
-                    fontStyle: FontStyle.italic
-                  ),
+                  style: TextStyle(color: colors.onSurface.withAlpha(128), fontStyle: FontStyle.italic),
                 ),
               )
             ),
@@ -361,19 +354,13 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     return StreamBuilder<List<ProductModel>>(
       stream: productService.getProducts(providerId, categoryId: selectedCategoryId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _LoadingSkeleton(); 
-        }
+        if (snapshot.connectionState == ConnectionState.waiting) return const _LoadingSkeleton(); 
         if (snapshot.hasError) {
           return SliverToBoxAdapter(
-              child: Center(
-                  child: Text('Error al cargar productos: ${snapshot.error}',
-                      style: TextStyle(color: theme.colorScheme.error))));
+              child: Center(child: Text('Error: ${snapshot.error}', style: TextStyle(color: theme.colorScheme.error))));
         }
         final products = snapshot.data ?? [];
-        if (products.isEmpty) {
-          return const _EmptyState();
-        }
+        if (products.isEmpty) return const _EmptyState();
 
         return SliverPadding(
           padding: const EdgeInsets.all(16.0),
@@ -387,7 +374,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 final product = products[index];
-                return _ProductCard(
+                return ProductCard(
                   product: product, 
                   brandColor: brandColor,
                 );
@@ -409,19 +396,11 @@ class _TiendaLayoutState extends State<TiendaLayout> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return SliverToBoxAdapter(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24.0),
-                child: CircularProgressIndicator(color: colors.primary),
-              ),
-            ),
+            child: Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24.0), child: CircularProgressIndicator(color: colors.primary))),
           );
         }
         final videos = snapshot.data ?? [];
-        
-        if (videos.isEmpty) {
-          return const SliverToBoxAdapter(child: SizedBox.shrink());
-        }
+        if (videos.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
 
         return SliverToBoxAdapter(
           child: SizedBox(
@@ -457,306 +436,36 @@ class _TiendaLayoutState extends State<TiendaLayout> {
 class _CartBadge extends StatelessWidget {
   const _CartBadge({required this.brandColor});
   final Color brandColor;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    return Consumer<CartProvider>(
-      builder: (context, cart, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.shopping_cart_outlined, size: 28),
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const CartScreen(),
-                ));
-              },
-            ),
-            if (cart.totalItems > 0)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: brandColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
-                  ),
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                  child: Text(
-                    '${cart.totalItems}',
-                    style: TextStyle(
-                      color: ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark
-                          ? Colors.white : Colors.black,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
+    return Consumer<CartProvider>(builder: (context, cart, child) {
+      return Stack(alignment: Alignment.center, children: [
+        IconButton(icon: const Icon(Icons.shopping_cart_outlined, size: 28), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CartScreen()))),
+        if (cart.totalItems > 0) Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(color: brandColor, shape: BoxShape.circle, border: Border.all(color: theme.scaffoldBackgroundColor, width: 2)), constraints: const BoxConstraints(minWidth: 18, minHeight: 18), child: Text('${cart.totalItems}', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center)))
+      ]);
+    });
   }
 }
 
 class _CategorySelector extends StatelessWidget {
-  final String providerId;
-  final String? selectedCategoryId;
-  final Color brandColor;
-  final ValueChanged<String?> onCategorySelected;
-
-  const _CategorySelector({
-    required this.providerId,
-    required this.selectedCategoryId,
-    required this.brandColor,
-    required this.onCategorySelected,
-  });
-
+  final String providerId; final String? selectedCategoryId; final Color brandColor; final ValueChanged<String?> onCategorySelected;
+  const _CategorySelector({required this.providerId, required this.selectedCategoryId, required this.brandColor, required this.onCategorySelected});
   @override
   Widget build(BuildContext context) {
-    final categoryService = context.read<CategoryService>(); 
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return StreamBuilder<List<CategoryModel>>(
-      stream: categoryService.getCategories(providerId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SliverToBoxAdapter(child: SizedBox.shrink());
-        }
-
-        final categories = snapshot.data!;
-
-        return SliverToBoxAdapter(
-          child: SizedBox(
-            height: 60,
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              scrollDirection: Axis.horizontal,
-              itemCount: categories.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  final isSelected = selectedCategoryId == null;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ChoiceChip(
-                      label: const Text('Ver Todos'),
-                      selected: isSelected,
-                      onSelected: (selected) => onCategorySelected(null),
-                      selectedColor: brandColor,
-                      labelStyle: TextStyle(color: isSelected ? (ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark ? Colors.white : Colors.black) : colors.onSurface),
-                      backgroundColor: colors.surface,
-                      shape: StadiumBorder(side: BorderSide(color: isSelected ? brandColor : colors.onSurface.withAlpha(77))), 
-                    ),
-                  );
-                }
-
-                final category = categories[index - 1];
-                final isSelected = selectedCategoryId == category.id;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text(category.name),
-                    selected: isSelected,
-                    onSelected: (selected) => onCategorySelected(category.id),
-                    selectedColor: brandColor,
-                    labelStyle: TextStyle(color: isSelected ? (ThemeData.estimateBrightnessForColor(brandColor) == Brightness.dark ? Colors.white : Colors.black) : colors.onSurface),
-                    backgroundColor: colors.surface,
-                    shape: StadiumBorder(side: BorderSide(color: isSelected ? brandColor : colors.onSurface.withAlpha(77))), 
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
+    final categoryService = context.read<CategoryService>(); final theme = Theme.of(context); final colors = theme.colorScheme;
+    return StreamBuilder<List<CategoryModel>>(stream: categoryService.getCategories(providerId), builder: (context, snapshot) {
+      if (!snapshot.hasData || snapshot.data!.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+      final categories = snapshot.data!;
+      return SliverToBoxAdapter(child: SizedBox(height: 60, child: ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), scrollDirection: Axis.horizontal, itemCount: categories.length + 1, itemBuilder: (context, index) {
+        if (index == 0) return Padding(padding: const EdgeInsets.only(right: 8.0), child: ChoiceChip(label: const Text('Ver Todos'), selected: selectedCategoryId == null, onSelected: (selected) => onCategorySelected(null), selectedColor: brandColor, labelStyle: TextStyle(color: selectedCategoryId == null ? Colors.white : colors.onSurface), backgroundColor: colors.surface, shape: StadiumBorder(side: BorderSide(color: selectedCategoryId == null ? brandColor : colors.onSurface.withAlpha(77)))));
+        final category = categories[index - 1];
+        return Padding(padding: const EdgeInsets.only(right: 8.0), child: ChoiceChip(label: Text(category.name), selected: selectedCategoryId == category.id, onSelected: (selected) => onCategorySelected(category.id), selectedColor: brandColor, labelStyle: TextStyle(color: selectedCategoryId == category.id ? Colors.white : colors.onSurface), backgroundColor: colors.surface, shape: StadiumBorder(side: BorderSide(color: selectedCategoryId == category.id ? brandColor : colors.onSurface.withAlpha(77)))));
+      })));
+    });
   }
 }
 
-class _ProductCard extends StatelessWidget {
-  final ProductModel product;
-  final Color brandColor;
 
-  const _ProductCard({required this.product, required this.brandColor}); 
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface, 
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: brandColor.withAlpha(128), width: 1), 
-        boxShadow: [
-          BoxShadow(color: brandColor.withAlpha(51), blurRadius: 10, spreadRadius: 1)
-        ]
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: InkWell(
-          onTap: () => _showProductDetailDialog(context, product, brandColor),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    product.imageUrl.isNotEmpty
-                        ? Image.network(
-                            product.imageUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, progress) => 
-                                progress == null ? child : Center(child: CircularProgressIndicator(strokeWidth: 2, color: brandColor)),
-                            errorBuilder: (context, error, stackTrace) => 
-                                Center(child: Icon(Icons.image_not_supported_outlined, color: colors.onSurface.withAlpha(102), size: 40)), 
-                          )
-                        : Container(
-                            color: colors.onSurface.withAlpha(25), 
-                            child: Center(child: Icon(Icons.shopping_bag_outlined, size: 50, color: colors.onSurface.withAlpha(102))),
-                          ),
-                    if (product.promoText != null && product.promoText!.isNotEmpty)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade700,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            product.promoText!,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      product.name,
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colors.onSurface), 
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8.0,
-                      crossAxisAlignment: WrapCrossAlignment.end,
-                      children: [
-                        if (product.isOnSale) ...[
-                          Text(
-                            '\$${product.promoPrice!.toStringAsFixed(2)}',
-                            style: TextStyle( color: brandColor, fontWeight: FontWeight.bold, fontSize: 18 ),
-                          ),
-                          Text(
-                            '\$${product.price.toStringAsFixed(2)}',
-                            style: TextStyle( color: colors.onSurface.withAlpha(128), decoration: TextDecoration.lineThrough, fontSize: 14 ),
-                          ),
-                        ] else ...[
-                          Text(
-                            '\$${product.price.toStringAsFixed(2)}',
-                            style: TextStyle( color: brandColor, fontWeight: FontWeight.bold, fontSize: 18 ),
-                          ),
-                        ]
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadingSkeleton extends StatelessWidget {
-  const _LoadingSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return SliverPadding(
-      padding: const EdgeInsets.all(16.0),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate(
-          [
-            Container(
-              height: 220,
-              decoration: BoxDecoration(
-                color: colors.surface.withAlpha(128),
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return SliverFillRemaining(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.storefront_outlined, size: 80, color: colors.onSurface.withAlpha(51)), 
-              const SizedBox(height: 24),
-              Text(
-                'Tienda en Construcción',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 22, color: colors.onSurface, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Este proveedor aún no ha añadido productos a su tienda.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: colors.onSurface.withAlpha(153)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String error;
-  const _ErrorState({required this.error});
-  @override
-  Widget build(BuildContext context) {
-    return SliverFillRemaining(
-      child: Center(child: Text('Error al cargar productos:\n$error', textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-    );
-  }
-}
+class _LoadingSkeleton extends StatelessWidget { const _LoadingSkeleton(); @override Widget build(BuildContext context) => SliverToBoxAdapter(child: SizedBox(height: 200)); }
+class _EmptyState extends StatelessWidget { const _EmptyState(); @override Widget build(BuildContext context) => SliverFillRemaining(child: Center(child: Text('Sin productos'))); }

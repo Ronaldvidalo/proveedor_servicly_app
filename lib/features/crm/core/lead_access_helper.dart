@@ -11,17 +11,18 @@ class LeadAccessHelper {
     if (planType == 'pro') {
       if (leadSource.contains('cart')) return true; // Carrito
       if (_isDirectContact(leadSource)) return true; // Contacto directo
-      
+      if (leadSource.contains('like')) return true; // Le gustó un producto
       // No ve 'view_product' (vistas sin acción)
       return false; 
     }
 
     // 3. PLAN FREE: Solo ve Contactos directos (Alta intención)
     if (planType == 'free') {
+      // ❌ Free NO ve los Likes (Solo ve que "alguien" dio like)
+      // if (leadSource.contains('like')) return false; 
       return _isDirectContact(leadSource);
     }
-
-    // Por defecto, bloqueado
+       // Por defecto, bloqueado
     return false;
   }
 

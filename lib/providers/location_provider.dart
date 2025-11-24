@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:state_notifier/state_notifier.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:proveedor_servicly_app/core/services/location_service.dart';
 

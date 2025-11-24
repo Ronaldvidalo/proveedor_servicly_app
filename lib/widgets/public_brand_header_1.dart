@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/widgets/contact_icon_button.dart';
-import 'package:proveedor_servicly_app/widgets/info_chip.dart'; // Para el helper IconsKE
-import 'package:proveedor_servicly_app/widgets/follow_button.dart'; // <-- ¡NUEVA IMPORTACIÓN!
+import 'package:proveedor_servicly_app/widgets/follow_button.dart';
 
-/// PLANTILLA 1: El Header Público Principal (Estilo Tarjeta de Presentación)
+// Widgets de CRM y UI
+import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
+// Asegúrate de que LeadCaptureIcon exista o usa el widget que acabamos de crear si quieres reemplazar los iconos pequeños también
+import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_icon.dart'; 
+// IMPORTANTE: Importamos el botón que acabamos de crear
+import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_button.dart';
+import 'package:proveedor_servicly_app/widgets/info_chip.dart'; // Para IconsKE
+
 class PublicBrandHeader1 extends StatelessWidget {
   final ProviderProfileModel profile;
   final Function(String) onLaunchUrl;
@@ -14,38 +20,65 @@ class PublicBrandHeader1 extends StatelessWidget {
     super.key,
     required this.profile,
     required this.onLaunchUrl,
-    this.clientId, // <-- AÑADIDO
+    this.clientId,
   });
 
   @override
   Widget build(BuildContext context) {
-    const surfaceColor = Color(0xFF2D2D5A);
-    const accentColor = Color(0xFF00BFFF);
+    // Usamos el tema directamente si está disponible, o constantes como fallback
+    final theme = Theme.of(context);
+    final surfaceColor = theme.colorScheme.surface; // Antes Color(0xFF2D2D5A)
+    final accentColor = theme.colorScheme.primary;  // Antes Color(0xFF00BFFF)
 
-    // (La lógica de 'contactIcons' no cambia...)
-    final List<Widget> contactIcons = [];
-    if (profile.phone != null && profile.phone!.isNotEmpty) {
-      contactIcons.add(ContactIconButton(icon: Icons.phone, tooltip: 'Llamar', onTap: () => onLaunchUrl('tel:${profile.phone}')));
-    }
+    // =========================================================
+    // 1. CONSTRUCCIÓN DE LA LISTA DE ICONOS (SOLO SI EXISTEN DATOS)
+    // =========================================================
+    final List<Widget> activeIcons = [];
+
+    // A. Iconos de Contacto (Capturan Leads)
     if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty) {
-      contactIcons.add(ContactIconButton(icon: Icons.message, tooltip: 'WhatsApp', onTap: () => onLaunchUrl('https://wa.me/${profile.whatsapp}')));
+      activeIcons.add(_buildCrmIcon(ContactAction.whatsapp, profile.whatsapp!, profile.providerId, accentColor));
+    }
+    if (profile.phone != null && profile.phone!.isNotEmpty) {
+      activeIcons.add(_buildCrmIcon(ContactAction.phone, profile.phone!, profile.providerId, accentColor));
+    }
+    if (profile.contactEmail.isNotEmpty) {
+      activeIcons.add(_buildCrmIcon(ContactAction.email, profile.contactEmail, profile.providerId, accentColor));
     }
     if (profile.website != null && profile.website!.isNotEmpty) {
-      contactIcons.add(ContactIconButton(icon: Icons.language, tooltip: 'Web', onTap: () => onLaunchUrl(profile.website!)));
+      // Nota: ContactAction.website no estaba en el enum original que me pasaste, 
+      // asumo que lo manejas como un link externo o debes agregarlo al enum.
+      // Por ahora lo dejo comentado para evitar errores si no existe en tu enum.
+      // activeIcons.add(_buildCrmIcon(ContactAction.website, profile.website!, profile.providerId, accentColor));
     }
+
+    // B. Iconos Sociales
     if (profile.instagram != null && profile.instagram!.isNotEmpty) {
-      contactIcons.add(ContactIconButton(icon: IconsKE.instagram, tooltip: 'Instagram', onTap: () => onLaunchUrl('https://instagram.com/${profile.instagram}')));
+      activeIcons.add(_SocialIcon(
+        icon: IconsKE.instagram, 
+        url: 'https://instagram.com/${profile.instagram}',
+        brandColor: accentColor,
+      ));
     }
     if (profile.facebook != null && profile.facebook!.isNotEmpty) {
-      contactIcons.add(ContactIconButton(icon: Icons.facebook, tooltip: 'Facebook', onTap: () => onLaunchUrl('https://facebook.com/${profile.facebook}')));
+      activeIcons.add(_SocialIcon(
+        icon: Icons.facebook,
+        url: 'https://facebook.com/${profile.facebook}',
+        brandColor: accentColor,
+      ));
     }
     if (profile.tiktok != null && profile.tiktok!.isNotEmpty) {
-      contactIcons.add(ContactIconButton(icon: Icons.music_note, tooltip: 'TikTok', onTap: () => onLaunchUrl('https://tiktok.com/${profile.tiktok}')));
+      activeIcons.add(_SocialIcon(
+        icon: Icons.music_note,
+        url: 'https://tiktok.com/${profile.tiktok}',
+        brandColor: accentColor,
+      ));
     }
+    // =========================================================
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(24),
@@ -56,7 +89,7 @@ class PublicBrandHeader1 extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ... (Logo, Nombre, Eslogan, Dirección no cambian) ...
+          // --- LOGO ---
           Container(
             width: 100,
             height: 100,
@@ -76,6 +109,8 @@ class PublicBrandHeader1 extends StatelessWidget {
                 : null,
           ),
           const SizedBox(height: 16),
+          
+          // --- NOMBRE ---
           Text(
             profile.businessName,
             textAlign: TextAlign.center,
@@ -86,6 +121,8 @@ class PublicBrandHeader1 extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
+          
+          // --- ESLOGAN ---
           if (profile.welcomeMessage.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
@@ -93,13 +130,11 @@ class PublicBrandHeader1 extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic),
             ),
           ],
+
+          // --- UBICACIÓN ---
           if (profile.address != null && profile.address!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(
@@ -120,48 +155,108 @@ class PublicBrandHeader1 extends StatelessWidget {
           ],
           
           const SizedBox(height: 24),
-
-          // --- 3. Botones de Acción (¡MODIFICADO!) ---
+          
+          // --- BOTONES DE ACCIÓN PRINCIPAL (CTA) ---
           Row(
             children: [
+              // 1. Botón "Seguir" (Secundario)
+              // Mantenemos tu FollowButton existente, pero le damos menos espacio (flex 1)
+              // si queremos que el de Cotizar destaque más, o los dejamos iguales.
               Expanded(
-                // ¡Usamos el nuevo widget!
                 child: FollowButton(
                   providerId: profile.providerId,
                   clientId: clientId,
+                  // Si tu FollowButton soporta estilo, idealmente que sea 'Outlined'
                 ),
               ),
-              const SizedBox(width: 16),
+              
+              const SizedBox(width: 12), // Espacio reducido para que quepan mejor
+              
+              // 2. Botón "Solicitar Presupuesto" (PRIMARIO)
+              // Reemplaza al antiguo botón de "Mensaje"
               Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.message_outlined, size: 18),
-                  label: const Text('Mensaje'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: accentColor.withAlpha(100)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () {
-                    // TODO: Implementar navegación al Chat
-                  },
+                flex: 1, // Opcional: pon '2' si quieres que sea el doble de grande
+                child: LeadCaptureButton(
+                  actionType: ContactAction.quote, // Acción: Presupuesto
+                  contactValue: '', // No necesita valor externo, es interno
+                  providerId: profile.providerId,
+                  label: 'Cotizar', // Texto corto y potente
+                  brandColor: accentColor,
+                  isOutline: false, // FALSE = Relleno con Glow (Destacado)
+                  message: 'Hola, me gustaría solicitar una cotización.',
                 ),
               ),
             ],
           ),
-
-          // --- 4. Barra de Iconos de Contacto (Sin cambios) ---
-          if (contactIcons.isNotEmpty) ...[
+          
+          // --- FILA DE ICONOS DESLIZABLE (HORIZONTAL SCROLL) ---
+          if (activeIcons.isNotEmpty) ...[
             const SizedBox(height: 24),
             const Divider(color: Colors.white10, height: 1),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              alignment: WrapAlignment.center,
-              children: contactIcons,
+            
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: activeIcons.map((icon) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                    child: icon,
+                  );
+                }).toList(),
+              ),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // Helper para crear iconos CRM consistentes
+  Widget _buildCrmIcon(ContactAction type, String value, String pId, Color color) {
+    // Asegúrate de que LeadCaptureIcon esté importado correctamente
+    return LeadCaptureIcon(
+      actionType: type,
+      contactValue: value,
+      providerId: pId,
+      brandColor: color,
+      useOutlineStyle: true,
+    );
+  }
+}
+
+/// Widget local para replicar el estilo de LeadCaptureIcon en redes sociales
+class _SocialIcon extends StatelessWidget {
+  final IconData icon;
+  final String url;
+  final Color brandColor;
+
+  const _SocialIcon({
+    required this.icon,
+    required this.url,
+    required this.brandColor,
+  });
+
+  Future<void> _launch() async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 24),
+      onPressed: _launch,
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        foregroundColor: brandColor,
+        side: BorderSide(color: brandColor.withAlpha(100), width: 1),
+        padding: const EdgeInsets.all(10),
+        minimumSize: const Size.square(48),
       ),
     );
   }

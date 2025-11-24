@@ -29,6 +29,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio un Producto';
     if (s.contains('cart')) return 'Carrito Abandonado';
+    if (s.contains('like')) return 'Le gustó un Producto'; // ❤️
     if (s.contains('telefono') || s.contains('phone')) return 'Llamada';
     if (s.contains('email') || s.contains('mail')) return 'Email';
     if (s.contains('presupuesto')) return 'Solicitó Presupuesto';

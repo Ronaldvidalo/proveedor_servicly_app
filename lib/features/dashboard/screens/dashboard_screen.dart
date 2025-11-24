@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/foundation.dart' show listEquals;
+
 import 'dart:ui'; // Para ImageFilter
 
 // --- Imports para el Tour ---
@@ -21,31 +21,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 // --- Importaciones de Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
-import 'package:proveedor_servicly_app/core/services/auth_service.dart';
+
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/providers/theme_provider.dart';
-import 'package:proveedor_servicly_app/widgets/loading/shimmer_loading.dart';
-import 'package:proveedor_servicly_app/shared/theme/screens/theme_selection_screen.dart';
-import 'package:proveedor_servicly_app/core/services/theme_service.dart';
 
 // --- Importaciones de Módulos ---
 import 'package:proveedor_servicly_app/features/catalogo/modules/modules_screen.dart';
 import 'package:proveedor_servicly_app/features/profile/screens/create_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
-import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
-import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
+
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
 import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart'; // <-- IMPORTANTE
-import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
-import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
-import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
 
-// --- IMPORTACIONES CRM ---
-import 'package:proveedor_servicly_app/features/crm/data/repositories/screens/client_management_screen.dart';
-import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
 /// La pantalla principal y dashboard para el usuario proveedor.
 /// Actúa como un "Shell" que contiene la barra de navegación.

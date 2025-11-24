@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui'; // Necesario para ImageFiltered (ImageFilter)
+import 'dart:ui'; 
 
 // Modelos
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
@@ -12,19 +12,34 @@ import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart
 // Pantallas
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart';
 
-class SimpleLeadsTab extends StatelessWidget {
+class SimpleLeadsTab extends StatefulWidget {
   const SimpleLeadsTab({super.key});
+
+  @override
+  State<SimpleLeadsTab> createState() => _SimpleLeadsTabState();
+}
+
+class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
+  int _currentLimit = 10;
+  // ignore: unused_field
+  bool _isLoadingMore = false; // Mantenemos por si la usas luego en _loadMore
+
+  void _loadMore() {
+    setState(() {
+      _currentLimit += 10; 
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     const backgroundColor = Color(0xFF1A1A2E);
     const accentColor = Color(0xFF00BFFF);
-
-    // TODO: Conectar esto con tu Provider de Usuario real
     const String userPlan = 'free'; 
 
     if (userId == null) return const Center(child: Text('Error: No usuario'));
+
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -33,7 +48,9 @@ class SimpleLeadsTab extends StatelessWidget {
             .collection('users')
             .doc(userId)
             .collection('clientes')
+            .where('fechaAlta', isGreaterThan: Timestamp.fromDate(sevenDaysAgo))
             .orderBy('fechaAlta', descending: true)
+            .limit(_currentLimit)
             .snapshots(),
         builder: (context, snapshot) {
           
@@ -42,7 +59,12 @@ class SimpleLeadsTab extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white70)));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+              ),
+            );
           }
 
           final docs = snapshot.data?.docs ?? [];
@@ -55,8 +77,8 @@ class SimpleLeadsTab extends StatelessWidget {
                   Icon(Icons.inbox_outlined, size: 80, color: Colors.white.withAlpha(25)),
                   const SizedBox(height: 16),
                   const Text(
-                    'No tienes leads pendientes',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    'No hay leads recientes',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -65,20 +87,24 @@ class SimpleLeadsTab extends StatelessWidget {
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
+            itemCount: docs.length + 1, 
             itemBuilder: (context, index) {
-              final cliente = Cliente.fromFirestore(docs[index]);
               
-              // 1. Filtro de Retención
-              // CORRECCIÓN: Convertimos DateTime a Timestamp para el helper
-              if (cliente.fechaAlta != null) {
-                  final timestamp = Timestamp.fromDate(cliente.fechaAlta!);
-                  if (LeadAccessHelper.isLeadExpired(userPlan, timestamp)) {
-                     return const SizedBox.shrink(); 
-                  }
+              if (index == docs.length) {
+                if (docs.length >= _currentLimit) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: TextButton(
+                      onPressed: _loadMore,
+                      child: const Text("Ver más antiguos...", style: TextStyle(color: Colors.white54)),
+                    ),
+                  );
+                } else {
+                  return const SizedBox.shrink(); 
+                }
               }
 
-              // 2. Verificación de Acceso
+              final cliente = Cliente.fromFirestore(docs[index]);
               final bool hasAccess = LeadAccessHelper.canAccessLead(userPlan, cliente.source ?? '');
 
               return _LeadCard(
@@ -94,7 +120,6 @@ class SimpleLeadsTab extends StatelessWidget {
   }
 }
 
-/// Tarjeta individual INTELIGENTE
 class _LeadCard extends StatelessWidget {
   final Cliente lead;
   final bool hasAccess; 
@@ -107,15 +132,15 @@ class _LeadCard extends StatelessWidget {
     required this.userPlan,
   });
 
-  // --- Helper Visual (Traducción) ---
   String _getFriendlySource(String? source) {
     if (source == null) return 'Consulta';
     final s = source.toLowerCase();
     if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio Producto';
     if (s.contains('cart')) return 'Carrito Abandonado';
-    if (s.contains('telefono') || s.contains('phone')) return 'Llamada';
-    if (s.contains('email') || s.contains('mail')) return 'Email';
+    if (s.contains('like')) return 'Le gustó un Producto'; // ❤️
+    if (s.contains('telefono')) return 'Llamada';
+    if (s.contains('email')) return 'Email';
     if (s.contains('presupuesto')) return 'Presupuesto';
     return 'Consulta';
   }
@@ -124,31 +149,27 @@ class _LeadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const surfaceColor = Color(0xFF2D2D5A);
     
-    // --- Lógica de Visualización ---
-    final displayName = hasAccess 
-        ? lead.nombreCompleto 
-        : 'Oportunidad Detectada'; 
-    
-    // Usamos el helper para traducir la fuente
-    final displaySource = hasAccess
-        ? _getFriendlySource(lead.source)
-        : "Carrito/Interés (Solo PRO)";
+    final displayName = hasAccess ? lead.nombreCompleto : 'Oportunidad Detectada'; 
+    final displaySource = hasAccess ? _getFriendlySource(lead.source) : "Carrito/Interés (Solo PRO)";
 
     Color statusColor = Colors.blueGrey;
     
-    // CORRECCIÓN: Usar .name para obtener el String del Enum
+    // CORRECCIÓN 1: Usar .name para obtener el string del Enum
     String statusText = lead.estadoCRM.name; 
 
-    // CORRECCIÓN: Comparar Enum con Enum (no con String)
+    // CORRECCIÓN 2: Comparar Enum con Enum
     if (lead.estadoCRM == CrmEstado.leadNuevo) {
       statusColor = Colors.blueAccent;
       statusText = 'NUEVO';
     } else if (lead.estadoCRM == CrmEstado.contactado) {
       statusColor = Colors.orange;
       statusText = 'Contactado';
+    } else if (lead.estadoCRM == CrmEstado.clienteActivo) {
+      statusColor = Colors.green;
+      statusText = 'Cliente';
     }
 
-    // CORRECCIÓN: fechaAlta ya es DateTime, no usar .toDate()
+    // CORRECCIÓN 3: fechaAlta ya es DateTime?, no usar .toDate()
     final dateStr = lead.fechaAlta != null 
         ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!) 
         : '--/--';
@@ -169,36 +190,26 @@ class _LeadCard extends StatelessWidget {
         },
         child: Stack(
           children: [
-            // CONTENIDO DE LA TARJETA
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                   // Indicador de Estado
                    Container(
-                    width: 4,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                    width: 4, height: 40,
+                    decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2)),
                   ),
                    const SizedBox(width: 16),
                    Expanded(
                      child: Column(
                        crossAxisAlignment: CrossAxisAlignment.start,
                        children: [
-                         // Nombre (Borroso si no hay acceso)
                          hasAccess 
                            ? Text(displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
                            : ImageFiltered(
                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                                child: Text(displayName, style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 16)),
                              ),
-                             
                          const SizedBox(height: 4),
-                         
-                         // Fuente (Traducida)
                          Text(
                            displaySource,
                            style: TextStyle(
@@ -208,7 +219,6 @@ class _LeadCard extends StatelessWidget {
                            ),
                          ),
                          const SizedBox(height: 8),
-                         
                          Row(
                            children: [
                              Container(
@@ -218,10 +228,7 @@ class _LeadCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(color: statusColor.withAlpha(100)),
                                 ),
-                                child: Text(
-                                  statusText.toUpperCase(),
-                                  style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
-                                ),
+                                child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
                               ),
                               const Spacer(),
                               Text(dateStr, style: const TextStyle(color: Colors.white24, fontSize: 10)),
@@ -236,7 +243,6 @@ class _LeadCard extends StatelessWidget {
               ),
             ),
             
-            // CAPA DE BLOQUEO
             if (!hasAccess)
               Positioned.fill(
                 child: Container(
@@ -276,22 +282,13 @@ class _LeadCard extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF2D2D5A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
-            Icon(Icons.star, color: Colors.amber),
-            SizedBox(width: 8),
-            Text('Oportunidad Perdida', style: TextStyle(color: Colors.white)),
-          ],
-        ),
+        title: const Row(children: [Icon(Icons.star, color: Colors.amber), SizedBox(width: 8), Text('Oportunidad Perdida', style: TextStyle(color: Colors.white))]),
         content: const Text(
           'Un cliente mostró interés pero no te contactó directamente.\n\nLos usuarios PRO pueden ver estos datos y contactar al cliente proactivamente.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
-          TextButton(
-            child: const Text('Cerrar', style: TextStyle(color: Colors.white38)), 
-            onPressed: () => Navigator.pop(ctx)
-          ),
+          TextButton(child: const Text('Cerrar', style: TextStyle(color: Colors.white38)), onPressed: () => Navigator.pop(ctx)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
             child: const Text('MEJORAR PLAN'),
