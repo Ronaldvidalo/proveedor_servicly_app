@@ -1,36 +1,41 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Representa el modelo de datos para un producto en la tienda de un proveedor.
-///
-/// Actualizado para incluir gestión de inventario (quantity) y una
-/// galería multimedia (mediaGallery) que soporta imágenes y videos.
+/// Representa el modelo de datos UNIFICADO para un producto.
+/// Sirve tanto para la Tienda Virtual (Cliente) como para el Inventario Inteligente (Proveedor).
 class ProductModel {
+  // --- CAMPOS ORIGINALES (TIENDA) ---
   final String id;
   final String name;
   final String description;
-  final double price;
+  final double price; // Precio de Venta al Público (PVP)
   final Timestamp createdAt;
   final Timestamp? expiryDate;
-  
-  /// La imagen principal o miniatura del producto.
-  final String imageUrl; 
-  
+  final String imageUrl;
   final double? promoPrice;
   final String? promoText;
   final String? categoryId;
-
-  // --- ¡CAMPO REQUERIDO AÑADIDO! ---
-  // El ID del proveedor que es dueño de este producto.
   final String providerId;
-
-  // --- ¡NUEVO CAMPO PARA INVENTARIO! ---
-  /// La cantidad de stock disponible.
-  /// Un valor 'null' puede significar "disponibilidad infinita" o "es un servicio".
-  final int? quantity;
-
-  // --- ¡NUEVO CAMPO PARA GALERÍA! ---
-  /// Una lista de mapas que representa la galería de medios.
+  final int? quantity; // Stock actual
   final List<Map<String, dynamic>> mediaGallery;
+
+  // --- ¡CAMPOS NUEVOS (ESTRATEGIA B2B & COSTOS)! ---
+  // Estos campos son invisibles para el cliente final, solo para el proveedor.
+  
+  /// Costo Variable: Cuánto te costó comprar o fabricar este ítem (sin contar fijos).
+  final double costPrice; 
+  
+  /// Costo Fijo Snapshot: El valor del "Costo Fijo Unitario" en el momento que creaste el producto.
+  /// Se guarda para saber cuánto margen real tenías históricamente.
+  final double fixedCostSnapshot; 
+  
+  /// Precio para venta al por mayor (Revendedores).
+  final double wholesalePrice; 
+  
+  /// Precio especial para Embajadores de marca.
+  final double ambassadorPrice; 
+  
+  /// Nivel de stock donde se dispara la alerta "Poco Stock".
+  final int minStock;
 
   ProductModel({
     required this.id,
@@ -38,21 +43,26 @@ class ProductModel {
     required this.description,
     required this.price,
     required this.createdAt,
-    required this.providerId, // <-- AÑADIDO
+    required this.providerId,
     this.expiryDate,
     this.imageUrl = '',
     this.promoPrice,
     this.promoText,
     this.categoryId,
-    this.quantity, 
+    this.quantity,
     this.mediaGallery = const [],
+    // Inicializamos los nuevos campos con 0 por defecto para compatibilidad con productos viejos
+    this.costPrice = 0.0,
+    this.fixedCostSnapshot = 0.0,
+    this.wholesalePrice = 0.0,
+    this.ambassadorPrice = 0.0,
+    this.minStock = 5, 
   });
 
   /// Convierte un documento de Firestore a una instancia de [ProductModel].
   factory ProductModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     
-    // Conversión segura para la galería de medios
     final List<Map<String, dynamic>> gallery = (data['mediaGallery'] as List<dynamic>?)
             ?.map((item) => Map<String, dynamic>.from(item as Map))
             .toList() ??
@@ -64,25 +74,34 @@ class ProductModel {
       description: data['description'] as String? ?? '',
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
-      providerId: data['providerId'] as String? ?? '', // <-- AÑADIDO
+      providerId: data['providerId'] as String? ?? '',
       expiryDate: data['expiryDate'] as Timestamp?,
       imageUrl: data['imageUrl'] as String? ?? '',
       promoPrice: (data['promoPrice'] as num?)?.toDouble(),
       promoText: data['promoText'] as String?,
       categoryId: data['categoryId'] as String?,
-      quantity: data['quantity'] as int?, 
+      quantity: data['quantity'] as int?,
       mediaGallery: gallery,
+      
+      // --- MAPEO DE NUEVOS CAMPOS ---
+      // Usamos '?? 0.0' para que si el producto es viejo y no tiene estos datos, no falle.
+      costPrice: (data['costPrice'] as num?)?.toDouble() ?? 0.0,
+      fixedCostSnapshot: (data['fixedCostSnapshot'] as num?)?.toDouble() ?? 0.0,
+      wholesalePrice: (data['wholesalePrice'] as num?)?.toDouble() ?? 0.0,
+      ambassadorPrice: (data['ambassadorPrice'] as num?)?.toDouble() ?? 0.0,
+      minStock: (data['minStock'] as num?)?.toInt() ?? 5,
     );
   }
 
   /// Convierte la instancia del modelo a un mapa para guardarlo en Firestore.
   Map<String, dynamic> toJson() {
     return {
+      // Datos Tienda
       'name': name,
       'description': description,
       'price': price,
       'createdAt': createdAt,
-      'providerId': providerId, // <-- AÑADIDO
+      'providerId': providerId,
       'expiryDate': expiryDate,
       'imageUrl': imageUrl,
       'promoPrice': promoPrice,
@@ -90,10 +109,17 @@ class ProductModel {
       'categoryId': categoryId,
       'quantity': quantity,
       'mediaGallery': mediaGallery,
+      
+      // Datos Estrategia (Nuevos)
+      'costPrice': costPrice,
+      'fixedCostSnapshot': fixedCostSnapshot,
+      'wholesalePrice': wholesalePrice,
+      'ambassadorPrice': ambassadorPrice,
+      'minStock': minStock,
     };
   }
 
-  // --- GETTERS DE CONVENIENCIA ---
+  // --- GETTERS DE CONVENIENCIA ORIGINALES ---
   bool get isOnSale => promoPrice != null && promoPrice! > 0;
   
   bool get isExpired =>
@@ -104,12 +130,22 @@ class ProductModel {
       !isExpired &&
       expiryDate!.toDate().difference(DateTime.now()).inDays <= 7;
 
-  // --- ¡NUEVOS GETTERS DE INVENTARIO! ---
-  
-  /// Verdadero si el producto tiene stock.
-  /// Si quantity es 'null', se asume que es un servicio o tiene stock infinito.
   bool get isInStock => quantity == null || quantity! > 0;
   
-  /// Verdadero solo si el stock está explícitamente en 0 o menos.
   bool get isOutOfStock => quantity != null && quantity! <= 0;
+
+  // --- ¡NUEVOS GETTERS INTELIGENTES! ---
+
+  /// Calcula el costo TOTAL real (Costo Variable + La carga de estructura de costos).
+  double get costoTotalReal => costPrice + fixedCostSnapshot;
+
+  /// Calcula el porcentaje de ganancia real sobre el precio público.
+  /// Ejemplo: Si vendes a 100 y tu costo total es 70, margen es 0.30 (30%).
+  double get margenGananciaPublico {
+    if (price <= 0) return 0.0;
+    return (price - costoTotalReal) / price;
+  }
+
+  /// Determina si el stock está en nivel crítico (por debajo del mínimo configurado).
+  bool get isLowStock => quantity != null && quantity! <= minStock && quantity! > 0;
 }

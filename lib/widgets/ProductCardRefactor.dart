@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Importamos para formatear precios grandes
-import 'package:provider/provider.dart';
-import 'package:proveedor_servicly_app/core/models/product_model.dart'; 
-// import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart'; 
-
+import 'package:intl/intl.dart';
+import 'package:proveedor_servicly_app/core/models/product_model.dart';
 
 class ProductCardRefactor extends StatelessWidget {
   final ProductModel product;
   final Color brandColor;
-  final VoidCallback onDetailTap; 
+  final VoidCallback onDetailTap;
 
   const ProductCardRefactor({
     super.key,
@@ -17,14 +14,12 @@ class ProductCardRefactor extends StatelessWidget {
     required this.onDetailTap,
   });
 
-  // --- FUNCIÓN DE UTILIDAD PARA FORMATO DE PRECIO (Maneja millones) ---
+  // --- FUNCIÓN DE UTILIDAD PARA FORMATO DE PRECIO ---
   String _formatPrice(double price) {
-    // Usamos NumberFormat para manejar grandes cantidades con separador de miles.
-    // Locale 'es_AR' para formato argentino (punto para miles, coma para decimales)
     final format = NumberFormat.currency(
       locale: 'es_AR',
       symbol: '\$',
-      decimalDigits: 2, // 2 decimales
+      decimalDigits: 2,
     );
     return format.format(price);
   }
@@ -34,10 +29,10 @@ class ProductCardRefactor extends StatelessWidget {
     if (product.isOutOfStock) return Colors.grey.shade700;
     if (product.isExpired) return Colors.redAccent.shade700;
     if (product.isExpiringSoon) return Colors.orangeAccent.shade700;
-    return brandColor.withAlpha(150); 
+    return brandColor.withAlpha(150);
   }
 
-  // WIDGET AUXILIAR: ETIQUETA DE STOCK/CANTIDAD (Esquina superior izquierda)
+  // WIDGET AUXILIAR: ETIQUETA DE STOCK
   Widget _buildQuantityBadge() {
     if (product.isOutOfStock) {
       return const _StatusBadge(text: 'AGOTADO', color: Color(0xFFC62828), icon: Icons.block);
@@ -45,7 +40,7 @@ class ProductCardRefactor extends StatelessWidget {
     
     if (product.quantity != null && product.quantity! > 0 && product.quantity! <= 5) {
       return _StatusBadge(
-        text: 'Sólo ${product.quantity}', 
+        text: 'Quedan ${product.quantity}', // Texto un poco más corto
         color: Colors.orange.shade700,
         icon: Icons.inventory_2_outlined,
       );
@@ -53,31 +48,32 @@ class ProductCardRefactor extends StatelessWidget {
     return const SizedBox.shrink();
   }
 
-  // WIDGET AUXILIAR: ETIQUETA DE DESCUENTO (Esquina superior derecha en diagonal)
+  // WIDGET AUXILIAR: ETIQUETA DE DESCUENTO
   Widget _buildPromoBadge() {
     if (product.isOnSale && product.promoPrice != null && product.promoPrice! < product.price) {
+      // Calculamos porcentaje y evitamos división por cero
+      if (product.price == 0) return const SizedBox.shrink();
       final discount = (1 - (product.promoPrice! / product.price)) * 100;
       
-      // La clave está en el Clipper y el tamaño del Container
       return Transform.translate(
-        offset: const Offset(4, -4), // Mover un poco hacia la esquina para que no se oculte
+        offset: const Offset(4, -4),
         child: ClipPath(
           clipper: _DiscountClipper(), 
           child: Container(
-            width:50, // Aumentamos el ancho para que el clipper sea más grande
+            width: 50, 
             height: 50, 
             color: Colors.redAccent,
             alignment: Alignment.topCenter,
             child: Transform.rotate(
               angle: 0.785, // 45 grados
               child: Padding(
-                padding: const EdgeInsets.only(top: 8.0, left: 10.0), // Ajuste visual
+                padding: const EdgeInsets.only(top: 8.0, left: 10.0),
                 child: Text(
                   '-${discount.toStringAsFixed(0)}%',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 14, // Aumentamos un poco la fuente
+                    fontSize: 12,
                   ),
                 ),
               ),
@@ -88,7 +84,6 @@ class ProductCardRefactor extends StatelessWidget {
     }
     return const SizedBox.shrink();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +122,8 @@ class ProductCardRefactor extends StatelessWidget {
                         ? Image.network(
                             product.imageUrl,
                             fit: BoxFit.cover,
+                            // OPTIMIZACIÓN DE MEMORIA: Redimensiona la imagen en caché
+                            cacheWidth: 400, 
                             loadingBuilder: (context, child, progress) =>
                                 progress == null ? child : Center(child: CircularProgressIndicator(strokeWidth: 2, color: brandColor)),
                             errorBuilder: (context, error, stack) =>
@@ -137,17 +134,16 @@ class ProductCardRefactor extends StatelessWidget {
                             child: const Center(child: Icon(Icons.shopping_bag_outlined, color: Colors.white38, size: 40)),
                           ),
                     
+                    // Overlay oscuro si está agotado
                     if (isAgotado) Container(color: Colors.black54),
 
-                    // Badge de Cantidad/Agotado (Esquina superior izquierda)
+                    // Badges
                     Positioned(
                       top: 8,
                       left: 8,
                       child: _buildQuantityBadge(),
                     ),
                     
-                    // Badge de Descuento (Esquina superior derecha, diagonal)
-                    // Se posiciona en top: 0, right: 0 y se ajusta con Transform.translate en _buildPromoBadge
                     Positioned(
                       top: 0,
                       right: 0,
@@ -157,61 +153,61 @@ class ProductCardRefactor extends StatelessWidget {
                 ),
               ),
 
-              // --- 2. Detalles (Optimizado para el Overflow) ---
+              // --- 2. Detalles ---
               Expanded(
                flex: 2,
                child: Padding(
-    
                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0), 
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                      // --- Título (Permite 2 líneas, mismo tamaño) ---
+                      // Título
                       Text(
                         product.name,
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16),
+                            fontSize: 15), // Ligero ajuste de fuente
                         maxLines: 2, 
                         overflow: TextOverflow.ellipsis,
                       ),
                       
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       
-                      // --- PRECIOS (Optimizado para grandes números) ---
+                      // Precios
                       if (product.isOnSale && product.promoPrice != null)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _formatPrice(product.price), // Usamos el formateador
+                              _formatPrice(product.price),
                               style: TextStyle(
                                   color: Colors.red.shade400,
                                   decoration: TextDecoration.lineThrough,
-                                  fontSize: 12, // Fuente pequeña para el precio tachado
+                                  fontSize: 11,
                                   fontWeight: FontWeight.normal),
                             ),
-                            const SizedBox(height: 2),
-                            // Precio de Oferta (Ligeramente más pequeño para evitar overflow vertical)
                             Text(
-                              _formatPrice(product.promoPrice!), // Usamos el formateador
+                              _formatPrice(product.promoPrice!),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   color: brandColor, 
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16), // Reducido de 18 a 16
+                                  fontSize: 16),
                             ),
                           ],
                         )
                       else
-                        // Solo el precio si no hay oferta
                         Text(
-                          _formatPrice(product.price), // Usamos el formateador
+                          _formatPrice(product.price),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: brandColor,
                               fontWeight: FontWeight.bold,
-                              fontSize: 16), // Reducido de 18 a 16
+                              fontSize: 16),
                         ),
                     ],
                   ),
@@ -226,7 +222,7 @@ class ProductCardRefactor extends StatelessWidget {
 }
 
 // -------------------------------------------------------------------
-// WIDGETS AUXILIARES Y CLIPPER (Sin cambios significativos)
+// WIDGETS AUXILIARES
 // -------------------------------------------------------------------
 
 class _StatusBadge extends StatelessWidget {
@@ -243,17 +239,18 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 4)],
+        // CORRECCIÓN: Usamos withAlpha para evitar warnings de deprecación
+        boxShadow: [BoxShadow(color: color.withAlpha(128), blurRadius: 4)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 12),
+          Icon(icon, color: Colors.white, size: 10),
           const SizedBox(width: 4),
           Text(
             text,
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
           ),
         ],
       ),
@@ -261,15 +258,14 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-// CLIPPER AJUSTADO para la Etiqueta Diagonal
 class _DiscountClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path();
-    path.lineTo(size.width, 0);       // Esquina superior derecha
-    path.lineTo(size.width, size.height * 0.5); // Punto medio derecho
-    path.lineTo(size.width * 0.5, size.height); // Punto medio inferior
-    path.lineTo(0, size.height);       // Esquina inferior izquierda (ajustado para la visualización)
+    path.lineTo(size.width, 0);       
+    path.lineTo(size.width, size.height * 0.5); 
+    path.lineTo(size.width * 0.5, size.height); 
+    path.lineTo(0, size.height);       
     path.close();
     return path;
   }

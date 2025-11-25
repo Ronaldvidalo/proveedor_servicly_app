@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 
-/// Un servicio dedicado a gestionar las operaciones CRUD para los productos
-/// de un proveedor específico en Firestore.
+/// Un servicio dedicado a gestionar las operaciones CRUD para los productos.
+///
+/// ACTUALIZADO: Ahora utiliza la colección RAÍZ 'products' y filtra por 'providerId'.
 class ProductService {
   final FirebaseFirestore _db;
 
@@ -10,38 +11,35 @@ class ProductService {
   ProductService({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
-  /// Obtiene una referencia a la subcolección 'products' de un usuario específico.
-  CollectionReference<Map<String, dynamic>> _productsCollection(String userId) {
-    
-    // --- ¡CAMBIO DE ARQUITECTURA! ---
-    // Ahora apunta a la colección 'tienda' (plantilla "Tienda de Servicios")
-    // en lugar de 'users'.
-    return _db.collection('tienda').doc(userId).collection('products');
+  /// Referencia directa a la colección RAÍZ de productos.
+  CollectionReference<Map<String, dynamic>> get _productsRef {
+    return _db.collection('products');
   }
 
   /// Obtiene un stream con la lista de productos de un proveedor.
-  ///
-  /// Si se proporciona un [categoryId], filtrará los productos por esa categoría.
-  /// Si se proporciona un [limit], limitará el número de resultados.
   Stream<List<ProductModel>> getProducts(
     String userId, {
     String? categoryId,
     int? limit,
   }) {
-    Query<Map<String, dynamic>> query =
-        _productsCollection(userId).orderBy('createdAt', descending: true);
+    // 1. Empezamos filtrando por el Dueño (providerId)
+    Query<Map<String, dynamic>> query = _productsRef
+        .where('providerId', isEqualTo: userId);
 
-    // Si se especifica una categoría, se aplica el filtro.
+    // 2. Si hay categoría, agregamos ese filtro
     if (categoryId != null && categoryId.isNotEmpty) {
       query = query.where('categoryId', isEqualTo: categoryId);
     }
 
-    // Si se especifica un límite, se aplica a la consulta.
+    // 3. Ordenamos por fecha (Lo más nuevo primero)
+    // NOTA: Esto requerirá crear un índice compuesto en Firebase la primera vez.
+    query = query.orderBy('createdAt', descending: true);
+
+    // 4. Limitamos si es necesario
     if (limit != null && limit > 0) {
       query = query.limit(limit);
     }
 
-    // El map final se aplica a la consulta ya modificada.
     return query.snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) => ProductModel.fromFirestore(doc))
@@ -50,11 +48,10 @@ class ProductService {
   }
 
   /// Obtiene un stream de productos FILTRADOS POR CATEGORÍA.
-  /// Usado para los carruseles en ManageStoreScreen.
   Stream<List<ProductModel>> getProductsByCategory(String userId, String categoryId, {int? limit}) {
-    
-    Query<Map<String, dynamic>> query = _productsCollection(userId)
-        .where('categoryId', isEqualTo: categoryId) // <-- El filtro clave
+    Query<Map<String, dynamic>> query = _productsRef
+        .where('providerId', isEqualTo: userId) // Filtro de seguridad
+        .where('categoryId', isEqualTo: categoryId)
         .orderBy('createdAt', descending: true);
 
     if (limit != null && limit > 0) {
@@ -66,18 +63,25 @@ class ProductService {
     });
   }
 
-  /// Añade un nuevo producto a Firestore para un usuario específico.
+  /// Añade un nuevo producto a Firestore (Colección Raíz).
   Future<void> addProduct(String userId, ProductModel product) async {
-    await _productsCollection(userId).add(product.toJson());
+    // Aseguramos que el modelo tenga el providerId correcto antes de guardar
+    // (Aunque el modelo ya debería tenerlo, esto es doble seguridad)
+    final productData = product.toJson();
+    productData['providerId'] = userId;
+
+    // Usamos .set con el ID del producto para consistencia
+    await _productsRef.doc(product.id).set(productData);
   }
 
   /// Actualiza un producto existente en Firestore.
   Future<void> updateProduct(String userId, ProductModel product) async {
-    await _productsCollection(userId).doc(product.id).update(product.toJson());
+    // Solo actualizamos si el ID existe en la raíz
+    await _productsRef.doc(product.id).update(product.toJson());
   }
 
   /// Elimina un producto de Firestore.
   Future<void> deleteProduct(String userId, String productId) async {
-    await _productsCollection(userId).doc(productId).delete();
+    await _productsRef.doc(productId).delete();
   }
 }

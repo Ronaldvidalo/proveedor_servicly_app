@@ -5,30 +5,37 @@ import 'package:flutter/foundation.dart';
 import 'dart:ui' as ui;
 import 'package:provider/provider.dart';
 
-// --- Importaciones de Modelos, Pantallas y Repositorios (Ajusta tus rutas) ---
-import '../../../../core/models/user_model.dart'; // Ajustar ruta
-import '../../../../core/models/module_model.dart'; // Ajustar ruta
-// Pantallas
-import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';// Ajustar ruta
-import 'package:proveedor_servicly_app/features/crm/data/repositories/screens/client_management_screen.dart'; // Ajustar ruta
-import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart'; // Ajustar ruta
-import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart'; // Ajustar ruta
-import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';// Ajustar ruta
+// --- Importaciones de Modelos ---
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/models/module_model.dart';
+
+// --- Importaciones de Pantallas ---
+import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
+import 'package:proveedor_servicly_app/features/crm/data/repositories/screens/client_management_screen.dart';
+import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
+import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 
+// --- Importaciones de Módulos Nuevos ---
+import 'package:proveedor_servicly_app/features/cost_structure/screen/business_config_screen.dart';
+// ¡NUEVO! Importamos la pantalla de Inventario
+import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
 
 // --- Estilos Globales (Constantes) ---
 const Color _accentColor = Color(0xFF00BFFF); // Azul eléctrico brillante
 const Color _surfaceColor = Color(0xFF2D2D5A); // Superficie de la tarjeta
 
-// --- Mapa de Iconos (Para evitar la dependencia directa en una clase de mapeo) ---
-// DEBES tener este mapa disponible en tu app o pasarlo como parámetro
+// --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
   'storefront_outlined': Icons.storefront_outlined,
   'auto_stories_outlined': Icons.auto_stories_outlined,
   'calendar_today_outlined': Icons.calendar_today_outlined,
   'group_outlined': Icons.group_outlined,
   'bar_chart_outlined': Icons.bar_chart_outlined,
+  // Iconos de los nuevos módulos
+  'calculate': Icons.calculate_outlined,
+  'inventory_2': Icons.inventory_2_outlined, // Icono para Inventario Smart
   'extension_outlined': Icons.extension_outlined, // Default
 };
 
@@ -42,7 +49,6 @@ class ModulesGrid extends StatelessWidget {
   final VoidCallback onAddModule;
   final UserModel user;
   
-  // Renombramos de _ModulesGrid a ModulesGrid
   const ModulesGrid({
     super.key,
     required this.activeModules,
@@ -52,15 +58,14 @@ class ModulesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- MODIFICACIÓN: Simplificado a una cuadrícula fija de 4 columnas ---
     return GridView.count(
       crossAxisCount: 4, // 4 columnas
-      crossAxisSpacing: 12, // Espacio reducido
-      mainAxisSpacing: 12, // Espacio reducido
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        // Botón "Gestionar Tienda" (Lógica de negocio condicional)
+        // Botón "Gestionar Tienda"
         if (user.publicProfileTemplate == 'store') 
           _ModuleCard(
             title: 'Tienda', 
@@ -71,7 +76,7 @@ class ModulesGrid extends StatelessWidget {
               ));
             },
           ),
-        // Botón "Gestionar Catálogo" (Lógica de negocio condicional)
+        // Botón "Gestionar Catálogo"
         if (user.publicProfileTemplate == 'catalog') 
           _ModuleCard(
             title: 'Catálogo', 
@@ -83,10 +88,11 @@ class ModulesGrid extends StatelessWidget {
             },
           ),
 
-        // Módulos activos mapeados
+        // Módulos activos mapeados desde Firebase
         ...activeModules.map((module) {
           return _ModuleCard(
             title: module.name,
+            // Busca el icono por el nombre string que viene de Firebase
             icon: _iconMap[module.icon] ?? Icons.extension_outlined,
             onTap: () {
               _navigateToModule(context, module.moduleId, user);
@@ -103,19 +109,31 @@ class ModulesGrid extends StatelessWidget {
   /// Lógica de navegación a la pantalla de cada módulo
   void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
     Widget? destination;
+    
     switch (moduleId) {
       case 'agenda':
         destination = AgendaScreen(user: user);
         break;
+      
       case 'client-management':
-        // Se inyecta el repositorio solo en esta pantalla si es necesario
         destination = Provider<CrmRepository>( 
           create: (_) => CrmRepository(),
           child: const ClientManagementScreen(),
         );
         break;
+      
+      case 'finance':
       case 'advanced-finance':
         destination = const AdvancedFinanceScreen();
+        break;
+
+      case 'cost_structure':
+        destination = const BusinessConfigScreen();
+        break;
+
+      // --- NUEVO: Navegación a Inventario Smart ---
+      case 'inventory':
+        destination = const InventoryScreen();
         break;
     }
 

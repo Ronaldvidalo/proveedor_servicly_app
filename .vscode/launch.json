@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "Flutter (lib\\features\\cost_structure\\widgets\\fixed_cost_model.dart)",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib\\features\\cost_structure\\widgets\\fixed_cost_model.dart"
+        }
+    ]
+}
