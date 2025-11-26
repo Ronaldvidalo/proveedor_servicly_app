@@ -1,6 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum EventType { visit, personal_reminder, appointment }
+// --- ACTUALIZACIÓN: NUEVOS TIPOS DE EVENTOS ---
+enum EventType { 
+  visit,              // Visita técnica / Cita presencial
+  personal_reminder,  // Recordatorio personal
+  appointment,        // Reunión virtual / Llamada
+  payment_reminder,   // Cuentas por Pagar (Facturas)
+  collection_reminder // Cuentas por Cobrar (A clientes)
+}
+
 enum EventStatus { pending, confirmed, completed, cancelled }
 
 class AgendaEvent {
@@ -13,7 +21,9 @@ class AgendaEvent {
   final EventStatus eventStatus;
   final String providerId;
   final String? clientId;
-  final String? relatedContractId;
+  
+  // Para vincular con finanzas (opcional)
+  final double? amount; 
   final bool isAllDay;
 
   AgendaEvent({
@@ -26,12 +36,10 @@ class AgendaEvent {
     this.eventStatus = EventStatus.pending,
     required this.providerId,
     this.clientId,
-    this.relatedContractId,
+    this.amount,
     this.isAllDay = false,
   });
 
-  // --- NUEVO MÉTODO ---
-  /// Crea una copia de esta instancia de evento con los campos proporcionados reemplazados.
   AgendaEvent copyWith({
     String? id,
     String? title,
@@ -42,7 +50,7 @@ class AgendaEvent {
     EventStatus? eventStatus,
     String? providerId,
     String? clientId,
-    String? relatedContractId,
+    double? amount,
     bool? isAllDay,
   }) {
     return AgendaEvent(
@@ -55,7 +63,7 @@ class AgendaEvent {
       eventStatus: eventStatus ?? this.eventStatus,
       providerId: providerId ?? this.providerId,
       clientId: clientId ?? this.clientId,
-      relatedContractId: relatedContractId ?? this.relatedContractId,
+      amount: amount ?? this.amount,
       isAllDay: isAllDay ?? this.isAllDay,
     );
   }
@@ -68,11 +76,18 @@ class AgendaEvent {
       description: data['description'],
       startTime: (data['startTime'] as Timestamp).toDate(),
       endTime: (data['endTime'] as Timestamp).toDate(),
-      eventType: EventType.values.firstWhere((e) => e.name == data['eventType'], orElse: () => EventType.personal_reminder),
-      eventStatus: EventStatus.values.firstWhere((e) => e.name == data['eventStatus'], orElse: () => EventStatus.pending),
+      // Mapeo robusto de Enum
+      eventType: EventType.values.firstWhere(
+          (e) => e.name == data['eventType'], 
+          orElse: () => EventType.personal_reminder
+      ),
+      eventStatus: EventStatus.values.firstWhere(
+          (e) => e.name == data['eventStatus'], 
+          orElse: () => EventStatus.pending
+      ),
       providerId: data['providerId'],
       clientId: data['clientId'],
-      relatedContractId: data['relatedContractId'],
+      amount: (data['amount'] as num?)?.toDouble(),
       isAllDay: data['isAllDay'] ?? false,
     );
   }
@@ -87,9 +102,8 @@ class AgendaEvent {
       'eventStatus': eventStatus.name,
       'providerId': providerId,
       'clientId': clientId,
-      'relatedContractId': relatedContractId,
+      'amount': amount,
       'isAllDay': isAllDay,
     };
   }
 }
-

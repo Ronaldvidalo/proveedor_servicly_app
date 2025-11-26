@@ -35,6 +35,9 @@ import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart'; // <-- IMPORTANTE
 
+// ------------ IMPORTACIONES DE LAS TARJETAS DEL DASHBOARD ---
+import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart';
+
 
 /// La pantalla principal y dashboard para el usuario proveedor.
 /// Actúa como un "Shell" que contiene la barra de navegación.
@@ -317,7 +320,16 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             ),
 
           // --- MÉTRICAS ---
-          Showcase(
+
+          Padding(
+  padding: const EdgeInsets.only(bottom: 12.0),
+  child: Text(
+    "Resumen en Vivo", 
+    style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600)
+  ),
+),
+
+           Showcase(
             key: _keyMetrics,
             title: 'Métricas Rápidas',
             description: 'Consulta visitas y contactos de un vistazo.',
@@ -325,6 +337,14 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
           ),
           const SizedBox(height: 32),
 
+
+
+       // EL CARRUSEL UNIFICADO
+       const DashboardSummaryCards(),
+
+      const SizedBox(height: 32),
+
+          
           // --- BOTÓN PERFIL PÚBLICO ---
           Showcase(
             key: _keyPublicProfile,

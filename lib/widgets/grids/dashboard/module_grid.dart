@@ -16,7 +16,7 @@ import 'package:proveedor_servicly_app/features/finance/presentation/screens/adv
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/manage_store_screen.dart';
 import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
-
+import 'package:proveedor_servicly_app/features/sales/screens/pos_screen.dart';
 // --- Importaciones de Módulos Nuevos ---
 import 'package:proveedor_servicly_app/features/cost_structure/screen/business_config_screen.dart';
 // ¡NUEVO! Importamos la pantalla de Inventario
@@ -28,15 +28,30 @@ const Color _surfaceColor = Color(0xFF2D2D5A); // Superficie de la tarjeta
 
 // --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
+  // Tienda y Catálogo
   'storefront_outlined': Icons.storefront_outlined,
   'auto_stories_outlined': Icons.auto_stories_outlined,
+  
+  // Agenda
   'calendar_today_outlined': Icons.calendar_today_outlined,
-  'group_outlined': Icons.group_outlined,
-  'bar_chart_outlined': Icons.bar_chart_outlined,
-  // Iconos de los nuevos módulos
-  'calculate': Icons.calculate_outlined,
-  'inventory_2': Icons.inventory_2_outlined, // Icono para Inventario Smart
-  'extension_outlined': Icons.extension_outlined, // Default
+  
+  // CRM / Clientes (Agregamos variantes por si acaso)
+  'group_outlined': Icons.people_alt_rounded, // Icono de Clientes (Gente)
+  'clients': Icons.people_alt_rounded,
+  
+  // Finanzas
+  'bar_chart_outlined': Icons.bar_chart_rounded,
+  'calculate': Icons.calculate_outlined, // Estructura de Costos
+  
+  // Inventario
+  'inventory_2': Icons.inventory_2_outlined, // Inventario Smart
+  
+  // POS / Caja Rápida (Agregamos variantes)
+  'point_of_sale': Icons.point_of_sale_rounded, // Icono de máquina registradora
+  'fast_sales': Icons.price_check_rounded,      // Icono de "Caja Rápida" (Check de precio)
+  
+  // Default
+  'extension_outlined': Icons.extension_outlined, 
 };
 
 
@@ -134,6 +149,11 @@ class ModulesGrid extends StatelessWidget {
       // --- NUEVO: Navegación a Inventario Smart ---
       case 'inventory':
         destination = const InventoryScreen();
+        break;
+
+        // --- NUEVO: CONEXIÓN AL POS ---
+      case 'pos_system':
+        destination = const PosScreen();
         break;
     }
 
