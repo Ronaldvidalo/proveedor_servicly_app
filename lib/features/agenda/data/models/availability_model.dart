@@ -1,9 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'time_slot_model.dart';
 
-/// Representa la disponibilidad para un día específico de la semana.
 class DayAvailability {
-  final String dayOfWeek; // ej: 'monday'
+  final String dayOfWeek; // 'monday', 'tuesday'...
   bool isEnabled;
   List<TimeSlot> workSlots;
 
@@ -24,10 +23,8 @@ class DayAvailability {
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'isEnabled': isEnabled,
-      'workSlots': workSlots.map((slot) => slot.toJson()).toList(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'isEnabled': isEnabled,
+    'workSlots': workSlots.map((slot) => slot.toJson()).toList(),
+  };
 }

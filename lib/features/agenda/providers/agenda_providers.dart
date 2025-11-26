@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/repositories/agenda_repository.dart';
 import '../data/models/agenda_event_model.dart';
+import '../data/repositories/availability_repository.dart';
+import '../data/models/availability_model.dart';
 
 // 1. Repositorio
 final agendaRepositoryProvider = Provider<AgendaRepository>((ref) {
@@ -28,4 +30,16 @@ final eventsForMonthProvider = StreamProvider.family<List<AgendaEvent>, DateTime
   final end = DateTime(date.year, date.month + 1, 0, 23, 59, 59);
   
   return repo.getEventsStream(start: start, end: end);
+});
+
+final availabilityRepositoryProvider = Provider<AvailabilityRepository>((ref) {
+  return AvailabilityRepository(
+    firestore: FirebaseFirestore.instance,
+    auth: FirebaseAuth.instance,
+  );
+});
+
+final availabilityStreamProvider = StreamProvider<List<DayAvailability>>((ref) {
+  final repo = ref.watch(availabilityRepositoryProvider);
+  return repo.getAvailabilityStream();
 });

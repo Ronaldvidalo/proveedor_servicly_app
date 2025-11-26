@@ -1,117 +1,107 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'package:proveedor_servicly_app/core/services/availability_service.dart';
 import 'package:proveedor_servicly_app/features/agenda/data/models/availability_model.dart';
 import 'package:proveedor_servicly_app/features/agenda/data/models/time_slot_model.dart';
+// Importamos los providers de la agenda (donde incluimos los de disponibilidad)
+import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart';
 
-
-/// Una pantalla donde los proveedores pueden configurar sus horas de trabajo semanales.
-class SetAvailabilityScreen extends StatefulWidget {
+class SetAvailabilityScreen extends ConsumerStatefulWidget {
   final UserModel user;
 
   const SetAvailabilityScreen({super.key, required this.user});
 
   @override
-  State<SetAvailabilityScreen> createState() => _SetAvailabilityScreenState();
+  ConsumerState<SetAvailabilityScreen> createState() => _SetAvailabilityScreenState();
 }
 
-class _SetAvailabilityScreenState extends State<SetAvailabilityScreen> {
-  late Future<Map<String, DayAvailability>> _availabilityFuture;
-  Map<String, DayAvailability> _availabilityData = {};
-  bool _isLoading = false;
-
-  final List<String> _dayOrder = [
-    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
-  ];
+class _SetAvailabilityScreenState extends ConsumerState<SetAvailabilityScreen> {
+  // Orden visual de los días
+  final List<String> _dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   final Map<String, String> _dayTranslations = {
     'monday': 'Lunes', 'tuesday': 'Martes', 'wednesday': 'Miércoles',
     'thursday': 'Jueves', 'friday': 'Viernes', 'saturday': 'Sábado', 'sunday': 'Domingo'
   };
-
+  
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _availabilityFuture = context.read<AvailabilityService>().getAvailability(widget.user.uid);
+    // Inicializar datos por defecto si es la primera vez que entra
+    // Usamos addPostFrameCallback para ejecutarlo después del build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(availabilityRepositoryProvider).initializeDefaultAvailability();
+    });
   }
 
-  Future<void> _saveAvailability() async {
-    setState(() => _isLoading = true);
-    final availabilityService = context.read<AvailabilityService>();
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _saveDay(DayAvailability day) async {
+    // No necesitamos setState global para esto, el cambio es local en el widget hijo
+    // o optimista. Pero si queremos mostrar feedback:
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+       const SnackBar(content: Text('Guardando...'), duration: Duration(milliseconds: 500), backgroundColor: Colors.blue),
+    );
 
     try {
-      // Guardamos todos los días en un batch para eficiencia.
-      for (final day in _availabilityData.values) {
-        await availabilityService.updateDayAvailability(widget.user.uid, day);
+      await ref.read(availabilityRepositoryProvider).updateDayAvailability(day);
+      if(mounted) {
+         ScaffoldMessenger.of(context).hideCurrentSnackBar();
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Horario actualizado'), backgroundColor: Colors.green),
+         );
       }
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Disponibilidad guardada con éxito.'), backgroundColor: Colors.green),
-      );
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.redAccent),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if(mounted) {
+         ScaffoldMessenger.of(context).hideCurrentSnackBar();
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Escuchamos el stream de disponibilidad
+    final availabilityAsync = ref.watch(availabilityStreamProvider);
+    
     const backgroundColor = Color(0xFF1A1A2E);
     const accentColor = Color(0xFF00BFFF);
 
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Configurar Disponibilidad'),
+        title: const Text('Configurar Horarios'),
         backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          _isLoading
-              ? const Padding(padding: EdgeInsets.all(16.0), child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white)))
-              : IconButton(
-                  icon: const Icon(Icons.save_alt_outlined),
-                  tooltip: 'Guardar Cambios',
-                  onPressed: _saveAvailability,
-                ),
-        ],
       ),
-      body: FutureBuilder<Map<String, DayAvailability>>(
-        future: _availabilityFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No se pudo cargar la configuración.', style: TextStyle(color: Colors.white70)));
+      body: availabilityAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: accentColor)),
+        error: (e, _) => Center(child: Text("Error: $e", style: const TextStyle(color: Colors.red))),
+        data: (daysList) {
+          if (daysList.isEmpty) {
+             // Si está vacío (aún no se inicializó), mostramos carga mientras el initState hace su trabajo
+             return const Center(child: CircularProgressIndicator(color: accentColor));
           }
 
-          if(_availabilityData.isEmpty) {
-            _availabilityData = snapshot.data!;
-          }
+          // Convertimos la lista a un mapa para acceder fácil por nombre de día
+          final Map<String, DayAvailability> daysMap = {
+            for (var day in daysList) day.dayOfWeek: day
+          };
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: _dayOrder.length,
             itemBuilder: (context, index) {
               final dayKey = _dayOrder[index];
-              final dayData = _availabilityData[dayKey]!;
-              return _DayAvailabilityCard(
+              // Si por alguna razón no existe el día en Firebase, usamos uno por defecto
+              final dayData = daysMap[dayKey] ?? DayAvailability(dayOfWeek: dayKey);
+              
+              return _DayCard(
                 dayName: _dayTranslations[dayKey]!,
-                dayAvailability: dayData,
-                onChanged: (updatedDayData) {
-                  setState(() {
-                    _availabilityData[dayKey] = updatedDayData;
-                  });
-                },
+                dayData: dayData,
                 accentColor: accentColor,
+                onUpdate: (updatedDay) => _saveDay(updatedDay),
               );
             },
           );
@@ -121,53 +111,52 @@ class _SetAvailabilityScreenState extends State<SetAvailabilityScreen> {
   }
 }
 
-/// Una tarjeta para configurar la disponibilidad de un día de la semana.
-class _DayAvailabilityCard extends StatelessWidget {
+class _DayCard extends StatelessWidget {
   final String dayName;
-  final DayAvailability dayAvailability;
-  final ValueChanged<DayAvailability> onChanged;
+  final DayAvailability dayData;
   final Color accentColor;
+  final Function(DayAvailability) onUpdate;
 
-  const _DayAvailabilityCard({
-    required this.dayName,
-    required this.dayAvailability,
-    required this.onChanged,
-    required this.accentColor,
-  });
-  
+  const _DayCard({required this.dayName, required this.dayData, required this.accentColor, required this.onUpdate});
+
+  void _toggleDay(bool value) {
+    // Creamos una copia o modificamos directamente (depende de inmutabilidad, aquí Firestore devuelve objetos mutables por ahora)
+    dayData.isEnabled = value;
+    onUpdate(dayData);
+  }
+
   void _addSlot() {
-    final lastEndTime = dayAvailability.workSlots.isNotEmpty 
-      ? dayAvailability.workSlots.last.end 
-      : const TimeOfDay(hour: 8, minute: 0);
-      
-    final newStart = TimeOfDay(hour: lastEndTime.hour + 1, minute: lastEndTime.minute);
-    final newEnd = TimeOfDay(hour: lastEndTime.hour + 2, minute: lastEndTime.minute);
-
-    dayAvailability.workSlots.add(TimeSlot(start: newStart, end: newEnd));
-    onChanged(dayAvailability);
+    final lastEnd = dayData.workSlots.isNotEmpty ? dayData.workSlots.last.end : const TimeOfDay(hour: 9, minute: 0);
+    // Nuevo slot de 1 hora después del último
+    final newStart = TimeOfDay(hour: lastEnd.hour, minute: lastEnd.minute); 
+    final newEnd = TimeOfDay(hour: lastEnd.hour + 1, minute: lastEnd.minute);
+    
+    dayData.workSlots.add(TimeSlot(start: newStart, end: newEnd));
+    onUpdate(dayData);
   }
 
-  void _updateSlot(int index, TimeSlot newSlot) {
-    dayAvailability.workSlots[index] = newSlot;
-    onChanged(dayAvailability);
+  void _removeSlot(int index) {
+    dayData.workSlots.removeAt(index);
+    onUpdate(dayData);
   }
   
-  void _removeSlot(int index) {
-    dayAvailability.workSlots.removeAt(index);
-    onChanged(dayAvailability);
+  void _updateTime(int index, TimeOfDay newTime, bool isStart) {
+    if (isStart) dayData.workSlots[index].start = newTime;
+    else dayData.workSlots[index].end = newTime;
+    onUpdate(dayData);
   }
 
   @override
   Widget build(BuildContext context) {
     return Card(
       color: const Color(0xFF2D2D5A),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: dayAvailability.isEnabled ? accentColor : Colors.transparent, width: 1.5),
+        side: BorderSide(color: dayData.isEnabled ? accentColor : Colors.transparent),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Row(
@@ -175,35 +164,26 @@ class _DayAvailabilityCard extends StatelessWidget {
               children: [
                 Text(dayName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 Switch(
-                  value: dayAvailability.isEnabled,
-                  onChanged: (value) {
-                    dayAvailability.isEnabled = value;
-                    onChanged(dayAvailability);
-                  },
-                  activeThumbColor: accentColor,
+                  value: dayData.isEnabled,
+                  onChanged: _toggleDay,
+                  activeColor: accentColor,
                 ),
               ],
             ),
-            if (dayAvailability.isEnabled) ...[
-              const Divider(color: Colors.white24, height: 24),
-              ...dayAvailability.workSlots.asMap().entries.map((entry) {
-                int index = entry.key;
-                TimeSlot slot = entry.value;
-                return _TimeSlotTile(
-                  slot: slot,
-                  accentColor: accentColor,
-                  onStartTimeChanged: (newTime) => _updateSlot(index, TimeSlot(start: newTime, end: slot.end)),
-                  onEndTimeChanged: (newTime) => _updateSlot(index, TimeSlot(start: slot.start, end: newTime)),
-                  onDelete: () => _removeSlot(index),
-                );
-              }),
-              const SizedBox(height: 8),
+            if (dayData.isEnabled) ...[
+              const Divider(color: Colors.white12),
+              ...dayData.workSlots.asMap().entries.map((e) => _SlotRow(
+                slot: e.value, 
+                onDelete: () => _removeSlot(e.key),
+                onUpdate: (time, isStart) => _updateTime(e.key, time, isStart),
+              )),
               TextButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text("Agregar Bloque"),
+                style: TextButton.styleFrom(foregroundColor: Colors.white70),
                 onPressed: _addSlot,
-                icon: const Icon(Icons.add_circle_outline, color: Colors.white70),
-                label: const Text('Añadir bloque horario', style: TextStyle(color: Colors.white70)),
-              ),
-            ],
+              )
+            ]
           ],
         ),
       ),
@@ -211,75 +191,48 @@ class _DayAvailabilityCard extends StatelessWidget {
   }
 }
 
-class _TimeSlotTile extends StatelessWidget {
+class _SlotRow extends StatelessWidget {
   final TimeSlot slot;
-  final Color accentColor;
-  final ValueChanged<TimeOfDay> onStartTimeChanged;
-  final ValueChanged<TimeOfDay> onEndTimeChanged;
   final VoidCallback onDelete;
+  final Function(TimeOfDay, bool) onUpdate;
 
-  const _TimeSlotTile({
-    required this.slot,
-    required this.accentColor,
-    required this.onStartTimeChanged,
-    required this.onEndTimeChanged,
-    required this.onDelete,
-  });
+  const _SlotRow({required this.slot, required this.onDelete, required this.onUpdate});
 
   Future<void> _pickTime(BuildContext context, bool isStart) async {
-    final initialTime = isStart ? slot.start : slot.end;
-    final newTime = await showTimePicker(context: context, initialTime: initialTime);
-    if (newTime != null) {
-      if (isStart) {
-        onStartTimeChanged(newTime);
-      } else {
-        onEndTimeChanged(newTime);
-      }
-    }
+    final picked = await showTimePicker(
+      context: context, 
+      initialTime: isStart ? slot.start : slot.end
+    );
+    if (picked != null) onUpdate(picked, isStart);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Expanded(child: _TimeChip(time: slot.start.format(context), onTap: () => _pickTime(context, true))),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.0),
-            child: Text('-', style: TextStyle(color: Colors.white, fontSize: 18)),
-          ),
-          Expanded(child: _TimeChip(time: slot.end.format(context), onTap: () => _pickTime(context, false))),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            onPressed: onDelete,
-          ),
-        ],
-      ),
+    return Row(
+      children: [
+        Expanded(child: _TimeBtn(time: slot.start, onTap: () => _pickTime(context, true))),
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text("-", style: TextStyle(color: Colors.white))),
+        Expanded(child: _TimeBtn(time: slot.end, onTap: () => _pickTime(context, false))),
+        IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: onDelete),
+      ],
     );
   }
 }
 
-class _TimeChip extends StatelessWidget {
-  final String time;
+class _TimeBtn extends StatelessWidget {
+  final TimeOfDay time;
   final VoidCallback onTap;
-
-  const _TimeChip({required this.time, required this.onTap});
+  const _TimeBtn({required this.time, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Text(time, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(8)),
+        child: Text(time.format(context), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }

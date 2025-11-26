@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Representa un único bloque de tiempo de trabajo (ej: 08:00 a 12:00).
 class TimeSlot {
   TimeOfDay start;
   TimeOfDay end;
 
-  TimeSlot({
-    required this.start,
-    required this.end,
-  });
+  TimeSlot({required this.start, required this.end});
 
   factory TimeSlot.fromJson(Map<String, dynamic> json) {
     return TimeSlot(
