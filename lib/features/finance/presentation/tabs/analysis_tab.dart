@@ -1,15 +1,15 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 26/10/2025
 // Style: Cyber Glow
-// This analysis tab was fully refactored to align with the "Cyber Glow" design.
-// CORRECCIÓN: Añadido parámetro GlobalKey para el tour virtual (ShowCaseView).
+// QA FIX 26/11/2025: Implementación de Smart Currency Formatting
+// para manejar "Big Numbers" (Trillones/Cuatrillones) sin romper la UI.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import 'package:showcaseview/showcaseview.dart'; // Importar showcaseview
+import 'package:showcaseview/showcaseview.dart'; 
 
 import '../../data/models/cobro_model.dart';
 import '../../data/models/gasto_model.dart';
@@ -20,7 +20,6 @@ import '../widgets/add_budget_modal.dart';
 
 /// Pestaña 3: Análisis y Proyección
 class AnalysisTab extends ConsumerWidget {
-  // --- NUEVO: Aceptar la key del tour ---
   final GlobalKey analysisChartKey;
   
   AnalysisTab({
@@ -28,11 +27,28 @@ class AnalysisTab extends ConsumerWidget {
     required this.analysisChartKey,
   });
 
-  final currencyFormatter = NumberFormat.currency(
+  // --- QA FIX: Formateador Estándar (para montos pequeños) ---
+  final _standardFormatter = NumberFormat.currency(
     locale: 'es_CL',
     symbol: '\$',
     decimalDigits: 0,
   );
+
+  // --- QA FIX: Formateador Compacto (para montos > 1 Millón) ---
+  // Convierte 1.000.000 en "1M", 1.000.000.000 en "1B", etc.
+  final _compactFormatter = NumberFormat.compactCurrency(
+    locale: 'es_US', // Usamos US para que use K, M, B, T que son más cortos visualmente
+    symbol: '\$',
+    decimalDigits: 1, 
+  );
+
+  /// Helper para decidir qué formato usar dinámicamente
+  String _formatSmartMoney(double amount) {
+    if (amount.abs() >= 1000000) {
+      return _compactFormatter.format(amount);
+    }
+    return _standardFormatter.format(amount);
+  }
 
   // --- Paleta de Colores "Cyber Glow" ---
   static const Color accentColor = Color(0xFF00BFFF);
@@ -62,7 +78,7 @@ class AnalysisTab extends ConsumerWidget {
     final presupuestos = presupuestosAsync.value!;
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // El fondo lo da el TabBarView
+      backgroundColor: Colors.transparent, 
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -74,7 +90,7 @@ class AnalysisTab extends ConsumerWidget {
                 "Tendencias de Crecimiento",
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white, // Estilo
+                      color: Colors.white, 
                     ),
               ),
               const SizedBox(height: 16),
@@ -83,7 +99,7 @@ class AnalysisTab extends ConsumerWidget {
               Showcase(
                 key: analysisChartKey,
                 title: 'Análisis Comparativo',
-                description: 'Compara tus ingresos (verde) contra tus gastos (rojo) mes a mes para ver la salud de tu negocio.',
+                description: 'Compara tus ingresos (verde) contra tus gastos (rojo) mes a mes.',
                 child: SizedBox(
                   height: 250,
                   child: _buildIngresoVsGastoChart(context, cobros, gastos),
@@ -106,11 +122,11 @@ class AnalysisTab extends ConsumerWidget {
                     "Presupuestos de Gastos",
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white, // Estilo
+                          color: Colors.white,
                         ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add_circle, color: accentColor, size: 28), // Estilo
+                    icon: const Icon(Icons.add_circle, color: accentColor, size: 28), 
                     onPressed: () {
                       _showAddBudgetModal(context);
                     },
@@ -136,7 +152,6 @@ class AnalysisTab extends ConsumerWidget {
     final presupuestosMesActual = presupuestos.where((p) => p.mes == mesActual && p.activo).toList();
 
     if (presupuestosMesActual.isEmpty) {
-      // --- Estado Vacío Estilizado ---
       return Container(
         padding: const EdgeInsets.all(24.0),
         decoration: BoxDecoration(
@@ -155,8 +170,8 @@ class AnalysisTab extends ConsumerWidget {
 
     return ListView.builder(
       itemCount: presupuestosMesActual.length,
-      shrinkWrap: true, // Importante dentro de un SingleChildScrollView
-      physics: const NeverScrollableScrollPhysics(), // El scroll lo maneja el padre
+      shrinkWrap: true, 
+      physics: const NeverScrollableScrollPhysics(), 
       itemBuilder: (context, index) {
         final presupuesto = presupuestosMesActual[index];
         
@@ -166,7 +181,8 @@ class AnalysisTab extends ConsumerWidget {
                 DateFormat('yyyy-MM').format(g.fecha) == presupuesto.mes)
             .fold(0.0, (sum, g) => sum + g.monto);
 
-        // Asumimos que BudgetProgressCard será estilizado o ya lo está
+        // NOTA DE QA: El widget BudgetProgressCard recibe el dato crudo.
+        // Asegúrate de aplicar las correcciones visuales dentro de ese archivo también.
         return BudgetProgressCard(
           presupuesto: presupuesto,
           gastoActual: gastoActual,
@@ -175,12 +191,10 @@ class AnalysisTab extends ConsumerWidget {
     );
   }
 
-  /// Muestra el modal para añadir un nuevo presupuesto
   void _showAddBudgetModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      // --- Estilo Cyber Glow ---
       backgroundColor: surfaceColor,
       barrierColor: Colors.black.withAlpha(128),
       shape: const RoundedRectangleBorder(
@@ -188,7 +202,7 @@ class AnalysisTab extends ConsumerWidget {
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: const AddBudgetModal(), // Llamamos al modal
+        child: const AddBudgetModal(), 
       ),
     );
   }
@@ -219,9 +233,8 @@ class AnalysisTab extends ConsumerWidget {
 
     final List<BarChartGroupData> barGroups = [];
     final List<String> meses = [];
-    double maxY = 0.0; // Para el eje Y
+    double maxY = 0.0; 
 
-    // 3. Crear grupos de barras
     for (int i = 0; i < 6; i++) {
       final mes = DateTime(now.year, now.month - i, 1);
       meses.add(DateFormat('MMM', 'es_ES').format(mes).toUpperCase());
@@ -233,19 +246,17 @@ class AnalysisTab extends ConsumerWidget {
       if (gasto > maxY) maxY = gasto;
       
       barGroups.add(BarChartGroupData(
-        x: 5 - i, // 0 = 5 meses atrás, 5 = mes actual
+        x: 5 - i, 
         barRods: [
-          // Barra de Ingreso
           BarChartRodData(
             toY: ingreso,
-            color: successColor, // Verde Neón
+            color: successColor, 
             width: 12,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
           ),
-          // Barra de Gasto
           BarChartRodData(
             toY: gasto,
-            color: errorColor, // Rojo
+            color: errorColor, 
             width: 12,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
           ),
@@ -254,18 +265,19 @@ class AnalysisTab extends ConsumerWidget {
     }
     
     final reversedMeses = meses.reversed.toList();
-    if (maxY == 0) maxY = 1; // Evitar división por cero
+    if (maxY == 0) maxY = 1; 
 
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => surfaceColor.withAlpha(240), // Fondo de tooltip
+            getTooltipColor: (_) => surfaceColor.withAlpha(240),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final String label = (rodIndex == 0) ? 'Ingreso' : 'Gasto';
+              // QA FIX: Usamos _formatSmartMoney para evitar overflow en el tooltip
               return BarTooltipItem(
-                '$label\n${currencyFormatter.format(rod.toY)}',
+                '$label\n${_formatSmartMoney(rod.toY)}',
                 TextStyle(color: rodIndex == 0 ? successColor : errorColor, fontWeight: FontWeight.bold),
               );
             },
@@ -292,7 +304,7 @@ class AnalysisTab extends ConsumerWidget {
               reservedSize: 30,
             ),
           ),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), // Ocultar eje Y
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
         ),
         borderData: FlBorderData(show: false),
         gridData: FlGridData(
@@ -300,12 +312,12 @@ class AnalysisTab extends ConsumerWidget {
           drawVerticalLine: false,
           horizontalInterval: maxY / 4,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withAlpha(50), // Líneas de cuadrícula tenues
+            color: Colors.white.withAlpha(50), 
             strokeWidth: 1,
             dashArray: [3, 3],
           ),
         ),
-        barGroups: barGroups.reversed.toList(), // Mostrar de más antiguo a más reciente
+        barGroups: barGroups.reversed.toList(), 
       ),
     );
   }
@@ -316,7 +328,6 @@ class AnalysisTab extends ConsumerWidget {
     final Map<int, double> ingresosPorMes = {};
     final List<String> meses = [];
 
-    // 1. Calcular Ingresos
     final cobrosPagados = cobros.where((c) => c.estado == 'COBRADO');
     for (final cobro in cobrosPagados) {
       if (cobro.fechaCobro == null) continue;
@@ -329,7 +340,6 @@ class AnalysisTab extends ConsumerWidget {
     final List<FlSpot> spots = [];
     double maxY = 0.0;
 
-    // 2. Crear puntos
     for (int i = 0; i < 12; i++) {
       final mes = DateTime(now.year, now.month - i, 1);
       meses.add(DateFormat('MMM', 'es_ES').format(mes).toUpperCase());
@@ -341,7 +351,7 @@ class AnalysisTab extends ConsumerWidget {
     }
     
     final reversedMeses = meses.reversed.toList();
-    if (maxY == 0.0) maxY = 1.0; // Evitar gráfico plano
+    if (maxY == 0.0) maxY = 1.0; 
 
     return LineChart(
       LineChartData(
@@ -364,7 +374,7 @@ class AnalysisTab extends ConsumerWidget {
               showTitles: true,
               getTitlesWidget: (double value, TitleMeta meta) {
                 final int index = value.toInt();
-                if (index % 2 != 0) return const Text(''); // Mostrar solo meses alternos
+                if (index % 2 != 0) return const Text(''); 
                 if (index >= 0 && index < reversedMeses.length) {
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
@@ -384,7 +394,7 @@ class AnalysisTab extends ConsumerWidget {
         minX: 0,
         maxX: 11,
         minY: 0,
-        maxY: maxY * 1.2, // 20% de padding superior
+        maxY: maxY * 1.2, 
         lineBarsData: [
           LineChartBarData(
             spots: spots.reversed.toList(),
@@ -408,8 +418,9 @@ class AnalysisTab extends ConsumerWidget {
             getTooltipColor: (_) => surfaceColor.withAlpha(240),
             getTooltipItems: (List<LineBarSpot> touchedSpots) {
               return touchedSpots.map((spot) {
+                // QA FIX: Smart formatting aquí también
                 return LineTooltipItem(
-                  currencyFormatter.format(spot.y),
+                  _formatSmartMoney(spot.y),
                   const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 );
               }).toList();
@@ -420,4 +431,3 @@ class AnalysisTab extends ConsumerWidget {
     );
   }
 }
-

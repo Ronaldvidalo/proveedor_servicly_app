@@ -1,10 +1,8 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 26/10/2025
 // Style: Cyber Glow
-// This expenses tab was fully refactored to align with the "Cyber Glow" design.
-// CORRECCIÓN (Definitiva): Se asignó un width/height fijo al 'leading' (widget de fecha)
-// en _buildExpensesList para solucionar el RenderFlex overflow de 2.0 pixels.
-// CORRECCIÓN 2: Añadido parámetro GlobalKey para el tour virtual (ShowCaseView).
+// QA FIX 26/11/2025: Solucionado desbordamiento visual en PieChart y Lista
+// por montos numéricos excesivamente grandes. Se implementó FittedBox y restricciones de ancho.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -225,23 +223,37 @@ class _ExpensesTabState extends ConsumerState<ExpensesTab> {
             ),
             borderData: FlBorderData(show: false),
             sectionsSpace: 3, // Espacio entre secciones
-            centerSpaceRadius: 60, // Radio del agujero central
+            centerSpaceRadius: 60, // Radio del agujero central (Diámetro 120)
             sections: sections,
           ),
         ),
         // --- Texto central superpuesto ---
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-             const Text(
-              'Total Gastos',
-              style: TextStyle(fontSize: 12, color: Colors.white60)
-            ),
-             Text(
-              currencyFormatter.format(totalGastos),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          ],
+        // --- QA FIX: Restringir ancho y escalar texto ---
+        SizedBox(
+          width: 100, // Menor que el diámetro (120) para dejar margen
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+               const Text(
+                'Total Gastos',
+                style: TextStyle(fontSize: 12, color: Colors.white60),
+                textAlign: TextAlign.center,
+              ),
+              // Usamos FittedBox para que si el número es enorme, reduzca la fuente
+              // en lugar de salirse del círculo.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  currencyFormatter.format(totalGastos),
+                  style: const TextStyle(
+                    fontSize: 20, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.white
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -291,26 +303,39 @@ class _ExpensesTabState extends ConsumerState<ExpensesTab> {
                   ],
                 ),
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      currencyFormatter.format(gasto.monto),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: errorColor,
-                        fontSize: 15,
+              // --- QA FIX: Restricción robusta para el Trailing ---
+              trailing: SizedBox(
+                // Limitamos el ancho del trailing a 140px aprox (ajustable)
+                // para asegurar que quepa el precio + botón sin romper el layout
+                width: 145, 
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end, // Alinear a la derecha
+                  children: [
+                    // El precio toma todo el espacio posible dentro del SizedBox menos el del botón
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown, // Reduce el tamaño si es muy largo
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          currencyFormatter.format(gasto.monto),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: errorColor,
+                            fontSize: 15,
+                          ),
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.delete_outline_rounded, color: errorColor.withAlpha(180)),
-                    onPressed: () => _deleteGasto(context, gasto),
-                  ),
-                ],
+                    const SizedBox(width: 4), // Pequeño espacio
+                    IconButton(
+                      // Restringimos el padding del botón para ahorrar espacio
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: Icon(Icons.delete_outline_rounded, color: errorColor.withAlpha(180)),
+                      onPressed: () => _deleteGasto(context, gasto),
+                    ),
+                  ],
+                ),
               ),
               onTap: () {
                 // Llamamos al modal para EDITAR (pasando el gasto)
@@ -398,4 +423,3 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
-
