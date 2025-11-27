@@ -1,7 +1,10 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 14/10/2025
-// Style: Cyber Glow + GeoLocation + Address Fallback + Availability Filter + Video Showcases
-// Refactor: Usa Widgets Reutilizables (VideoCard, ProviderCard, VideoShowcaseSection)
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025:
+// 1. Refactorización completa para eliminar colores hardcoded.
+// 2. Adaptación a Modo Claro/Oscuro usando ThemeService.
+// 3. Widgets de búsqueda y filtros ahora usan el tema global.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -13,7 +16,7 @@ import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
-import 'package:proveedor_servicly_app/core/services/video_service.dart';
+// import 'package:proveedor_servicly_app/core/services/video_service.dart'; // No usado directamente
 
 // --- IMPORTACIONES DE UBICACIÓN ---
 import 'package:proveedor_servicly_app/providers/location_provider.dart';
@@ -94,21 +97,22 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   Widget build(BuildContext context) {
     final authService = context.read<AuthService>();
     final marketplaceService = context.read<MarketplaceService>();
-    // final videoService = context.read<VideoService>(); // Ya no es necesario instanciarlo aquí, el widget interno lo hace
     
     final selectedProfileType = _getSelectedProfileType();
     final locationState = ref.watch(userLocationProvider);
 
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Explorar Servicios'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        // Colores de AppBar dinámicos (se toman del theme global si no se especifican)
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
         actions: [
           IconButton(
@@ -122,29 +126,34 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
           SliverAppBar(
             pinned: true,
             floating: true,
-            backgroundColor: backgroundColor,
+            backgroundColor: theme.scaffoldBackgroundColor,
             elevation: 2,
-            shadowColor: accentColor.withOpacity(0.3),
+            // Sombra sutil adaptativa
+            shadowColor: theme.shadowColor.withValues(alpha: 0.1),
             titleSpacing: 0,
             title: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.white),
+                // QA FIX: Texto de input dinámico
+                style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Busca nombre, servicio o dirección...',
-                  hintStyle: const TextStyle(color: Colors.white60),
-                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                  // Hint text con opacidad
+                  hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
+                  prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withValues(alpha: 0.6)),
                   filled: true,
-                  fillColor: surfaceColor,
+                  // Fondo de input: Tarjeta o SurfaceVariant
+                  fillColor: theme.cardTheme.color,
                   contentPadding: EdgeInsets.zero,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide.none,
                   ),
+                  // Borde activo con color primario
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: accentColor, width: 2),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                 ),
               ),
@@ -152,24 +161,26 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             bottom: TabBar(
               controller: _tabController,
               isScrollable: true,
-              indicatorColor: accentColor,
-              labelColor: accentColor,
-              unselectedLabelColor: Colors.white70,
+              indicatorColor: colorScheme.primary,
+              labelColor: colorScheme.primary,
+              // QA FIX: Color inactivo visible en ambos modos
+              unselectedLabelColor: colorScheme.onSurface.withValues(alpha: 0.6),
               labelStyle: const TextStyle(fontWeight: FontWeight.bold),
               tabs: _profileTypes.map((type) => Tab(text: type['label'])).toList(),
             ),
           ),
           
-          _buildSectionTitle(context, 'Destacados'),
+          _buildSectionTitle(context, 'Destacados', theme),
           
           // --- USO DEL WIDGET REUTILIZABLE (VIDEOS) ---
-          // Al ser un Widget normal, lo envolvemos en SliverToBoxAdapter
+          // Asumimos que VideoShowcaseSection ya maneja sus propios temas internamente
+          // o usa Theme.of(context)
           const SliverToBoxAdapter(
             child: VideoShowcaseSection(),
           ),
 
-          _buildSectionTitle(context, 'Filtrar resultados'),
-          _buildFilterRow(context, marketplaceService, locationState),
+          _buildSectionTitle(context, 'Filtrar resultados', theme),
+          _buildFilterRow(context, marketplaceService, locationState, theme),
           
           StreamBuilder<List<ProviderProfileModel>>(
             stream: marketplaceService.getProviders(
@@ -249,6 +260,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                       }
 
                       // --- USO DEL WIDGET REUTILIZABLE (TIENDA) ---
+                      // ProviderCard debería usar Theme.of(context) internamente
                       return ProviderCard(
                         provider: provider, 
                         distanceText: distanceText,
@@ -265,24 +277,26 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, String title) {
+  Widget _buildSectionTitle(BuildContext context, String title, ThemeData theme) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
         child: Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Colors.white
+            // QA FIX: Texto dinámico
+            color: theme.colorScheme.onSurface
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFilterRow(BuildContext context, MarketplaceService service, AsyncValue<Position?> locationState) {
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
+  Widget _buildFilterRow(BuildContext context, MarketplaceService service, AsyncValue<Position?> locationState, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    // QA FIX: Color de superficie para los chips
+    final chipBackgroundColor = theme.cardTheme.color;
     
     return SliverToBoxAdapter(
       child: SizedBox(
@@ -293,25 +307,26 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             FilterChip(
               avatar: _isNearbyFilterActive 
                 ? (locationState.isLoading 
-                    ? const Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)) 
-                    : const Icon(Icons.near_me, size: 16, color: Colors.black))
-                : const Icon(Icons.near_me_outlined, size: 16, color: accentColor),
+                    ? Padding(padding: const EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary)) 
+                    : Icon(Icons.near_me, size: 16, color: colorScheme.onPrimary))
+                : Icon(Icons.near_me_outlined, size: 16, color: colorScheme.primary),
               label: const Text("Cerca de mí"),
               selected: _isNearbyFilterActive,
               onSelected: (bool value) => _toggleNearbyFilter(),
-              backgroundColor: surfaceColor,
-              selectedColor: accentColor,
+              // QA FIX: Colores de chip dinámicos
+              backgroundColor: chipBackgroundColor,
+              selectedColor: colorScheme.primary,
               labelStyle: TextStyle(
-                color: _isNearbyFilterActive ? Colors.black : Colors.white,
+                color: _isNearbyFilterActive ? colorScheme.onPrimary : colorScheme.onSurface,
                 fontWeight: _isNearbyFilterActive ? FontWeight.bold : FontWeight.normal,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: _isNearbyFilterActive ? BorderSide.none : const BorderSide(color: accentColor, width: 1),
+                side: _isNearbyFilterActive ? BorderSide.none : BorderSide(color: colorScheme.primary, width: 1),
               ),
               showCheckmark: false,
             ),
-            const VerticalDivider(color: Colors.white24, indent: 10, endIndent: 10, width: 20),
+            VerticalDivider(color: theme.dividerColor, indent: 10, endIndent: 10, width: 20),
             Expanded(
               child: StreamBuilder<List<CategoryModel>>(
                 stream: service.getMainCategories(),
@@ -341,10 +356,11 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                           label: Text(label),
                           selected: isSelected,
                           onSelected: (_) => onSelected(),
-                          selectedColor: accentColor.withOpacity(0.5),
-                          backgroundColor: surfaceColor,
+                          selectedColor: colorScheme.primary.withValues(alpha: 0.2),
+                          backgroundColor: chipBackgroundColor,
                           labelStyle: TextStyle(
-                            color: Colors.white,
+                            // QA FIX: Texto dinámico
+                            color: isSelected ? colorScheme.primary : colorScheme.onSurface,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
                           ),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -368,14 +384,16 @@ class _LoadingState extends StatelessWidget {
   const _LoadingState();
   @override
   Widget build(BuildContext context) {
-    return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
+    // QA FIX: Color de carga dinámico
+    return SliverToBoxAdapter(child: Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)));
   }
 }
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
   Widget build(BuildContext context) {
-    return const SliverToBoxAdapter(child: Center(child: Text("Sin resultados", style: TextStyle(color: Colors.white))));
+    // QA FIX: Texto dinámico
+    return SliverToBoxAdapter(child: Center(child: Text("Sin resultados", style: TextStyle(color: Theme.of(context).colorScheme.onSurface))));
   }
 }
 class _ErrorState extends StatelessWidget {

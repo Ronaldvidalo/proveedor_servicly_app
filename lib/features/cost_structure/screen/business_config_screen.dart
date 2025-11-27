@@ -8,21 +8,19 @@ import 'package:intl/intl.dart';
 
 // --- IMPORTS DE MODELOS ---
 import 'package:proveedor_servicly_app/features/cost_structure/data/models/business_config_model.dart';
-import 'package:proveedor_servicly_app/features/cost_structure/data/models/fixed_cost_model.dart';
+// import 'package:proveedor_servicly_app/features/cost_structure/data/models/fixed_cost_model.dart'; // Import duplicado eliminado
 
 // --- IMPORTS DE PROVIDERS (CORE) ---
 import 'package:proveedor_servicly_app/features/cost_structure/core/providers/cost_providers.dart';
 
 // --- IMPORTS DE WIDGETS (VISUALES) ---
-// CORREGIDO: MentorCard está en la carpeta 'widgets', no en 'screen'
-import 'package:proveedor_servicly_app/features/cost_structure/screen/mentor_card.dart';
-// CORREGIDO: Faltaba importar el Modal para agregar costos
-import 'package:proveedor_servicly_app/features/cost_structure/data/models/fixed_cost_model.dart';
+import 'package:proveedor_servicly_app/features/cost_structure/screen/mentor_card.dart'; // Ajustar ruta si es necesario
+// import 'package:proveedor_servicly_app/features/cost_structure/data/models/fixed_cost_model.dart'; // Duplicado
 // --- IMPORTS DE FINANZAS (REPO Y PROVIDER GENERAL) ---
 import 'package:proveedor_servicly_app/features/finance/data/repositories/finance_repository.dart';
-// CORREGIDO: Faltaba importar el provider del repositorio para usar ref.read(financeRepositoryProvider)
 import 'package:proveedor_servicly_app/features/finance/presentation/providers/finance_providers.dart';
 import 'package:proveedor_servicly_app/features/cost_structure/widgets/fixed_cost_modal.dart';
+
 class BusinessConfigScreen extends ConsumerStatefulWidget {
   const BusinessConfigScreen({super.key});
 
@@ -38,24 +36,31 @@ class _BusinessConfigScreenState extends ConsumerState<BusinessConfigScreen> wit
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // Listener para redibujar el FAB al cambiar de tab
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() {});
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Obtener tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text("Estructura de Negocio"),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: accentColor,
-          labelColor: accentColor,
-          unselectedLabelColor: Colors.white60,
+          indicatorColor: colorScheme.primary,
+          labelColor: colorScheme.primary,
+          unselectedLabelColor: colorScheme.onSurface.withOpacity(0.6),
           tabs: const [
             Tab(text: "1. Mis Gastos Fijos", icon: Icon(Icons.account_balance_wallet)),
             Tab(text: "2. Estrategia", icon: Icon(Icons.psychology)),
@@ -71,16 +76,17 @@ class _BusinessConfigScreenState extends ConsumerState<BusinessConfigScreen> wit
       ),
       floatingActionButton: _tabController.index == 0 
         ? FloatingActionButton(
-            backgroundColor: accentColor,
-            child: const Icon(Icons.add, color: Colors.black),
+            backgroundColor: colorScheme.primary,
+            // Texto/Icono sobre botón primario (Negro/Blanco)
+            child: Icon(Icons.add, color: colorScheme.onPrimary),
             onPressed: () {
                showModalBottomSheet(
                   context: context, 
                   isScrollControlled: true,
-                  backgroundColor: const Color(0xFF2D2D5A),
-                  // Ahora sí reconoce FixedCostModal gracias al import corregido
+                  // QA FIX: Fondo modal dinámico
+                  backgroundColor: theme.cardTheme.color,
                   builder: (ctx) => const FixedCostModal()
-                );
+               );
             },
           )
         : null,
@@ -91,11 +97,15 @@ class _BusinessConfigScreenState extends ConsumerState<BusinessConfigScreen> wit
   Widget _buildFixedCostsTab(BuildContext context) {
     final fixedCostsAsync = ref.watch(fixedCostsStreamProvider);
     final totalCosts = ref.watch(totalFixedCostsProvider);
+    
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          // Asumimos que MentorCard ya está adaptada o usa colores neutros
           const MentorCard(
             title: "Paso 1: La Realidad",
             message: "Antes de hablar de inventario, necesito saber cuánto te cuesta abrir la persiana cada mes (Alquiler, Luz, Internet).",
@@ -104,46 +114,68 @@ class _BusinessConfigScreenState extends ConsumerState<BusinessConfigScreen> wit
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.blue.shade900, const Color(0xFF2D2D5A)]),
+              // QA FIX: Gradiente solo en modo oscuro o adaptable
+              gradient: LinearGradient(
+                colors: theme.brightness == Brightness.dark 
+                  ? [Colors.blue.shade900, const Color(0xFF2D2D5A)]
+                  : [colorScheme.primary, colorScheme.secondary],
+              ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))],
+              boxShadow: [
+                 BoxShadow(
+                  color: Colors.black.withOpacity(0.1), 
+                  blurRadius: 10, 
+                  offset: const Offset(0, 4)
+                )
+              ],
             ),
             child: Column(
               children: [
                 const Text("Total Gastos Fijos Mensuales", style: TextStyle(color: Colors.white70)),
                 const SizedBox(height: 8),
-                Text(_currencyFormatter.format(totalCosts), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                // El texto sobre el gradiente siempre será blanco
+                Text(
+                  _currencyFormatter.format(totalCosts), 
+                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)
+                ),
               ],
             ),
           ),
           const SizedBox(height: 16),
           Expanded(
             child: fixedCostsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Text("Error: $err", style: const TextStyle(color: Colors.red)),
+              loading: () => Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+              error: (err, _) => Text("Error: $err", style: TextStyle(color: colorScheme.error)),
               data: (costs) {
-                if (costs.isEmpty) return const Center(child: Text("Toca el + para agregar tu primer gasto fijo.", style: TextStyle(color: Colors.white54)));
+                if (costs.isEmpty) return Center(child: Text("Toca el + para agregar tu primer gasto fijo.", style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5))));
                 return ListView.builder(
                   itemCount: costs.length,
                   itemBuilder: (ctx, index) {
                     final cost = costs[index];
                     return Card(
-                      color: const Color(0xFF2D2D5A),
+                      // QA FIX: Color de tarjeta del tema
+                      color: theme.cardTheme.color,
+                      elevation: 2,
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       child: ListTile(
                         leading: Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
-                          child: const Icon(Icons.receipt, color: Color(0xFF00BFFF)),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withOpacity(0.1), 
+                            borderRadius: BorderRadius.circular(8)
+                          ),
+                          child: Icon(Icons.receipt, color: colorScheme.primary),
                         ),
-                        title: Text(cost.concepto, style: const TextStyle(color: Colors.white)),
+                        title: Text(cost.concepto, style: TextStyle(color: colorScheme.onSurface)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(_currencyFormatter.format(cost.montoMensual), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            Text(
+                              _currencyFormatter.format(cost.montoMensual), 
+                              style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)
+                            ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                              // Ahora reconoce financeRepositoryProvider gracias al import corregido
                               onPressed: () => ref.read(financeRepositoryProvider).deleteFixedCost(cost.id),
                             )
                           ],
@@ -160,14 +192,16 @@ class _BusinessConfigScreenState extends ConsumerState<BusinessConfigScreen> wit
     );
   }
 
-  // --- PESTAÑA 2: ESTRATEGIA (Lógica Híbrida V2) ---
+  // --- PESTAÑA 2: ESTRATEGIA ---
   Widget _buildStrategyTab(BuildContext context) {
     final configAsync = ref.watch(businessConfigStreamProvider);
     final totalFixedCosts = ref.watch(totalFixedCostsProvider);
+    
+    final colorScheme = Theme.of(context).colorScheme;
 
     return configAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text("Error: $e")),
+      loading: () => Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+      error: (e, _) => Center(child: Text("Error: $e", style: TextStyle(color: colorScheme.error))),
       data: (config) => _StrategyForm(initialConfig: config, totalFixedCosts: totalFixedCosts),
     );
   }
@@ -185,10 +219,8 @@ class _StrategyForm extends ConsumerStatefulWidget {
 
 class _StrategyFormState extends ConsumerState<_StrategyForm> {
   late bool _usarInventarioReal;
-  late double _margenDeseado; // Valor interno (0.0 a 1.0)
+  late double _margenDeseado; 
   late TextEditingController _unidadesProyectadasController;
-  
-  // NUEVO: Controlador para el input manual de margen
   late TextEditingController _margenController; 
   
   bool _isSaving = false;
@@ -201,7 +233,6 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
     _margenDeseado = widget.initialConfig.margenDeseado;
     _unidadesProyectadasController = TextEditingController(text: widget.initialConfig.unidadesProyectadasMes.toString());
     
-    // Inicializamos el texto con el valor actual (ej. 0.3 -> "30")
     _margenController = TextEditingController(
       text: (widget.initialConfig.margenDeseado * 100).toStringAsFixed(1).replaceAll('.0', '')
     );
@@ -214,22 +245,17 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
     super.dispose();
   }
 
-  // Lógica para actualizar cuando se mueve el Slider
   void _onSliderChanged(double value) {
     setState(() {
       _margenDeseado = value;
-      // Actualizamos el texto sin perder el foco si fuera necesario, 
-      // pero aquí es simple asignación
       _margenController.text = (value * 100).toStringAsFixed(1).replaceAll('.0', '');
     });
   }
 
-  // Lógica para actualizar cuando se escribe manual
   void _onManualMarginChanged(String value) {
     final double? parsed = double.tryParse(value);
     if (parsed != null) {
       setState(() {
-        // Convertimos de 30 a 0.30 y limitamos entre 0 y 1
         _margenDeseado = (parsed / 100).clamp(0.0, 1.0);
       });
     }
@@ -257,9 +283,9 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
         costoFijoUnitarioCalculado: _costoFijoUnitarioEstimado,
       );
       await repo.updateBusinessConfig(newConfig);
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Estrategia actualizada")));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Estrategia actualizada"), backgroundColor: Colors.green));
     } catch (e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     } finally {
       if(mounted) setState(() => _isSaving = false);
     }
@@ -267,34 +293,41 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
 
   @override
   Widget build(BuildContext context) {
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
+    // QA FIX: Obtener tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     final currencyFormatter = NumberFormat.currency(locale: 'es_CL', symbol: '\$', decimalDigits: 2);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text("Método de Cálculo", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+        Text("Método de Cálculo", style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
         Container(
-          decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(12)),
+          // QA FIX: Fondo tarjeta dinámico
+          decoration: BoxDecoration(
+            color: theme.cardTheme.color, 
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.dividerColor.withOpacity(0.5))
+          ),
           child: Column(
             children: [
               RadioListTile<bool>(
-                title: const Text("Estimación Manual", style: TextStyle(color: Colors.white)),
-                subtitle: const Text("Usar una meta de ventas.", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                title: Text("Estimación Manual", style: TextStyle(color: colorScheme.onSurface)),
+                subtitle: Text("Usar una meta de ventas.", style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6), fontSize: 12)),
                 value: false,
                 groupValue: _usarInventarioReal,
-                activeColor: accentColor,
+                activeColor: colorScheme.primary,
                 onChanged: (val) => setState(() => _usarInventarioReal = val!),
               ),
-              Divider(color: Colors.white.withOpacity(0.1), height: 1),
+              Divider(color: theme.dividerColor, height: 1),
               RadioListTile<bool>(
-                title: const Text("Basado en Inventario", style: TextStyle(color: Colors.white)),
-                subtitle: Text("Usar mi stock real ($_mockInventarioTotal items).", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                title: Text("Basado en Inventario", style: TextStyle(color: colorScheme.onSurface)),
+                subtitle: Text("Usar mi stock real ($_mockInventarioTotal items).", style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6), fontSize: 12)),
                 value: true,
                 groupValue: _usarInventarioReal,
-                activeColor: accentColor,
+                activeColor: colorScheme.primary,
                 onChanged: _mockInventarioTotal > 0 ? (val) => setState(() => _usarInventarioReal = val!) : null,
               ),
             ],
@@ -303,18 +336,20 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
         const SizedBox(height: 24),
 
         if (!_usarInventarioReal) ...[
+          // Asumimos MentorCard adaptable
           const MentorCard(title: "Proyección", message: "¿Cuántas unidades crees vender al mes?"),
           const SizedBox(height: 12),
           TextFormField(
             controller: _unidadesProyectadasController,
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colorScheme.onSurface),
             decoration: InputDecoration(
               labelText: "Unidades Estimadas",
-              labelStyle: const TextStyle(color: Colors.white70),
+              labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
               filled: true,
-              fillColor: surfaceColor,
+              fillColor: theme.cardTheme.color,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: theme.dividerColor)),
             ),
             onChanged: (_) => setState(() {}),
           ),
@@ -322,35 +357,34 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
 
         const SizedBox(height: 32),
         
-        // --- SECCIÓN DE MARGEN (MEJORADA) ---
+        // --- SECCIÓN DE MARGEN ---
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Flexible(
-              child: Text("Margen de Ganancia Deseado", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Flexible(
+              child: Text("Margen de Ganancia Deseado", style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
-            // Input Manual Pequeño
             SizedBox(
               width: 80,
               child: TextField(
                 controller: _margenController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 18),
+                style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 18),
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                   filled: true,
-                  fillColor: surfaceColor,
+                  fillColor: theme.cardTheme.color,
                   suffixText: '%',
-                  suffixStyle: TextStyle(color: accentColor.withOpacity(0.7)),
+                  suffixStyle: TextStyle(color: colorScheme.primary.withOpacity(0.7)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: accentColor.withOpacity(0.5))
+                    borderSide: BorderSide(color: colorScheme.primary.withOpacity(0.5))
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: accentColor)
+                    borderSide: BorderSide(color: colorScheme.primary)
                   ),
                 ),
                 onChanged: _onManualMarginChanged,
@@ -363,33 +397,33 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
           value: _margenDeseado,
           min: 0.0, 
           max: 1.0, 
-          divisions: 100, // Aumentado para más precisión
-          activeColor: accentColor,
+          divisions: 100, 
+          activeColor: colorScheme.primary,
           onChanged: _onSliderChanged,
         ),
-        // ------------------------------------
 
         const SizedBox(height: 32),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: accentColor.withOpacity(0.3)),
+            border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
             borderRadius: BorderRadius.circular(12),
-            color: accentColor.withOpacity(0.1),
+            color: colorScheme.primary.withOpacity(0.1),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Costo Fijo Oculto", style: TextStyle(color: Colors.white70)),
-                  Text("por cada producto", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text("Costo Fijo Oculto", style: TextStyle(color: colorScheme.onSurface.withOpacity(0.8))),
+                  Text("por cada producto", style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6), fontSize: 12)),
                 ],
               ),
               Text(
                 currencyFormatter.format(_costoFijoUnitarioEstimado),
-                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                // QA FIX: Texto visible en ambos modos
+                style: TextStyle(color: colorScheme.onSurface, fontSize: 22, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -400,9 +434,15 @@ class _StrategyFormState extends ConsumerState<_StrategyForm> {
           height: 56,
           child: FilledButton.icon(
             onPressed: _isSaving ? null : _saveStrategy,
-            style: FilledButton.styleFrom(backgroundColor: accentColor),
-            icon: const Icon(Icons.save_as, color: Colors.black),
-            label: _isSaving ? const CircularProgressIndicator(color: Colors.black) : const Text("Confirmar Estrategia", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              // Texto botón legible (Negro/Blanco)
+              foregroundColor: colorScheme.onPrimary
+            ),
+            icon: const Icon(Icons.save_as),
+            label: _isSaving 
+              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2)) 
+              : const Text("Confirmar Estrategia", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
       ],

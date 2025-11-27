@@ -1,4 +1,3 @@
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -21,10 +20,10 @@ class FixedCostModal extends ConsumerStatefulWidget {
 class _FixedCostModalState extends ConsumerState<FixedCostModal> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _conceptoController;
-  late TextEditingController _montoController; // El monto que ingresa el usuario (ej. 1200 anual)
+  late TextEditingController _montoController; 
   
   String? _selectedCategoria;
-  String _selectedFrecuencia = 'Mensual'; // Por defecto
+  String _selectedFrecuencia = 'Mensual'; 
   bool _isLoading = false;
 
   @override
@@ -32,19 +31,14 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
     super.initState();
     _conceptoController = TextEditingController(text: widget.cost?.concepto ?? '');
     
-    // Si editamos, necesitamos ingeniería inversa: 
-    // Si guardamos $100 (mensual) pero la frecuencia era Anual, mostramos $1200.
-    // Pero para simplificar por ahora, mostraremos el monto mensual guardado si editamos.
-    // O mejor: Si el modelo guarda el monto mensual, al editar lo dejamos tal cual.
+    // Si el modelo guarda el monto mensual, al editar lo dejamos tal cual por ahora,
+    // o aplicamos la inversa visual si se desea.
     _montoController = TextEditingController(text: widget.cost?.montoMensual.toStringAsFixed(0) ?? '');
     
     _selectedCategoria = widget.cost?.categoria;
     if (widget.cost != null) {
       _selectedFrecuencia = widget.cost!.frecuencia;
       
-      // AJUSTE VISUAL PARA EDICIÓN:
-      // Si el usuario guardó "Anual" y el monto mensual es 100, 
-      // queremos que al abrir el modal vea "1200" en el input.
       double montoOriginal = widget.cost!.montoMensual;
       if (_selectedFrecuencia == 'Anual') _montoController.text = (montoOriginal * 12).toStringAsFixed(0);
       if (_selectedFrecuencia == 'Semestral') _montoController.text = (montoOriginal * 6).toStringAsFixed(0);
@@ -58,7 +52,7 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
   double _calcularMontoMensualNormalizado(double montoInput) {
     switch (_selectedFrecuencia) {
       case 'Semanal':
-        return montoInput * 4; // Aprox 4 semanas por mes
+        return montoInput * 4; 
       case 'Quincenal':
         return montoInput * 2;
       case 'Mensual':
@@ -87,16 +81,16 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
       final newCost = FixedCostModel(
         id: widget.cost?.id ?? const Uuid().v4(),
         concepto: _conceptoController.text,
-        montoMensual: montoFinalMensual, // Guardamos SIEMPRE el valor mensualizado
+        montoMensual: montoFinalMensual, 
         categoria: _selectedCategoria!,
-        frecuencia: _selectedFrecuencia, // Guardamos la preferencia del usuario
+        frecuencia: _selectedFrecuencia, 
         activo: true,
       );
 
       await repo.saveFixedCost(newCost);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -104,7 +98,10 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
 
   @override
   Widget build(BuildContext context) {
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final accentColor = colorScheme.primary;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -117,27 +114,35 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Nuevo Costo Fijo", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              "Nuevo Costo Fijo", 
+              // QA FIX: Texto de título dinámico
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface
+              )
+            ),
             const SizedBox(height: 20),
             
             TextFormField(
               controller: _conceptoController,
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration("Concepto (Ej: Seguro Local)", Icons.label_outline),
+              // QA FIX: Estilo de texto input dinámico
+              style: TextStyle(color: colorScheme.onSurface),
+              decoration: _inputDecoration(theme, "Concepto (Ej: Seguro Local)", Icons.label_outline),
               validator: (v) => v!.isEmpty ? "Requerido" : null,
             ),
             const SizedBox(height: 16),
 
             Row(
               children: [
-                // Input Monto (Flexible)
+                // Input Monto
                 Expanded(
                   flex: 2,
                   child: TextFormField(
                     controller: _montoController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: _inputDecoration("Monto", Icons.attach_money),
+                    style: TextStyle(color: colorScheme.onSurface),
+                    decoration: _inputDecoration(theme, "Monto", Icons.attach_money),
                     validator: (v) => v!.isEmpty ? "Requerido" : null,
                   ),
                 ),
@@ -148,10 +153,14 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
                   flex: 2,
                   child: DropdownButtonFormField<String>(
                     value: _selectedFrecuencia,
-                    dropdownColor: const Color(0xFF2D2D5A),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: _inputDecoration("Frecuencia", Icons.repeat),
-                    items: _frecuencias.map((f) => DropdownMenuItem(value: f, child: Text(f, overflow: TextOverflow.ellipsis))).toList(),
+                    // QA FIX: Fondo del dropdown dinámico
+                    dropdownColor: theme.cardTheme.color,
+                    style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
+                    decoration: _inputDecoration(theme, "Frecuencia", Icons.repeat),
+                    items: _frecuencias.map((f) => DropdownMenuItem(
+                      value: f, 
+                      child: Text(f, overflow: TextOverflow.ellipsis)
+                    )).toList(),
                     onChanged: (v) => setState(() => _selectedFrecuencia = v!),
                   ),
                 ),
@@ -162,33 +171,35 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
             
             DropdownButtonFormField<String>(
               value: _selectedCategoria,
-              dropdownColor: const Color(0xFF2D2D5A),
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration("Categoría", Icons.category_outlined),
+              dropdownColor: theme.cardTheme.color,
+              style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
+              decoration: _inputDecoration(theme, "Categoría", Icons.category_outlined),
               items: _categoriasFijas.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: (v) => setState(() => _selectedCategoria = v),
             ),
             const SizedBox(height: 24),
             
-            // Aviso visual de conversión (Feedback inmediato)
+            // Aviso visual de conversión
             if (_montoController.text.isNotEmpty && _selectedFrecuencia != 'Mensual')
               Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.1),
+                    // QA FIX: Fondo del aviso adaptable
+                    color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: accentColor.withOpacity(0.3))
+                    border: Border.all(color: accentColor.withValues(alpha: 0.3))
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, color: accentColor, size: 20),
+                      Icon(Icons.info_outline, color: accentColor, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           "Se registrará como \$${_calcularMontoMensualNormalizado(double.tryParse(_montoController.text) ?? 0).toStringAsFixed(2)} / mes en tus costos.",
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          // QA FIX: Texto secundario adaptable
+                          style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
                         ),
                       ),
                     ],
@@ -200,8 +211,15 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
               width: double.infinity,
               child: FilledButton(
                 onPressed: _isLoading ? null : _submit,
-                style: FilledButton.styleFrom(backgroundColor: accentColor, padding: const EdgeInsets.all(16)),
-                child: _isLoading ? const CircularProgressIndicator() : const Text("Guardar", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accentColor, 
+                  // QA FIX: Texto botón legible (Negro sobre neón, o blanco sobre oscuro)
+                  foregroundColor: colorScheme.onPrimary,
+                  padding: const EdgeInsets.all(16)
+                ),
+                child: _isLoading 
+                  ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2)) 
+                  : const Text("Guardar", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             )
           ],
@@ -210,14 +228,22 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  // QA FIX: Input Decoration Adaptable
+  InputDecoration _inputDecoration(ThemeData theme, String label, IconData icon) {
+    final colorScheme = theme.colorScheme;
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white70),
-      prefixIcon: Icon(icon, color: const Color(0xFF00BFFF)),
+      labelStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6)),
+      prefixIcon: Icon(icon, color: colorScheme.primary),
       filled: true,
-      fillColor: const Color(0xFF1A1A2E),
+      // Fondo del input: Usamos el color de input definido en el tema o el de tarjeta
+      fillColor: theme.inputDecorationTheme.fillColor ?? theme.cardTheme.color,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      // Borde activo usa el color primario
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12), 
+        borderSide: BorderSide(color: colorScheme.primary, width: 2)
+      ),
     );
   }
 }

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/theme_service.dart';
 import 'package:proveedor_servicly_app/shared/theme/app_themes.dart';
-import 'package:proveedor_servicly_app/shared/theme/screens/theme_selection_screen.dart';
+
+// (Error 3 Solucionado: Eliminada la importación recursiva innecesaria)
 
 class ThemeSelectionScreen extends StatelessWidget {
   const ThemeSelectionScreen({super.key});
@@ -11,7 +12,7 @@ class ThemeSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Usamos 'watch' para que la UI se actualice cuando cambie el tema
     final themeService = context.watch<ThemeService>();
-    final theme = Theme.of(context); // Obtiene el tema actual (claro u oscuro)
+    final theme = Theme.of(context); 
 
     return Scaffold(
       appBar: AppBar(
@@ -23,7 +24,8 @@ class ThemeSelectionScreen extends StatelessWidget {
           Text(
             "Elige tu paleta de colores",
             style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              // (Error 2 Solucionado: withOpacity -> withValues)
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 12),
@@ -34,7 +36,8 @@ class ThemeSelectionScreen extends StatelessWidget {
             title: 'Cyber Glow',
             subtitle: 'El azul neón clásico.',
             isSelected: themeService.currentPalette == AppPalette.blue,
-            onTap: () => context.read<ThemeService>().setPalette(AppPalette.blue),
+            // (Error 1 Solucionado: setPalette -> updatePalette)
+            onTap: () => context.read<ThemeService>().updatePalette(AppPalette.blue),
           ),
           
           const SizedBox(height: 12),
@@ -45,7 +48,8 @@ class ThemeSelectionScreen extends StatelessWidget {
             title: 'Cyber Mint',
             subtitle: 'Un estilo fresco y enérgico.',
             isSelected: themeService.currentPalette == AppPalette.green,
-            onTap: () => context.read<ThemeService>().setPalette(AppPalette.green),
+            // (Error 1 Solucionado)
+            onTap: () => context.read<ThemeService>().updatePalette(AppPalette.green),
           ),
 
           const SizedBox(height: 12),
@@ -56,7 +60,8 @@ class ThemeSelectionScreen extends StatelessWidget {
             title: 'Cyber Pink',
             subtitle: 'Una paleta vibrante y audaz.',
             isSelected: themeService.currentPalette == AppPalette.pink,
-            onTap: () => context.read<ThemeService>().setPalette(AppPalette.pink),
+            // (Error 1 Solucionado)
+            onTap: () => context.read<ThemeService>().updatePalette(AppPalette.pink),
           ),
 
           const SizedBox(height: 12),
@@ -67,7 +72,8 @@ class ThemeSelectionScreen extends StatelessWidget {
             title: 'Cyber Warm',
             subtitle: 'Una paleta cálida y llamativa.',
             isSelected: themeService.currentPalette == AppPalette.orange,
-            onTap: () => context.read<ThemeService>().setPalette(AppPalette.orange),
+            // (Error 1 Solucionado)
+            onTap: () => context.read<ThemeService>().updatePalette(AppPalette.orange),
           ),
 
           const Divider(height: 40),
@@ -76,16 +82,19 @@ class ThemeSelectionScreen extends StatelessWidget {
           ListTile(
             leading: Icon(
               Icons.brightness_6_rounded,
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              // (Error 2 Solucionado: withOpacity -> withValues)
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
             title: Text(
               'Modo Claro y Oscuro',
-              style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onBackground)
+              // (Error 2 Solucionado: onBackground -> onSurface)
+              style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface)
             ),
             subtitle: Text(
               'La aplicación se adaptará automáticamente al modo claro u oscuro de tu teléfono.',
                style: theme.textTheme.bodyMedium?.copyWith(
-                 color: theme.colorScheme.onSurface.withOpacity(0.7),
+                 // (Error 2 Solucionado)
+                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                )
             ),
           ),
@@ -126,17 +135,21 @@ class _PaletteOptionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         // Borde de acento si está seleccionado
         border: Border.all(
-          color: isSelected ? currentTheme.colorScheme.primary : currentTheme.dividerColor.withOpacity(0.5),
+          // (Error 2 Solucionado)
+          color: isSelected ? currentTheme.colorScheme.primary : currentTheme.dividerColor.withValues(alpha: 0.5),
           width: isSelected ? 2.5 : 1,
         ),
         boxShadow: isSelected ? [
           BoxShadow(
-            color: currentTheme.colorScheme.primary.withAlpha(100),
+            // (Error 2 Solucionado: withAlpha -> withValues)
+            // 100/255 ~= 0.4
+            color: currentTheme.colorScheme.primary.withValues(alpha: 0.4),
             blurRadius: 8,
           )
         ] : [
            BoxShadow(
-            color: currentTheme.shadowColor.withOpacity(0.05),
+            // (Error 2 Solucionado: 0.05)
+            color: currentTheme.shadowColor.withValues(alpha: 0.05),
             blurRadius: 5,
             offset: const Offset(0, 2)
           )
@@ -159,7 +172,8 @@ class _PaletteOptionTile extends StatelessWidget {
                         color: currentTheme.colorScheme.onSurface
                       )),
                       Text(subtitle, style: currentTheme.textTheme.bodyMedium?.copyWith(
-                        color: currentTheme.colorScheme.onSurface.withOpacity(0.7)
+                        // (Error 2 Solucionado)
+                        color: currentTheme.colorScheme.onSurface.withValues(alpha: 0.7)
                       )),
                     ],
                   ),

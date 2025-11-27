@@ -1,92 +1,130 @@
 import 'package:flutter/material.dart';
-import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart'; // Asegúrate que la ruta sea correcta
-// Puedes usar 'cached_network_image' para mejor rendimiento
-// import 'package:cached_network_image/cached_network_image.dart'; 
+import 'package:proveedor_servicly_app/core/models/portfolio_item_model.dart'; 
 
 class PortfolioItemCard extends StatelessWidget {
   final PortfolioItemModel item;
   final bool isEditable;
-  final VoidCallback? onDelete; // Callback para borrar (solo en modo edición)
+  final VoidCallback? onDelete; 
 
   const PortfolioItemCard({
     super.key,
     required this.item,
     required this.isEditable,
     this.onDelete,
-  }) : assert(!isEditable || onDelete != null, 'onDelete callback is required when isEditable is true'); // Asegura que onDelete se pase si es editable
+  }) : assert(!isEditable || onDelete != null, 'onDelete callback is required when isEditable is true');
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     Widget content;
 
-    // Decide qué mostrar basado en el tipo de ítem
     if (item.type == PortfolioItemType.image) {
-      // Usamos Image.network simple. Considera usar cached_network_image
       content = Image.network(
         item.url,
         fit: BoxFit.cover,
-        // Indicador de carga mientras baja la imagen
         loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child; // Imagen cargada
+          if (loadingProgress == null) return child;
           return Center(
             child: CircularProgressIndicator(
               strokeWidth: 2,
+              // QA FIX: Color de carga de marca (Neón)
+              color: colorScheme.primary,
               value: loadingProgress.expectedTotalBytes != null
                   ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                  : null, // Progreso indeterminado si no se sabe el total
+                  : null,
             ),
           );
         },
-        // Widget a mostrar si la URL falla
-        errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
+        errorBuilder: (context, error, stackTrace) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image_outlined, color: colorScheme.error, size: 32),
+              const SizedBox(height: 4),
+              Text(
+                "Error", 
+                style: TextStyle(color: colorScheme.error, fontSize: 10)
+              )
+            ],
+          ),
         ),
       );
-    } else { // Si es video
-      // Placeholder simple para video. Podrías usar 'video_thumbnail'
-      // para generar una miniatura real si lo necesitas.
+    } else { 
+      // Placeholder de Video
       content = Container(
-        color: Colors.black87,
-        child: const Center(
-          child: Icon(Icons.play_circle_outline_rounded, color: Colors.white, size: 50),
+        // QA FIX: Fondo dinámico (Gris muy oscuro en dark, Gris medio en light)
+        color: theme.brightness == Brightness.dark 
+            ? Colors.black26 
+            : Colors.grey.shade200,
+        child: Center(
+          child: Icon(
+            Icons.play_circle_outline_rounded, 
+            // QA FIX: Icono de video con color primario
+            color: colorScheme.primary, 
+            size: 50
+          ),
         ),
       );
     }
 
-    // Envolvemos el contenido en un Card y añadimos botón si es editable
-    return Card(
-      clipBehavior: Clip.antiAlias, // Para que la imagen/contenido respete los bordes
-      elevation: isEditable ? 2.0 : 1.0, // Sombra sutil
-      child: Stack(
-        fit: StackFit.expand, // Para que la imagen/contenido llene el Card
-        children: [
-          // Contenido (Imagen o Video Placeholder)
-          content,
+    return Container(
+      // QA FIX: Usamos Container con decoración manual en lugar de Card
+      // para igualar el estilo de las otras tarjetas Cyber Glow
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(12),
+        // Borde sutil
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
+        boxShadow: [
+           BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      // ClipRRect fuerza a la imagen a respetar los bordes redondeados del container
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11), // 1px menos que el borde para que no se monte
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Contenido (Imagen o Video)
+            content,
 
-          // Botón de eliminar (solo si es editable)
-          if (isEditable)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Material(
-                color: Colors.black.withAlpha((255 * 0.6).round()), // Fondo semitransparente
-                type: MaterialType.circle, // Botón circular
-                child: InkWell(
-                  onTap: onDelete, // Llama al callback pasado
-                  customBorder: const CircleBorder(),
-                  splashColor: Colors.red.withAlpha(100),
-                  child: const Padding(
-                    padding: EdgeInsets.all(5.0),
-                    child: Icon(
-                      Icons.close_rounded, // Icono 'x'
-                      color: Colors.white,
-                      size: 18,
+            // Botón de eliminar (solo si es editable)
+            if (isEditable)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Material(
+                  // QA FIX: Fondo semitransparente negro SIEMPRE para contraste sobre imágenes
+                  // No usamos el tema aquí porque la imagen puede ser de cualquier color.
+                  color: Colors.black.withValues(alpha: 0.6),
+                  type: MaterialType.circle,
+                  child: InkWell(
+                    onTap: onDelete,
+                    customBorder: const CircleBorder(),
+                    splashColor: Colors.red.withValues(alpha: 0.4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(6.0),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white, // Blanco siempre visible sobre fondo negro
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

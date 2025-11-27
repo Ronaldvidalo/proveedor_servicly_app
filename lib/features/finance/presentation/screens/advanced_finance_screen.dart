@@ -1,13 +1,9 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 26/10/2025
-// Style: Cyber Glow
-// This screen was refactored to align with the "Cyber Glow" design.
-// --- TOUR VIRTUAL (ShowCaseView) AÑADIDO ---
-// Se ha añadido un tour virtual interactivo para guiar al usuario
-// la primera vez que abre el módulo, con un botón para repetirlo.
-// CORRECCIÓN: Se usa 'onStart' (en lugar de 'onBeforeShowCase')
-// para manejar la navegación entre pestañas.
-// CORRECCIÓN 2: Corregida la sintaxis del 'builder' de ShowCaseWidget.
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025:
+// 1. Refactorización completa para soportar ThemeService (Modo Claro/Oscuro).
+// 2. Lógica de Tour Virtual (ShowCase) mantenida y verificada.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -38,9 +34,9 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
   final GlobalKey _keyKpiCards = GlobalKey();
   final GlobalKey _keyIncomeChart = GlobalKey();
   final GlobalKey _keyAddExpenseButton = GlobalKey();
-  final GlobalKey _keyAnalysisChart = GlobalKey(); // Key para la pestaña de análisis
+  final GlobalKey _keyAnalysisChart = GlobalKey();
 
-  // Clave para el widget ShowCase
+  // Clave para el contexto del ShowCase
   BuildContext? _showCaseContext;
 
   @override
@@ -48,12 +44,10 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     
-    // --- Lógica del Tour ---
     // Comprueba si es la primera vez que se abre esta pantalla.
     _checkIfFirstTime();
   }
 
-  /// Comprueba SharedPreferences para ver si el tour ya se ha mostrado.
   Future<void> _checkIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
     final bool hasSeenTour = prefs.getBool('hasSeenFinanceTour_v1') ?? false;
@@ -66,65 +60,72 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
     }
   }
 
-  /// Inicia el tour virtual
   void _startTour() {
     if (_showCaseContext != null) {
       ShowCaseWidget.of(_showCaseContext!).startShowCase([
         _keyResumenTab,     // 1. Pestaña Resumen
         _keyKpiCards,       // 2. Tarjetas KPI
         _keyIncomeChart,    // 3. Gráfico de Ingresos
-        _keyGastosTab,      // 4. Pestaña Gastos (cambia de pestaña)
-        _keyAddExpenseButton, // 5. Botón Añadir Gasto
-        _keyAnalisisTab,    // 6. Pestaña Análisis (cambia de pestaña)
-        _keyAnalysisChart,  // 7. Gráfico en Pestaña Análisis
+        _keyGastosTab,      // 4. Pestaña Gastos
+        _keyAddExpenseButton, // 5. Botón Añadir
+        _keyAnalisisTab,    // 6. Pestaña Análisis
+        _keyAnalysisChart,  // 7. Gráfico Análisis
       ]);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- Paleta "Cyber Glow" ---
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Obtener tema del contexto (Adiós colores hardcoded)
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    // Colores dinámicos
+    final backgroundColor = theme.scaffoldBackgroundColor;
+    final primaryColor = colorScheme.primary;
+    final onSurface = colorScheme.onSurface;
 
     return ShowCaseWidget(
       onFinish: () {
-         // Asegurarse de volver a la primera pestaña al finalizar
          _tabController.animateTo(0);
       },
-      // --- Lógica de navegación del Tour ---
+      // Lógica de navegación del Tour
       onStart: (index, globalKey) {
         if (globalKey == _keyGastosTab || globalKey == _keyAddExpenseButton) {
-          _tabController.animateTo(1); // Ir a pestaña Gastos
+          _tabController.animateTo(1); // Ir a Gastos
         } else if (globalKey == _keyAnalisisTab || globalKey == _keyAnalysisChart) {
-          _tabController.animateTo(2); // Ir a pestaña Análisis
+          _tabController.animateTo(2); // Ir a Análisis
         } else if (globalKey == _keyResumenTab || globalKey == _keyKpiCards || globalKey == _keyIncomeChart) {
-          _tabController.animateTo(0); // Ir a pestaña Resumen
+          _tabController.animateTo(0); // Ir a Resumen
         }
       },
-      // --- CORRECCIÓN: 'builder' ahora es una función ---
       builder: (context) { 
-          _showCaseContext = context; // Guardar el context para _startTour
+          _showCaseContext = context; 
           return Scaffold(
+            // Fondo dinámico
             backgroundColor: backgroundColor, 
             appBar: AppBar(
               title: const Text('Copiloto Financiero'),
               backgroundColor: backgroundColor, 
-              foregroundColor: Colors.white, 
+              // Texto negro en claro, blanco en oscuro
+              foregroundColor: onSurface, 
               elevation: 0, 
               actions: [
-                // --- Botón para repetir el tour ---
                 IconButton(
                   icon: const Icon(Icons.help_outline_rounded),
                   tooltip: 'Iniciar Tour',
-                  onPressed: _startTour, // Llama al tour manualmente
+                  // Icono visible en ambos modos
+                  color: onSurface.withValues(alpha: 0.7),
+                  onPressed: _startTour, 
                 ),
               ],
               bottom: TabBar(
-                controller: _tabController, // Usar el controlador
-                indicatorColor: accentColor, 
-                labelColor: accentColor, 
-                unselectedLabelColor: Colors.white60, 
+                controller: _tabController,
+                // Indicador del color de la marca (Neón)
+                indicatorColor: primaryColor, 
+                labelColor: primaryColor, 
+                // Color inactivo visible
+                unselectedLabelColor: onSurface.withValues(alpha: 0.5), 
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
                 tabs: [
@@ -137,22 +138,21 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
                   Showcase(
                     key: _keyGastosTab,
                     title: 'Pestaña Gastos',
-                    description: 'Registra y visualiza todos tus gastos en detalle. Toca el gráfico para filtrar la lista.',
+                    description: 'Registra y visualiza todos tus gastos en detalle.',
                     child: const Tab(icon: Icon(Icons.payment_rounded), text: 'Gastos'),
                   ),
                   Showcase(
                     key: _keyAnalisisTab,
                     title: 'Pestaña Análisis',
-                    description: 'Compara tus ingresos, gastos y presupuestos a lo largo del tiempo.',
+                    description: 'Compara tus ingresos y gastos a lo largo del tiempo.',
                     child: const Tab(icon: Icon(Icons.analytics_rounded), text: 'Análisis'),
                   ),
                 ],
               ),
             ),
             body: TabBarView(
-              controller: _tabController, // Usar el controlador
+              controller: _tabController,
               children: [
-                // --- 4. Pasar las GlobalKeys a las pestañas hijas ---
                 SummaryTab(
                   kpiCardsKey: _keyKpiCards,
                   incomeChartKey: _keyIncomeChart,
@@ -170,4 +170,3 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
     );
   }
 }
-

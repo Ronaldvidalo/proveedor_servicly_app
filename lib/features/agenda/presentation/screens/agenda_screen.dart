@@ -38,20 +38,23 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
     // Escuchamos los eventos del mes
     final eventsAsync = ref.watch(eventsForMonthProvider(_focusedDay));
     
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Usar ThemeService
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // Fondo dinámico (Gris claro / Azul oscuro)
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Mi Jornada'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor, // Integrado con el fondo
+        foregroundColor: colorScheme.onSurface, // Texto negro/blanco
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.today), 
             tooltip: "Ir a Hoy",
+            color: colorScheme.primary, // Icono de acción con color de acento
             onPressed: () => setState(() {
               _focusedDay = DateTime.now();
               _selectedDay = _focusedDay;
@@ -61,7 +64,7 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
       ),
       body: Column(
         children: [
-          // --- 1. CALENDARIO ---
+          // --- 1. CALENDARIO ADAPTATIVO ---
           TableCalendar<AgendaEvent>(
             firstDay: DateTime.utc(2020, 1, 1),
             lastDay: DateTime.utc(2030, 12, 31),
@@ -87,21 +90,45 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
               );
             },
             
-            // Estilos Cyber Glow
-            headerStyle: const HeaderStyle(
+            // QA FIX: Estilos dinámicos para TableCalendar
+            headerStyle: HeaderStyle(
               titleCentered: true,
               formatButtonVisible: false,
-              titleTextStyle: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-              leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
-              rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+              titleTextStyle: TextStyle(
+                color: colorScheme.onSurface, // Título del mes dinámico
+                fontSize: 16, 
+                fontWeight: FontWeight.bold
+              ),
+              leftChevronIcon: Icon(Icons.chevron_left, color: colorScheme.onSurface),
+              rightChevronIcon: Icon(Icons.chevron_right, color: colorScheme.onSurface),
             ),
             calendarStyle: CalendarStyle(
-              defaultTextStyle: const TextStyle(color: Colors.white70),
-              weekendTextStyle: const TextStyle(color: Colors.white70),
-              outsideTextStyle: const TextStyle(color: Colors.white24),
-              selectedDecoration: const BoxDecoration(color: accentColor, shape: BoxShape.circle),
-              todayDecoration: BoxDecoration(color: accentColor.withAlpha(77), shape: BoxShape.circle), // 0.3 opacity
-              markerDecoration: const BoxDecoration(color: Color(0xFF00FF7F), shape: BoxShape.circle),
+              // Días normales
+              defaultTextStyle: TextStyle(color: colorScheme.onSurface),
+              // Fin de semana
+              weekendTextStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6)),
+              // Días fuera del mes
+              outsideTextStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3)),
+              
+              // Día Seleccionado (Círculo sólido color primario)
+              selectedDecoration: BoxDecoration(
+                color: colorScheme.primary, 
+                shape: BoxShape.circle
+              ),
+              selectedTextStyle: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
+              
+              // Día de Hoy (Círculo transparente color primario)
+              todayDecoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.3), 
+                shape: BoxShape.circle
+              ),
+              todayTextStyle: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold),
+              
+              // Puntos de eventos (Markers)
+              markerDecoration: BoxDecoration(
+                color: colorScheme.secondary, // Fucsia/Verde según tema
+                shape: BoxShape.circle
+              ),
             ),
           ),
           
@@ -123,13 +150,13 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
           ),
           
           const SizedBox(height: 10),
-          const Divider(color: Colors.white10, height: 1),
+          Divider(color: theme.dividerColor, height: 1),
 
           // --- 3. LISTA DE EVENTOS ---
           Expanded(
             child: eventsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: accentColor)),
-              error: (e, _) => Center(child: Text("Error: $e", style: const TextStyle(color: Colors.red))),
+              loading: () => Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+              error: (e, _) => Center(child: Text("Error: $e", style: TextStyle(color: colorScheme.error))),
               data: (allEvents) {
                 // Filtrado Local
                 var dayEvents = allEvents.where((e) => isSameDay(e.startTime, _selectedDay)).toList();
@@ -147,9 +174,12 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.event_available, size: 48, color: Colors.white.withAlpha(50)),
+                        Icon(Icons.event_available, size: 48, color: colorScheme.onSurface.withValues(alpha: 0.2)),
                         const SizedBox(height: 12),
-                        const Text("Sin eventos para este día", style: TextStyle(color: Colors.white38)),
+                        Text(
+                          "Sin eventos para este día", 
+                          style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4))
+                        ),
                       ],
                     ),
                   );
@@ -162,12 +192,11 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
                     final event = dayEvents[index];
                     return GestureDetector(
                       onTap: () {
-                        // Navegar a editar evento existente
                         Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => AddEditEventScreen(
                             selectedDay: _selectedDay ?? DateTime.now(),
                             user: widget.user,
-                            eventToEdit: event, // Pasamos el evento para editar
+                            eventToEdit: event,
                           ),
                         ));
                       },
@@ -183,10 +212,9 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
       
       // --- 4. BOTÓN FLOTANTE (FAB) ---
       floatingActionButton: FloatingActionButton(
-        backgroundColor: accentColor,
-        child: const Icon(Icons.add, color: Colors.black),
+        backgroundColor: colorScheme.primary,
+        child: Icon(Icons.add, color: colorScheme.onPrimary),
         onPressed: () {
-          // Navegar a crear NUEVO evento
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => AddEditEventScreen(
               selectedDay: _selectedDay ?? DateTime.now(),
@@ -209,19 +237,28 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Colores dinámicos
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00BFFF) : const Color(0xFF2D2D5A),
+          // Fondo: Primario si seleccionado, Surface (Tarjeta) si no
+          color: isSelected ? colorScheme.primary : theme.cardTheme.color,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? Colors.transparent : Colors.white10),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : theme.dividerColor,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.black : Colors.white70, 
+            // Texto: OnPrimary (Negro/Blanco) si seleccionado, OnSurface si no
+            color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface.withValues(alpha: 0.7), 
             fontWeight: FontWeight.bold, 
             fontSize: 12
           ),
@@ -237,25 +274,31 @@ class _AgendaEventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color stripeColor = const Color(0xFF00BFFF);
+    // QA FIX: Obtener tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final onSurface = colorScheme.onSurface;
+
+    // Mantenemos lógica de colores por tipo (Semántica de estado)
+    // Usamos colores de Material que se ven bien en light/dark
+    Color stripeColor = colorScheme.primary; 
     IconData icon = Icons.event;
 
-    // Lógica de Colores e Iconos según Tipo
     switch (event.eventType) {
       case EventType.visit:
-        stripeColor = const Color(0xFF00FF7F); // Verde
+        stripeColor = Colors.green; // Semántica OK
         icon = Icons.business_center;
         break;
       case EventType.appointment:
-        stripeColor = const Color(0xFF00BFFF); // Azul
+        stripeColor = colorScheme.primary; // Azul/Tema
         icon = Icons.video_call;
         break;
       case EventType.payment_reminder:
-        stripeColor = Colors.redAccent; // Rojo
+        stripeColor = Colors.redAccent; // Semántica OK
         icon = Icons.money_off;
         break;
       case EventType.collection_reminder:
-        stripeColor = Colors.amber; // Amarillo
+        stripeColor = Colors.amber; // Semántica OK
         icon = Icons.attach_money;
         break;
       default: // personal_reminder
@@ -263,7 +306,6 @@ class _AgendaEventCard extends StatelessWidget {
         icon = Icons.person;
     }
 
-    // Estilo para cancelados
     if (event.eventStatus == EventStatus.cancelled) {
       stripeColor = Colors.grey;
       icon = Icons.cancel;
@@ -273,16 +315,27 @@ class _AgendaEventCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D5A),
+        // QA FIX: Color de fondo de tarjeta del tema
+        color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(12),
+        // Sombra sutil
+        boxShadow: [
+           BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          )
+        ],
         border: Border(left: BorderSide(color: stripeColor, width: 4)),
       ),
       child: Row(
         children: [
           Column(
             children: [
-              Text(DateFormat('HH:mm').format(event.startTime), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              Text(DateFormat('HH:mm').format(event.endTime), style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              Text(DateFormat('HH:mm').format(event.startTime), 
+                  style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
+              Text(DateFormat('HH:mm').format(event.endTime), 
+                  style: TextStyle(color: onSurface.withValues(alpha: 0.5), fontSize: 12)),
             ],
           ),
           const SizedBox(width: 16),
@@ -293,18 +346,24 @@ class _AgendaEventCard extends StatelessWidget {
                 Text(
                   event.title, 
                   style: TextStyle(
-                    color: Colors.white, 
+                    color: onSurface, 
                     fontWeight: FontWeight.bold, 
                     fontSize: 16,
                     decoration: event.eventStatus == EventStatus.cancelled ? TextDecoration.lineThrough : null,
                   )
                 ),
                 if (event.description != null && event.description!.isNotEmpty)
-                  Text(event.description!, style: const TextStyle(color: Colors.white70, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    event.description!, 
+                    style: TextStyle(color: onSurface.withValues(alpha: 0.7), fontSize: 12), 
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis
+                  ),
               ],
             ),
           ),
-          Icon(icon, color: stripeColor.withAlpha(180)), // 0.7 opacity aprox
+          // QA FIX: Icono con color pero ajustado
+          Icon(icon, color: stripeColor.withValues(alpha: 0.8)), 
         ],
       ),
     );

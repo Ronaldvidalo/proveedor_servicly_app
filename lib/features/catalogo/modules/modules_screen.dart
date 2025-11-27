@@ -1,9 +1,10 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 14/10/2025
-// Style: Cyber Glow
-// This screen was refactored to align with the "Cyber Glow" design philosophy.
-// It features a responsive GridView layout, custom-designed interactive module cards,
-// and confirmation dialogs for a professional and user-friendly experience.
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025:
+// 1. Refactorización completa para eliminar colores hardcoded.
+// 2. Adaptación a Modo Claro/Oscuro usando ThemeService.
+// 3. Diálogos y Tarjetas ahora usan los colores del tema.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -24,7 +25,6 @@ const Map<String, IconData> _iconMap = {
 };
 
 class ModulesScreen extends StatefulWidget {
-  // La pantalla recibe toda la información que necesita, haciéndola robusta.
   final UserModel userModel;
   final List<ModuleModel> allModules;
 
@@ -47,12 +47,10 @@ class _ModulesScreenState extends State<ModulesScreen> {
   @override
   void initState() {
     super.initState();
-    // Ordenamos la lista que recibimos una sola vez.
     _sortedModules = widget.allModules
       ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
   }
 
-  /// Lógica para activar un nuevo módulo.
   Future<void> _activateModule(ModuleModel moduleToActivate, UserModel currentUserModel) async {
     if (_isLoadingModuleId != null) return;
     setState(() => _isLoadingModuleId = moduleToActivate.moduleId);
@@ -82,7 +80,6 @@ class _ModulesScreenState extends State<ModulesScreen> {
     }
   }
 
-  /// --- CORRECCIÓN: LÓGICA DE DESACTIVACIÓN COMPLETA ---
   Future<void> _deactivateModule(ModuleModel moduleToDeactivate, UserModel currentUserModel) async {
     if (_isLoadingModuleId != null) return;
     setState(() => _isLoadingModuleId = moduleToDeactivate.moduleId);
@@ -102,30 +99,31 @@ class _ModulesScreenState extends State<ModulesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
+    // QA FIX: Usar tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Tienda de Módulos'),
-        backgroundColor: backgroundColor,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: colorScheme.onSurface,
       ),
       body: StreamBuilder<UserModel?>(
         stream: context.read<FirestoreService>().getUserStream(widget.userModel.uid),
         initialData: widget.userModel,
         builder: (context, userSnapshot) {
           if (!userSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: CircularProgressIndicator(color: colorScheme.primary));
           }
           final currentUserModel = userSnapshot.data!;
 
           return GridView.builder(
             padding: const EdgeInsets.all(16.0),
-            // --- MEJORA DE RESPONSIVIDAD ---
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              // Calcula cuántas columnas de 200px de ancho caben, con un mínimo de 2.
               crossAxisCount: (MediaQuery.of(context).size.width / 220).floor().clamp(2, 5),
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
@@ -155,31 +153,36 @@ class _ModulesScreenState extends State<ModulesScreen> {
     );
   }
 
-  // --- Tus excelentes diálogos de confirmación y métodos auxiliares ---
+  // --- Diálogos Adaptados ---
+  
   void _showActivationDialog(ModuleModel module, UserModel currentUserModel) {
+    // QA FIX: Tema dinámico
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D5A),
+        backgroundColor: theme.cardTheme.color,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(_iconMap[module.icon] ?? Icons.help_outline_rounded, color: const Color(0xFF00BFFF)),
+            Icon(_iconMap[module.icon] ?? Icons.help_outline_rounded, color: colorScheme.primary),
             const SizedBox(width: 12),
-            Expanded(child: Text(module.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+            Expanded(child: Text(module.name, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold))),
           ],
         ),
         content: Text(
           "${module.description}\n\n¿Deseas activar este módulo en tu dashboard?",
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7)),
         ),
         actions: [
           TextButton(
-            child: const Text('Cancelar'),
+            child: Text('Cancelar', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6))),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00BFFF), foregroundColor: Colors.black),
+            style: FilledButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
             child: const Text('Activar'),
             onPressed: () {
               Navigator.of(ctx).pop();
@@ -192,25 +195,28 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   void _showDeactivationDialog(ModuleModel module, UserModel currentUserModel) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D5A),
+        backgroundColor: theme.cardTheme.color,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Icon(_iconMap[module.icon] ?? Icons.help_outline_rounded, color: Colors.redAccent),
             const SizedBox(width: 12),
-            Expanded(child: Text('Desactivar ${module.name}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+            Expanded(child: Text('Desactivar ${module.name}', style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold))),
           ],
         ),
-        content: const Text(
+        content: Text(
           "El módulo se quitará de tu dashboard, pero tus datos se conservarán por si decides volver a activarlo.\n\n¿Estás seguro?",
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7)),
         ),
         actions: [
           TextButton(
-            child: const Text('Cancelar'),
+            child: Text('Cancelar', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6))),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           FilledButton(
@@ -227,18 +233,22 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 
   void _showUpgradeDialog(String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D5A),
-        title: const Text('Plan Premium Requerido', style: TextStyle(color: Colors.white)),
-        content: Text(message, style: const TextStyle(color: Colors.white70)),
+        backgroundColor: theme.cardTheme.color,
+        title: Text('Plan Premium Requerido', style: TextStyle(color: colorScheme.onSurface)),
+        content: Text(message, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7))),
         actions: [
           TextButton(
-            child: const Text('Más Tarde'),
+            child: Text('Más Tarde', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6))),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary),
             child: const Text('Ver Planes'),
             onPressed: () {
               Navigator.of(ctx).pop();
@@ -259,7 +269,7 @@ class _ModulesScreenState extends State<ModulesScreen> {
   }
 }
 
-/// --- TU WIDGET DE TARJETA REDISEÑADO SE MANTIENE IGUAL ---
+/// --- TARJETA ADAPTATIVA ---
 class _ModuleGridCard extends StatelessWidget {
   final ModuleModel module;
   final bool isInstalled;
@@ -275,19 +285,29 @@ class _ModuleGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
-    const successColor = Color(0xFF00FF7F);
+    // QA FIX: Obtener colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Colores dinámicos
+    final accentColor = colorScheme.primary;
+    final surfaceColor = theme.cardTheme.color;
+    const successColor = Color(0xFF00FF7F); // Mantenemos verde neón para éxito (se ve bien en ambos)
+    final borderColor = isInstalled ? successColor : accentColor.withValues(alpha: 0.6);
 
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 4.0,
       color: surfaceColor,
-      shadowColor: isInstalled ? successColor.withAlpha(100) : accentColor.withAlpha(80),
+      // Sombra dinámica
+      shadowColor: isDark 
+          ? (isInstalled ? successColor.withValues(alpha: 0.4) : accentColor.withValues(alpha: 0.3))
+          : Colors.black.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isInstalled ? successColor : accentColor.withAlpha(150),
+          color: borderColor,
           width: 2,
         ),
       ),
@@ -313,12 +333,13 @@ class _ModuleGridCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colorScheme.onSurface, // Texto dinámico
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      shadows: [
-                        if (isInstalled) Shadow(color: successColor, blurRadius: 10),
-                      ],
+                      // Sombra solo en modo oscuro para legibilidad neón
+                      shadows: isDark && isInstalled 
+                          ? [Shadow(color: successColor, blurRadius: 10)] 
+                          : null,
                     ),
                   ),
                 ),
@@ -327,8 +348,7 @@ class _ModuleGridCard extends StatelessWidget {
             if (isLoading)
               Container(
                 decoration: BoxDecoration(
-                  // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
-                  color: Colors.black.withAlpha(128),
+                  color: Colors.black.withValues(alpha: 0.5), // Overlay siempre oscuro
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Center(child: CircularProgressIndicator(color: Colors.white)),
@@ -339,7 +359,7 @@ class _ModuleGridCard extends StatelessWidget {
                 right: 8,
                 child: Container(
                   padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: surfaceColor,
                     shape: BoxShape.circle,
                   ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import '../../../../core/models/cart_item_model.dart';
-// --- ¡IMPORTACIÓN AÑADIDA! ---
 import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
@@ -10,29 +9,40 @@ class CartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    // --- CORRECCIÓN: Usa el color de acento directamente ---
-    const brandColor = Color(0xFF00BFFF); // Color Cyber Glow
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Mi Carrito'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: colorScheme.onSurface, // Texto dinámico
         elevation: 0,
       ),
       body: Consumer<CartProvider>(
         builder: (context, cart, child) {
           if (cart.items.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.remove_shopping_cart_outlined, size: 80, color: Colors.white24),
-                  SizedBox(height: 24),
-                  Text('Tu carrito está vacío',
-                      style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold)),
+                  Icon(
+                    Icons.remove_shopping_cart_outlined, 
+                    size: 80, 
+                    // Color inactivo dinámico
+                    color: colorScheme.onSurface.withValues(alpha: 0.2)
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Tu carrito está vacío',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                      fontWeight: FontWeight.bold
+                    )
+                  ),
                 ],
               ),
             );
@@ -46,7 +56,7 @@ class CartScreen extends StatelessWidget {
                   itemBuilder: (ctx, i) => _CartItemTile(cartItem: cart.items[i]),
                 ),
               ),
-              _CartSummary(cart: cart, brandColor: brandColor),
+              _CartSummary(cart: cart),
             ],
           );
         },
@@ -63,13 +73,27 @@ class _CartItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cart = context.read<CartProvider>();
+    
+    // QA FIX: Colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D5A),
+        // Fondo tarjeta del tema (Blanco/Azul)
+        color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(12),
+        // Borde sutil para modo claro
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
+        boxShadow: [
+           BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          )
+        ]
       ),
       child: Row(
         children: [
@@ -80,7 +104,13 @@ class _CartItemTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: cartItem.product.imageUrl.isNotEmpty
                   ? Image.network(cartItem.product.imageUrl, fit: BoxFit.cover)
-                  : const Icon(Icons.shopping_bag_outlined, color: Colors.white38, size: 40),
+                  : Container(
+                      color: theme.scaffoldBackgroundColor,
+                      child: Icon(Icons.shopping_bag_outlined, 
+                          color: colorScheme.onSurface.withValues(alpha: 0.3), 
+                          size: 40
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 16),
@@ -88,11 +118,22 @@ class _CartItemTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(cartItem.product.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  cartItem.product.name, 
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface, 
+                    fontWeight: FontWeight.bold, 
+                  )
+                ),
                 const SizedBox(height: 8),
                 Text(
                   '\$${cartItem.subtotal.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Color(0xFF00BFFF), fontSize: 16, fontWeight: FontWeight.bold),
+                  // Precio usa color primario (Neón)
+                  style: TextStyle(
+                    color: colorScheme.primary, 
+                    fontSize: 16, 
+                    fontWeight: FontWeight.bold
+                  ),
                 ),
               ],
             ),
@@ -100,14 +141,21 @@ class _CartItemTile extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.remove, color: Colors.white70),
+                icon: Icon(Icons.remove, color: colorScheme.onSurface.withValues(alpha: 0.6)),
                 onPressed: () {
                   cart.updateItemQuantity(cartItem.product.id, cartItem.quantity - 1);
                 },
               ),
-              Text('${cartItem.quantity}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                '${cartItem.quantity}', 
+                style: TextStyle(
+                  color: colorScheme.onSurface, 
+                  fontSize: 18, 
+                  fontWeight: FontWeight.bold
+                )
+              ),
               IconButton(
-                icon: const Icon(Icons.add, color: Color(0xFF00BFFF)),
+                icon: Icon(Icons.add, color: colorScheme.primary),
                 onPressed: () {
                   cart.updateItemQuantity(cartItem.product.id, cartItem.quantity + 1);
                 },
@@ -122,43 +170,67 @@ class _CartItemTile extends StatelessWidget {
 
 class _CartSummary extends StatelessWidget {
   final CartProvider cart;
-  final Color brandColor;
 
-  const _CartSummary({required this.cart, required this.brandColor});
+  const _CartSummary({required this.cart});
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF2D2D5A),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color, // Fondo dinámico
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
+        // Sombra superior para separar del contenido
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2)
+          )
+        ]
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total:', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-              Text('\$${cart.totalPrice.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF00BFFF), fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(
+                'Total:', 
+                style: TextStyle(
+                  color: colorScheme.onSurface, 
+                  fontSize: 20, 
+                  fontWeight: FontWeight.bold
+                )
+              ),
+              Text(
+                '\$${cart.totalPrice.toStringAsFixed(2)}', 
+                style: TextStyle(
+                  color: colorScheme.primary, 
+                  fontSize: 22, 
+                  fontWeight: FontWeight.bold
+                )
+              ),
             ],
           ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              // --- ¡NAVEGACIÓN P2P ACTUALIZADA! ---
               onPressed: () {
                 Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => CheckoutScreen(cart: cart),
                 ));
               },
-              // --- FIN DE LA ACTUALIZACIÓN ---
               style: FilledButton.styleFrom(
-                backgroundColor: brandColor,
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary, // Texto botón (Negro/Blanco)
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: const Text('Proceder al Pago', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),

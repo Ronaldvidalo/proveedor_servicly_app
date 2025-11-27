@@ -8,15 +8,21 @@ class InventoryAlertCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(productsStreamProvider);
+    
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return productsAsync.when(
-      loading: () => Container(width: 160, decoration: BoxDecoration(color: const Color(0xFF2D2D5A), borderRadius: BorderRadius.circular(20))),
+      loading: () => _buildLoadingState(theme),
       error: (_, __) => const SizedBox.shrink(),
       data: (products) {
         final lowStockItems = products.where((p) => p.isLowStock || p.isOutOfStock).toList();
         final int alertCount = lowStockItems.length;
         
         final bool isCritical = alertCount > 0;
+        // Colores de estado (Naranja / Verde Neón)
         final Color statusColor = isCritical ? Colors.orangeAccent : const Color(0xFF00FF7F);
         final String statusTitle = isCritical ? "REVISAR" : "ÓPTIMO";
 
@@ -24,11 +30,26 @@ class InventoryAlertCard extends ConsumerWidget {
           width: 160,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF2D2D5A),
+            // QA FIX: Fondo dinámico
+            color: theme.cardTheme.color,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: statusColor.withAlpha(77)),
+            
+            // QA FIX: Borde adaptativo (Neón en dark, Sutil en light)
+            border: Border.all(
+              color: isDark 
+                  ? statusColor.withValues(alpha: 0.3) 
+                  : theme.dividerColor,
+            ),
+            
+            // QA FIX: Sombra adaptativa (Glow en dark, Sombra suave en light)
             boxShadow: [
-              BoxShadow(color: statusColor.withAlpha(26), blurRadius: 10, offset: const Offset(0, 4))
+              BoxShadow(
+                color: isDark 
+                    ? statusColor.withValues(alpha: 0.1) 
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10, 
+                offset: const Offset(0, 4)
+              )
             ],
           ),
           child: Column(
@@ -38,23 +59,52 @@ class InventoryAlertCard extends ConsumerWidget {
                 children: [
                   Icon(Icons.inventory_2_outlined, color: statusColor, size: 20),
                   const SizedBox(width: 8),
-                  const Text("STOCK", style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(
+                    "STOCK", 
+                    style: TextStyle(
+                      // Texto secundario adaptable
+                      color: colorScheme.onSurface.withValues(alpha: 0.6), 
+                      fontSize: 10, 
+                      fontWeight: FontWeight.bold
+                    )
+                  ),
                 ],
               ),
               const Spacer(),
               Text(
                 alertCount > 0 ? "$alertCount Bajos" : "Todo Bien",
-                style: TextStyle(color: statusColor, fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: statusColor, 
+                  fontSize: 18, 
+                  fontWeight: FontWeight.bold
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 statusTitle,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(
+                  // Texto descriptivo adaptable
+                  color: colorScheme.onSurface.withValues(alpha: 0.7), 
+                  fontSize: 12
+                ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLoadingState(ThemeData theme) {
+    return Container(
+      width: 160, 
+      height: 120, // Altura aproximada para evitar saltos de layout
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
+      ),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 }

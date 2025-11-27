@@ -23,21 +23,15 @@ class _SetAvailabilityScreenState extends ConsumerState<SetAvailabilityScreen> {
     'thursday': 'Jueves', 'friday': 'Viernes', 'saturday': 'Sábado', 'sunday': 'Domingo'
   };
   
-  bool _isSaving = false;
-
   @override
   void initState() {
     super.initState();
-    // Inicializar datos por defecto si es la primera vez que entra
-    // Usamos addPostFrameCallback para ejecutarlo después del build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(availabilityRepositoryProvider).initializeDefaultAvailability();
     });
   }
 
   Future<void> _saveDay(DayAvailability day) async {
-    // No necesitamos setState global para esto, el cambio es local en el widget hijo
-    // o optimista. Pero si queremos mostrar feedback:
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
        const SnackBar(content: Text('Guardando...'), duration: Duration(milliseconds: 500), backgroundColor: Colors.blue),
@@ -64,27 +58,27 @@ class _SetAvailabilityScreenState extends ConsumerState<SetAvailabilityScreen> {
     // Escuchamos el stream de disponibilidad
     final availabilityAsync = ref.watch(availabilityStreamProvider);
     
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Configurar Horarios'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),
       body: availabilityAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: accentColor)),
-        error: (e, _) => Center(child: Text("Error: $e", style: const TextStyle(color: Colors.red))),
+        loading: () => Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+        error: (e, _) => Center(child: Text("Error: $e", style: TextStyle(color: colorScheme.error))),
         data: (daysList) {
           if (daysList.isEmpty) {
-             // Si está vacío (aún no se inicializó), mostramos carga mientras el initState hace su trabajo
-             return const Center(child: CircularProgressIndicator(color: accentColor));
+             return Center(child: CircularProgressIndicator(color: colorScheme.primary));
           }
 
-          // Convertimos la lista a un mapa para acceder fácil por nombre de día
           final Map<String, DayAvailability> daysMap = {
             for (var day in daysList) day.dayOfWeek: day
           };
@@ -94,13 +88,11 @@ class _SetAvailabilityScreenState extends ConsumerState<SetAvailabilityScreen> {
             itemCount: _dayOrder.length,
             itemBuilder: (context, index) {
               final dayKey = _dayOrder[index];
-              // Si por alguna razón no existe el día en Firebase, usamos uno por defecto
               final dayData = daysMap[dayKey] ?? DayAvailability(dayOfWeek: dayKey);
               
               return _DayCard(
                 dayName: _dayTranslations[dayKey]!,
                 dayData: dayData,
-                accentColor: accentColor,
                 onUpdate: (updatedDay) => _saveDay(updatedDay),
               );
             },
@@ -114,20 +106,17 @@ class _SetAvailabilityScreenState extends ConsumerState<SetAvailabilityScreen> {
 class _DayCard extends StatelessWidget {
   final String dayName;
   final DayAvailability dayData;
-  final Color accentColor;
   final Function(DayAvailability) onUpdate;
 
-  const _DayCard({required this.dayName, required this.dayData, required this.accentColor, required this.onUpdate});
+  const _DayCard({required this.dayName, required this.dayData, required this.onUpdate});
 
   void _toggleDay(bool value) {
-    // Creamos una copia o modificamos directamente (depende de inmutabilidad, aquí Firestore devuelve objetos mutables por ahora)
     dayData.isEnabled = value;
     onUpdate(dayData);
   }
 
   void _addSlot() {
     final lastEnd = dayData.workSlots.isNotEmpty ? dayData.workSlots.last.end : const TimeOfDay(hour: 9, minute: 0);
-    // Nuevo slot de 1 hora después del último
     final newStart = TimeOfDay(hour: lastEnd.hour, minute: lastEnd.minute); 
     final newEnd = TimeOfDay(hour: lastEnd.hour + 1, minute: lastEnd.minute);
     
@@ -148,11 +137,18 @@ class _DayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final accentColor = colorScheme.primary;
+
     return Card(
-      color: const Color(0xFF2D2D5A),
+      // QA FIX: Color de tarjeta dinámico
+      color: theme.cardTheme.color,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        // Borde visible si está habilitado
         side: BorderSide(color: dayData.isEnabled ? accentColor : Colors.transparent),
       ),
       child: Padding(
@@ -162,7 +158,7 @@ class _DayCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(dayName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(dayName, style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                 Switch(
                   value: dayData.isEnabled,
                   onChanged: _toggleDay,
@@ -171,7 +167,7 @@ class _DayCard extends StatelessWidget {
               ],
             ),
             if (dayData.isEnabled) ...[
-              const Divider(color: Colors.white12),
+              Divider(color: theme.dividerColor),
               ...dayData.workSlots.asMap().entries.map((e) => _SlotRow(
                 slot: e.value, 
                 onDelete: () => _removeSlot(e.key),
@@ -180,7 +176,7 @@ class _DayCard extends StatelessWidget {
               TextButton.icon(
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text("Agregar Bloque"),
-                style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface.withValues(alpha: 0.7)),
                 onPressed: _addSlot,
               )
             ]
@@ -208,10 +204,13 @@ class _SlotRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Necesitamos el tema para los textos
+    final theme = Theme.of(context);
+    
     return Row(
       children: [
         Expanded(child: _TimeBtn(time: slot.start, onTap: () => _pickTime(context, true))),
-        const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text("-", style: TextStyle(color: Colors.white))),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text("-", style: TextStyle(color: theme.colorScheme.onSurface))),
         Expanded(child: _TimeBtn(time: slot.end, onTap: () => _pickTime(context, false))),
         IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: onDelete),
       ],
@@ -226,13 +225,25 @@ class _TimeBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(8)),
-        child: Text(time.format(context), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        decoration: BoxDecoration(
+          // QA FIX: Fondo del botón de hora es ligeramente distinto al fondo de la tarjeta
+          color: theme.scaffoldBackgroundColor, 
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.dividerColor)
+        ),
+        child: Text(
+          time.format(context), 
+          style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)
+        ),
       ),
     );
   }

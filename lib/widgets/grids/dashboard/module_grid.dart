@@ -17,43 +17,23 @@ import 'package:proveedor_servicly_app/features/manage_store/presentation/screen
 import 'package:proveedor_servicly_app/features/catalogo/screens/catalog_editor_screen.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 import 'package:proveedor_servicly_app/features/sales/screens/pos_screen.dart';
-// --- Importaciones de Módulos Nuevos ---
 import 'package:proveedor_servicly_app/features/cost_structure/screen/business_config_screen.dart';
-// ¡NUEVO! Importamos la pantalla de Inventario
 import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
-
-// --- Estilos Globales (Constantes) ---
-const Color _accentColor = Color(0xFF00BFFF); // Azul eléctrico brillante
-const Color _surfaceColor = Color(0xFF2D2D5A); // Superficie de la tarjeta
 
 // --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
-  // Tienda y Catálogo
   'storefront_outlined': Icons.storefront_outlined,
   'auto_stories_outlined': Icons.auto_stories_outlined,
-  
-  // Agenda
   'calendar_today_outlined': Icons.calendar_today_outlined,
-  
-  // CRM / Clientes (Agregamos variantes por si acaso)
-  'group_outlined': Icons.people_alt_rounded, // Icono de Clientes (Gente)
+  'group_outlined': Icons.people_alt_rounded,
   'clients': Icons.people_alt_rounded,
-  
-  // Finanzas
   'bar_chart_outlined': Icons.bar_chart_rounded,
-  'calculate': Icons.calculate_outlined, // Estructura de Costos
-  
-  // Inventario
-  'inventory_2': Icons.inventory_2_outlined, // Inventario Smart
-  
-  // POS / Caja Rápida (Agregamos variantes)
-  'point_of_sale': Icons.point_of_sale_rounded, // Icono de máquina registradora
-  'fast_sales': Icons.price_check_rounded,      // Icono de "Caja Rápida" (Check de precio)
-  
-  // Default
+  'calculate': Icons.calculate_outlined,
+  'inventory_2': Icons.inventory_2_outlined,
+  'point_of_sale': Icons.point_of_sale_rounded,
+  'fast_sales': Icons.price_check_rounded,
   'extension_outlined': Icons.extension_outlined, 
 };
-
 
 // ----------------------------------------------------------------------
 // WIDGET PRINCIPAL: La Cuadrícula de Módulos
@@ -74,7 +54,7 @@ class ModulesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.count(
-      crossAxisCount: 4, // 4 columnas
+      crossAxisCount: 4, 
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       shrinkWrap: true,
@@ -107,7 +87,6 @@ class ModulesGrid extends StatelessWidget {
         ...activeModules.map((module) {
           return _ModuleCard(
             title: module.name,
-            // Busca el icono por el nombre string que viene de Firebase
             icon: _iconMap[module.icon] ?? Icons.extension_outlined,
             onTap: () {
               _navigateToModule(context, module.moduleId, user);
@@ -121,7 +100,7 @@ class ModulesGrid extends StatelessWidget {
     );
   }
 
-  /// Lógica de navegación a la pantalla de cada módulo
+  /// Lógica de navegación
   void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
     Widget? destination;
     
@@ -129,29 +108,22 @@ class ModulesGrid extends StatelessWidget {
       case 'agenda':
         destination = AgendaScreen(user: user);
         break;
-      
       case 'client-management':
         destination = Provider<CrmRepository>( 
           create: (_) => CrmRepository(),
           child: const ClientManagementScreen(),
         );
         break;
-      
       case 'finance':
       case 'advanced-finance':
         destination = const AdvancedFinanceScreen();
         break;
-
       case 'cost_structure':
         destination = const BusinessConfigScreen();
         break;
-
-      // --- NUEVO: Navegación a Inventario Smart ---
       case 'inventory':
         destination = const InventoryScreen();
         break;
-
-        // --- NUEVO: CONEXIÓN AL POS ---
       case 'pos_system':
         destination = const PosScreen();
         break;
@@ -167,7 +139,7 @@ class ModulesGrid extends StatelessWidget {
 }
 
 // ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta de Módulo Individual (con hover)
+// WIDGET AUXILIAR: Tarjeta de Módulo Individual
 // ----------------------------------------------------------------------
 
 class _ModuleCard extends StatefulWidget {
@@ -187,6 +159,14 @@ class _ModuleCardState extends State<_ModuleCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final primaryColor = colorScheme.primary; 
+    final cardColor = theme.cardTheme.color;  
+    final textColor = colorScheme.onSurface;  
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -196,27 +176,42 @@ class _ModuleCardState extends State<_ModuleCard> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
-            BoxShadow(
-              color: _isHovered
-                  ? _accentColor.withAlpha(128)
-                  : _accentColor.withAlpha(64),
-              blurRadius: _isHovered ? 12 : 8,
-              spreadRadius: 1,
-            ),
+            if (isDark)
+              BoxShadow(
+                color: _isHovered
+                    ? primaryColor.withValues(alpha: 0.5)
+                    : primaryColor.withValues(alpha: 0.25),
+                blurRadius: _isHovered ? 12 : 8,
+                spreadRadius: 1,
+              )
+            else
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: Material(
-          color: _surfaceColor,
-          borderRadius: BorderRadius.circular(12),
+          color: cardColor,
+          // QA FIX CRÍTICO: Eliminado 'borderRadius' como propiedad directa.
+          // Todo se maneja dentro de 'shape'.
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            // Borde solo en modo claro para contraste
+            side: !isDark 
+                ? BorderSide(color: theme.dividerColor.withValues(alpha: 0.5))
+                : BorderSide.none,
+          ),
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(12),
-            splashColor: _accentColor.withAlpha(77),
-            highlightColor: _accentColor.withAlpha(38),
+            splashColor: primaryColor.withValues(alpha: 0.3),
+            highlightColor: primaryColor.withValues(alpha: 0.1),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(widget.icon, size: 32, color: _accentColor), 
+                Icon(widget.icon, size: 32, color: primaryColor), 
                 const SizedBox(height: 8), 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4.0), 
@@ -225,8 +220,8 @@ class _ModuleCardState extends State<_ModuleCard> {
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: textColor,
                         fontWeight: FontWeight.w600,
                         fontSize: 12),
                   ),
@@ -250,15 +245,21 @@ class _AddModuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final textColor = theme.colorScheme.onSurface;
+
     return Material(
       color: Colors.transparent,
+      // QA FIX: Solo usamos 'shape', nunca 'borderRadius' aquí.
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12), 
-        splashColor: _accentColor.withAlpha(77),
-        highlightColor: _accentColor.withAlpha(38),
+        splashColor: primaryColor.withValues(alpha: 0.3),
+        highlightColor: primaryColor.withValues(alpha: 0.1),
         child: DottedBorder(
-          color: _accentColor.withAlpha(153),
+          color: primaryColor.withValues(alpha: 0.6),
           strokeWidth: 2,
           radius: const Radius.circular(12), 
           borderType: BorderType.rRect,
@@ -267,13 +268,13 @@ class _AddModuleCard extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.add_rounded, size: 32, color: _accentColor),
+                Icon(Icons.add_rounded, size: 32, color: primaryColor),
                 const SizedBox(height: 8), 
-                const Text(
+                Text(
                   'Añadir\nMódulo', 
                   textAlign: TextAlign.center, 
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -289,7 +290,7 @@ class _AddModuleCard extends StatelessWidget {
 
 
 // ----------------------------------------------------------------------
-// UTILIDAD: DottedBorder (Para la tarjeta de Añadir Módulo)
+// UTILIDAD: DottedBorder
 // ----------------------------------------------------------------------
 
 enum BorderType { rect, rRect }

@@ -9,7 +9,7 @@ import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
 // Provider
 import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
 // Widgets
-import '../widgets/catalog_editor_layout.dart'; // ¡Nuestro layout principal!
+import '../widgets/catalog_editor_layout.dart'; 
 
 
 class CatalogEditorScreen extends StatefulWidget {
@@ -48,20 +48,20 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
            ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Creando nuevo perfil de catálogo...'), backgroundColor: Colors.green),
           );
-        }
+         }
          profile = ProviderProfileModel(
-            providerId: widget.user.uid,
-            businessName: widget.user.displayName ?? 'Nuevo Negocio',
-            logoUrl: '', 
-            brandColor: Colors.deepPurple, 
-            activeModules: widget.user.activeModules ?? [], 
-            profileType: 'catalog',
-            contactEmail: widget.user.email ?? '', 
-            welcomeMessage: '¡Bienvenido a mi negocio!', 
-             showWelcomeModule: true, welcomeModuleType: 'text',
-             showPortfolioModule: true, showReviewsModule: true,
-             showPromotionsModule: false, showGiftCardModule: false,
-             showBookingModule: true, showQuotesModule: false,
+           providerId: widget.user.uid,
+           businessName: widget.user.displayName ?? 'Nuevo Negocio',
+           logoUrl: '', 
+           brandColor: Colors.deepPurple, 
+           activeModules: widget.user.activeModules ?? [], 
+           profileType: 'catalog',
+           contactEmail: widget.user.email ?? '', 
+           welcomeMessage: '¡Bienvenido a mi negocio!', 
+            showWelcomeModule: true, welcomeModuleType: 'text',
+            showPortfolioModule: true, showReviewsModule: true,
+            showPromotionsModule: false, showGiftCardModule: false,
+            showBookingModule: true, showQuotesModule: false,
          );
          await firestoreService.setCatalogData(widget.user.uid, profile.toMap());
       }
@@ -80,21 +80,38 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Obtener tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (_initialProfileFuture == null) {
-       return const Scaffold(backgroundColor: Color(0xFF1A1A2E), body: Center(child: CircularProgressIndicator()));
+       // Fondo dinámico
+       return Scaffold(
+         backgroundColor: theme.scaffoldBackgroundColor, 
+         body: Center(child: CircularProgressIndicator(color: colorScheme.primary))
+       );
     }
 
     return FutureBuilder<ProviderProfileModel?>(
       future: _initialProfileFuture!,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(backgroundColor: Color(0xFF1A1A2E), appBar: null, body: Center(child: CircularProgressIndicator()));
+          return Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor, 
+            appBar: null, 
+            body: Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          );
         }
 
         if (snapshot.hasError || snapshot.data == null) {
           return Scaffold(
-            backgroundColor: const Color(0xFF1A1A2E),
-            appBar: AppBar(title: const Text('Error al Cargar Perfil'), backgroundColor: Colors.grey[900]),
+            backgroundColor: theme.scaffoldBackgroundColor,
+            appBar: AppBar(
+              title: const Text('Error al Cargar Perfil'), 
+              backgroundColor: theme.scaffoldBackgroundColor,
+              foregroundColor: colorScheme.onSurface,
+              elevation: 0,
+            ),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -104,12 +121,16 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
                      Text(
                       'No se pudo cargar la configuración del catálogo.\n${snapshot.error != null ? "Error: ${snapshot.error}" : ""}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.orangeAccent),
+                      // Texto de error visible en ambos modos
+                      style: TextStyle(color: colorScheme.error),
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton.icon(
-                       icon: const Icon(Icons.refresh),
-                       label: const Text("Intentar de Nuevo"),
+                       icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
+                       label: Text("Intentar de Nuevo", style: TextStyle(color: colorScheme.onPrimary)),
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: colorScheme.primary,
+                       ),
                        onPressed: () => setState(() => _initialProfileFuture = _loadInitialProfile()),
                     )
                   ],
@@ -124,9 +145,6 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
         final storageService = context.read<StorageService>();
         final permissionsService = context.read<PermissionsService>();
 
-        // --- ¡CAMBIO CLAVE! ---
-        // El ChangeNotifierProvider envuelve el layout.
-        // Ya no hay Scaffold ni AppBar aquí.
         return ChangeNotifierProvider<CatalogEditorProvider>(
           create: (_) => CatalogEditorProvider(
             initialProfile: initialProfile,
@@ -134,7 +152,7 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
             storageService: storageService,
             permissionsService: permissionsService,
           ),
-          child: CatalogEditorLayout( // <- El layout es ahora el widget raíz
+          child: CatalogEditorLayout( 
             userId: widget.user.uid,
           ),
         );

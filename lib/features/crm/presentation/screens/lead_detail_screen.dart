@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'dart:ui';
 
 // Modelos y Servicios
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
@@ -29,7 +30,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio un Producto';
     if (s.contains('cart')) return 'Carrito Abandonado';
-    if (s.contains('like')) return 'Le gustó un Producto'; // ❤️
+    if (s.contains('like')) return 'Le gustó un Producto'; 
     if (s.contains('telefono') || s.contains('phone')) return 'Llamada';
     if (s.contains('email') || s.contains('mail')) return 'Email';
     if (s.contains('presupuesto')) return 'Solicitó Presupuesto';
@@ -118,25 +119,25 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    const surfaceColor = Color(0xFF2D2D5A);
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final accentColor = colorScheme.primary;
 
     // 1. VERIFICACIÓN DE SEGURIDAD
-    // TODO: Usar plan real del usuario (Provider)
     const String userPlan = 'free'; 
     
     if (!LeadAccessHelper.canAccessLead(userPlan, widget.lead.source ?? '')) {
       return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(title: const Text('Acceso Restringido'), backgroundColor: backgroundColor),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(title: const Text('Acceso Restringido'), backgroundColor: theme.scaffoldBackgroundColor, foregroundColor: colorScheme.onSurface),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.lock, size: 80, color: Colors.amber),
               const SizedBox(height: 20),
-              const Text('Contenido Exclusivo PRO', style: TextStyle(color: Colors.white, fontSize: 20)),
+              Text('Contenido Exclusivo PRO', style: TextStyle(color: colorScheme.onSurface, fontSize: 20)),
               const SizedBox(height: 20),
               FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Volver'))
             ],
@@ -154,15 +155,16 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
         : '--/--';
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // QA FIX: Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Detalle del Interesado'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: accentColor))
+        ? Center(child: CircularProgressIndicator(color: accentColor))
         : SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -172,15 +174,16 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: surfaceColor,
+                  // QA FIX: Fondo tarjeta
+                  color: theme.cardTheme.color,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: accentColor.withAlpha(77)), 
+                  border: Border.all(color: accentColor.withValues(alpha: 0.3)), 
                 ),
                 child: Row(
                   children: [
                     // FOTO DE PERFIL (USANDO SAFE AVATAR)
                     SafeAvatar(
-                      imageUrl: lead.logoUrl, // Usamos el campo correcto
+                      imageUrl: lead.logoUrl, 
                       name: friendlyName,
                       size: 70,
                       accentColor: accentColor,
@@ -193,7 +196,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                         children: [
                           Text(
                             friendlyName,
-                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                            // QA FIX: Texto dinámico
+                            style: TextStyle(color: colorScheme.onSurface, fontSize: 20, fontWeight: FontWeight.bold),
                           ),
                           
                           // UBICACIÓN
@@ -201,11 +205,11 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                const Icon(Icons.location_on, size: 14, color: Colors.white54),
+                                Icon(Icons.location_on, size: 14, color: colorScheme.onSurface.withValues(alpha: 0.5)),
                                 const SizedBox(width: 4),
                                 Text(
                                   lead.location!,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                  style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13),
                                 ),
                               ],
                             ),
@@ -231,18 +235,18 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               const SizedBox(height: 24),
               
               // --- ACCIONES DE CONTACTO ---
-              const Text('Responder Ahora', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+              Text('Responder Ahora', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Row(
                 children: [
                   if (lead.telefono.isNotEmpty) ...[
-                    Expanded(child: _ActionButton(icon: Icons.chat, label: 'WhatsApp', color: Colors.green, onTap: _launchWhatsApp)),
+                    Expanded(child: _ActionButton(icon: Icons.chat, label: 'WhatsApp', color: Colors.green, onTap: _launchWhatsApp, theme: theme)),
                     const SizedBox(width: 12),
-                    Expanded(child: _ActionButton(icon: Icons.phone, label: 'Llamar', color: Colors.blue, onTap: _launchCall)),
+                    Expanded(child: _ActionButton(icon: Icons.phone, label: 'Llamar', color: Colors.blue, onTap: _launchCall, theme: theme)),
                   ],
                   if (lead.email.isNotEmpty) ...[
                      const SizedBox(width: 12),
-                     Expanded(child: _ActionButton(icon: Icons.email, label: 'Email', color: Colors.orange, onTap: _launchEmail)),
+                     Expanded(child: _ActionButton(icon: Icons.email, label: 'Email', color: Colors.orange, onTap: _launchEmail, theme: theme)),
                   ]
                 ],
               ),
@@ -256,33 +260,34 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               const SizedBox(height: 32),
 
               // --- HISTORIAL / CONTEXTO ---
-              const Text('Resumen de Actividad', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+              Text('Resumen de Actividad', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.black26,
+                  // QA FIX: Fondo sutil para info
+                  color: theme.dividerColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white10),
+                  border: Border.all(color: theme.dividerColor),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Un contacto ${friendlySource.toLowerCase()} el día $dateStr.',
-                      style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+                      style: TextStyle(color: colorScheme.onSurface, fontSize: 15, height: 1.4),
                     ),
                     
                     if (lead.notasInternas.isNotEmpty && !lead.notasInternas.startsWith('Capturado auto')) ...[
                        const SizedBox(height: 12),
-                       const Divider(color: Colors.white12),
+                       Divider(color: theme.dividerColor),
                        const SizedBox(height: 8),
-                       const Text('Mensaje/Nota:', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                       Text('Mensaje/Nota:', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 12)),
                        const SizedBox(height: 4),
                        Text(
                         lead.notasInternas,
-                        style: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
+                        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.8), fontStyle: FontStyle.italic),
                       ),
                     ],
                   ],
@@ -292,7 +297,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               const SizedBox(height: 32),
 
               // --- GESTIÓN DE EMBUDO ---
-              const Text('Siguientes Pasos', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+              Text('Siguientes Pasos', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               
               if (lead.estadoCRM == CrmEstado.leadNuevo || lead.estadoCRM == CrmEstado.lead) 
@@ -301,6 +306,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   icon: Icons.check_circle_outline,
                   color: Colors.blue,
                   onTap: () => _updateStatus(CrmEstado.contactado),
+                  theme: theme,
                 ),
               
               if (lead.estadoCRM == CrmEstado.contactado)
@@ -309,6 +315,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   icon: Icons.attach_money,
                   color: Colors.purple,
                   onTap: () => _updateStatus(CrmEstado.cotizado),
+                  theme: theme,
                 ),
 
               const SizedBox(height: 12),
@@ -320,7 +327,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   label: const Text('CONVERTIR A CLIENTE'),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.white, // Texto botón siempre blanco
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -338,7 +345,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 // WIDGETS AUXILIARES
 // =====================================================
 
-/// WIDGET A PRUEBA DE FALLOS PARA EL AVATAR
 class SafeAvatar extends StatelessWidget {
   final String? imageUrl;
   final String name;
@@ -362,7 +368,7 @@ class SafeAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: accentColor.withAlpha(51),
+        color: accentColor.withValues(alpha: 0.2),
       ),
       child: ClipOval(
         child: (imageUrl != null && imageUrl!.isNotEmpty)
@@ -371,7 +377,6 @@ class SafeAvatar extends StatelessWidget {
                 fit: BoxFit.cover,
                 width: size,
                 height: size,
-                // Si la imagen falla, mostramos la inicial (evita pantalla roja)
                 errorBuilder: (context, error, stackTrace) {
                   return Center(
                     child: Text(initial, style: TextStyle(fontSize: size * 0.4, color: accentColor, fontWeight: FontWeight.bold)),
@@ -402,9 +407,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isOutline ? Colors.transparent : color.withAlpha(51),
+        color: isOutline ? Colors.transparent : color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
-        border: isOutline ? Border.all(color: color.withAlpha(128)) : null,
+        border: isOutline ? Border.all(color: color.withValues(alpha: 0.5)) : null,
       ),
       child: Text(
         text,
@@ -419,23 +424,25 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final ThemeData theme;
 
-  const _ActionButton({required this.icon, required this.label, required this.color, required this.onTap});
+  const _ActionButton({required this.icon, required this.label, required this.color, required this.onTap, required this.theme});
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: color.withAlpha(40), 
+      // Fondo del botón adaptable
+      color: color.withValues(alpha: 0.15), 
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        splashColor: color.withAlpha(100),
+        splashColor: color.withValues(alpha: 0.4),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            border: Border.all(color: color.withAlpha(100)), 
+            border: Border.all(color: color.withValues(alpha: 0.4)), 
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -456,8 +463,9 @@ class _PipelineButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final ThemeData theme;
   
-  const _PipelineButton({required this.label, required this.icon, required this.color, required this.onTap});
+  const _PipelineButton({required this.label, required this.icon, required this.color, required this.onTap, required this.theme});
   
   @override
   Widget build(BuildContext context) {
@@ -465,21 +473,22 @@ class _PipelineButton extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         onTap: onTap,
-        tileColor: const Color(0xFF2D2D5A),
+        // Fondo de Tile: Tarjeta
+        tileColor: theme.cardTheme.color,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withAlpha(50))
+          side: BorderSide(color: color.withValues(alpha: 0.2))
         ),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withAlpha(30),
+            color: color.withValues(alpha: 0.1),
             shape: BoxShape.circle
           ),
           child: Icon(icon, color: color, size: 20)
         ),
-        title: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+        title: Text(label, style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w500)),
+        trailing: Icon(Icons.arrow_forward_ios, color: theme.colorScheme.onSurface.withValues(alpha: 0.3), size: 14),
       ),
     );
   }

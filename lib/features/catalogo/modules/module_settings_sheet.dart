@@ -12,9 +12,13 @@ class ModuleSettingsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final permissions = context.read<PermissionsService>();
 
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
-      // Damos un color de fondo oscuro que coincida con el editor
-      color: Colors.grey[850],
+      // QA FIX: Fondo dinámico (Coincide con el color de las tarjetas/modales)
+      color: theme.cardTheme.color,
       padding: const EdgeInsets.all(16.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -23,20 +27,28 @@ class ModuleSettingsSheet extends StatelessWidget {
           // Título del BottomSheet
           Text(
             "Configurar Módulos",
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white), // Texto blanco
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: colorScheme.onSurface, // Texto dinámico
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          const SizedBox(height: 4),
           Text(
             "Selecciona qué módulos quieres mostrar en tu perfil público.",
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70), // Texto más claro
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
-          const Divider(height: 32, color: Colors.white24), // Divisor más claro
+          const SizedBox(height: 16),
+          Divider(height: 32, color: theme.dividerColor),
 
           // Módulo de Bienvenida
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Bienvenida", style: TextStyle(color: Colors.white)),
+                title: Text("Módulo de Bienvenida", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showWelcomeModule,
+                activeColor: colorScheme.primary,
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showWelcomeModule',
@@ -47,15 +59,14 @@ class ModuleSettingsSheet extends StatelessWidget {
             },
           ),
 
-          // --- ¡NUEVO SWITCH AÑADIDO! ---
           // Módulo de Agendar Cita
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Agendar Cita", style: TextStyle(color: Colors.white)),
+                title: Text("Módulo de Agendar Cita", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showBookingModule,
-                // Asumimos que todos pueden usar el módulo de citas
-                onChanged: (newValue) { 
+                activeColor: colorScheme.primary,
+                onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showBookingModule',
                     isVisible: newValue,
@@ -64,87 +75,89 @@ class ModuleSettingsSheet extends StatelessWidget {
               );
             },
           ),
-          
+
           // Módulo de Portafolio
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Portafolio", style: TextStyle(color: Colors.white)),
+                title: Text("Módulo de Portafolio", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showPortfolioModule,
+                activeColor: colorScheme.primary,
                 onChanged: permissions.canUsePortfolioModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showPortfolioModule',
                     isVisible: newValue,
                   );
-                } : null, 
+                } : null,
               );
             },
           ),
-          
+
           // Módulo de Promociones
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
                 title: Row(
                   children: [
-                    const Text("Módulo de Promociones", style: TextStyle(color: Colors.white)),
+                    Text("Módulo de Promociones", style: TextStyle(color: colorScheme.onSurface)),
                     if (!permissions.canUsePromotionsModule)
                       _buildUpgradeChip(),
                   ],
                 ),
                 value: provider.profile.showPromotionsModule,
+                activeColor: colorScheme.primary,
                 onChanged: permissions.canUsePromotionsModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showPromotionsModule',
                     isVisible: newValue,
                   );
-                } : null, 
+                } : null,
               );
             },
           ),
-          
+
           // Módulo de Gift Cards
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
                 title: Row(
                   children: [
-                    const Text("Módulo de Gift Cards", style: TextStyle(color: Colors.white)),
+                    Text("Módulo de Gift Cards", style: TextStyle(color: colorScheme.onSurface)),
                     if (!permissions.canUseGiftCardModule)
                       _buildUpgradeChip(),
                   ],
                 ),
                 value: provider.profile.showGiftCardModule,
+                activeColor: colorScheme.primary,
                 onChanged: permissions.canUseGiftCardModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showGiftCardModule',
                     isVisible: newValue,
                   );
-                } : null, 
+                } : null,
               );
             },
           ),
 
-          // --- ¡NUEVO SWITCH AÑADIDO! ---
           // Módulo de Presupuestos
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
-              // Asumimos que se necesita un plan pago (reutilizamos la lógica de gift card)
-              final canUse = permissions.canUseGiftCardModule; 
+              final canUse = permissions.canUseGiftCardModule; // Reutilizamos permiso por ahora
               return SwitchListTile(
                 title: Row(
                   children: [
-                    const Text("Módulo de Presupuestos", style: TextStyle(color: Colors.white)),
+                    Text("Módulo de Presupuestos", style: TextStyle(color: colorScheme.onSurface)),
                     if (!canUse) _buildUpgradeChip(),
                   ],
                 ),
                 value: provider.profile.showQuotesModule,
+                activeColor: colorScheme.primary,
                 onChanged: canUse ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showQuotesModule',
                     isVisible: newValue,
                   );
-                } : null, 
+                } : null,
               );
             },
           ),
@@ -153,9 +166,9 @@ class ModuleSettingsSheet extends StatelessWidget {
           Consumer<CatalogEditorProvider>(
             builder: (context, provider, child) {
               return SwitchListTile(
-                title: const Text("Módulo de Reseñas", style: TextStyle(color: Colors.white)),
+                title: Text("Módulo de Reseñas", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showReviewsModule,
-                // Asumimos que reseñas siempre está activo/disponible
+                activeColor: colorScheme.primary,
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showReviewsModule',
@@ -174,7 +187,7 @@ class ModuleSettingsSheet extends StatelessWidget {
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
-           // Padding para la barra de navegación del sistema (gestos)
+          // Padding para la barra de navegación del sistema (gestos)
           SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
@@ -193,7 +206,7 @@ class ModuleSettingsSheet extends StatelessWidget {
       child: const Text(
         "PLAN PAGO",
         style: TextStyle(
-          color: Colors.white,
+          color: Colors.white, // Mantenemos blanco sobre ámbar oscuro para contraste
           fontSize: 10,
           fontWeight: FontWeight.bold,
         ),

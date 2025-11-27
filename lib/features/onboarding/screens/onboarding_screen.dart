@@ -1,16 +1,23 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 20/10/2025
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025:
+// 1. Eliminados colores hardcoded. Ahora usa ThemeService para modo claro/oscuro.
+// 2. Validaciones y lógica de negocio FCM preservadas.
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart'; // Para kDebugMode
+import 'package:flutter/foundation.dart'; 
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../../core/models/user_model.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../shared/data/professions.dart';
 
-// --- NUEVAS IMPORTACIONES PARA NAVEGACIÓN MANUAL ---
-import '../../home/screens/home_screen.dart'; // Para clientes
-import '../../dashboard/screens/dashboard_screen.dart'; // Para proveedores
+import '../../home/screens/home_screen.dart'; 
+import '../../dashboard/screens/dashboard_screen.dart'; 
 
 class OnboardingScreen extends StatefulWidget {
   final UserModel userModel;
@@ -52,7 +59,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _saveAndFinish() async {
     if (!_isLoading && (_formKey.currentState?.validate() ?? false)) {
-      // ... (Validaciones de rol, país, etc. se mantienen) ...
       if (_selectedRole == null) {
         _showSnackbar('Debes seleccionar si eres Cliente o Proveedor.', isError: true);
         return;
@@ -66,7 +72,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
 
-      // --- LÓGICA FCM (PASO 1): SOLICITAR PERMISOS ---
       if (kDebugMode) print("[Onboarding] Solicitando permiso de notificaciones...");
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission(
@@ -75,8 +80,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         sound: true,
         provisional: false, 
       );
-      if (kDebugMode) print("[Onboarding] Estado del permiso: ${settings.authorizationStatus}");
-      // -------------------------------------------------
       
       setState(() => _isLoading = true);
 
@@ -89,7 +92,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
 
-      // ... (Creación de updatedPersonalization y dataToUpdate se mantiene igual) ...
       final updatedPersonalization = Map<String, dynamic>.from(widget.userModel.personalization);
       updatedPersonalization['businessName'] = _nameController.text.trim();
       updatedPersonalization['country'] = _selectedCountry;
@@ -105,32 +107,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       };
 
       try {
-        // --- LÓGICA FCM (PASO 2): GUARDAR PERFIL Y TOKEN ---
-        
-        // 1. Guardar el perfil del usuario
         await firestoreService.updateUser(user.uid, dataToUpdate);
-        if (kDebugMode) print("[Onboarding] Perfil guardado exitosamente.");
 
-        // 2. Si el usuario dio permiso, obtener y guardar el token FCM
         if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-          if (kDebugMode) print("[Onboarding] Intentando obtener y guardar token FCM...");
           final fcmToken = await messaging.getToken();
           if (fcmToken != null) {
             await firestoreService.saveDeviceToken(uid: user.uid, token: fcmToken);
-          } else {
-             if (kDebugMode) print("[Onboarding] No se pudo obtener el token FCM esta vez.");
           }
-        } else {
-           if (kDebugMode) print("[Onboarding] Permiso de notificación no concedido. Saltando guardado de token.");
         }
         
-        // --- SOLUCIÓN: NAVEGACIÓN MANUAL ---
-        // Ya que el guardado fue exitoso, navegamos manualmente
-        // a la pantalla correcta y limpiamos el stack.
-        
-        if (!mounted) return; // Comprobación de seguridad final
+        if (!mounted) return; 
 
-        // Determinamos la pantalla de destino según el rol guardado
         Widget destinationScreen;
         if (_selectedRole == 'provider') {
           destinationScreen = const DashboardScreen();
@@ -138,23 +125,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           destinationScreen = const HomeScreen();
         }
 
-        // Usamos pushAndRemoveUntil para limpiar la pila de navegación.
-        // Esto previene que el usuario pueda presionar "atrás" y volver aquí.
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => destinationScreen),
-          (route) => false, // Esta condición elimina todas las rutas anteriores
+          (route) => false, 
         );
-        // --- FIN DE LA SOLUCIÓN ---
 
       } catch (e) {
-        // Si hay un error, SÍ nos quedamos en esta pantalla
         if (mounted) {
            _showSnackbar('Error al finalizar el perfil: $e', isError: true);
-           setState(() => _isLoading = false); // Detenemos el spinner
+           setState(() => _isLoading = false); 
         }
       }
-      // Se elimina el bloque 'finally'. La navegación (éxito)
-      // o el 'catch' (error) manejan el estado _isLoading.
     }
   }
   
@@ -170,31 +151,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ... (El resto de tu método `build` y widgets auxiliares 
-  // _buildSectionTitle, _buildRoleSelector, etc. se quedan EXACTAMENTE IGUAL) ...
-  // (El código ha sido omitido de esta respuesta por brevedad,
-  // pero está completo en el Canvas)
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
+    // QA FIX: Usar colores del tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
+    // Decoración base para inputs (extraída del tema)
+    final inputDecorationTheme = theme.inputDecorationTheme;
     final inputDecoration = InputDecoration(
         filled: true,
-        fillColor: surfaceColor,
-        labelStyle: const TextStyle(color: Colors.white70),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: accentColor, width: 2)),
-      );
+        fillColor: inputDecorationTheme.fillColor,
+        labelStyle: inputDecorationTheme.labelStyle,
+        prefixIconColor: inputDecorationTheme.prefixIconColor,
+        border: inputDecorationTheme.border,
+        focusedBorder: inputDecorationTheme.focusedBorder,
+        enabledBorder: inputDecorationTheme.enabledBorder,
+    );
     
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // QA FIX: Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Configuración Inicial'),
         elevation: 0,
+        // AppBar transparente pero adaptable
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: colorScheme.onSurface,
         automaticallyImplyLeading: false,
       ),
       body: Center(
@@ -209,19 +192,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   Text(
                     '¡Casi listo!',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold, color: Colors.white),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold, 
+                      color: colorScheme.onSurface // Texto dinámico
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Completa estos datos para personalizar tu experiencia.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.7)
+                    ),
                   ),
                   const SizedBox(height: 40),
 
-                  _buildSectionTitle('1. Elige tu rol en Servicly'),
+                  _buildSectionTitle('1. Elige tu rol en Servicly', theme),
                   const SizedBox(height: 16),
-                  _buildRoleSelector(accentColor),
+                  _buildRoleSelector(theme),
 
                   AnimatedSize(
                     duration: const Duration(milliseconds: 300),
@@ -229,17 +216,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 32),
-                        _buildSectionTitle('2. Completa tu perfil'),
+                        _buildSectionTitle('2. Completa tu perfil', theme),
                         const SizedBox(height: 24),
-                        _buildCountrySelector(inputDecoration),
+                        _buildCountrySelector(inputDecoration, theme),
                         const SizedBox(height: 24),
-                        _buildNameField(inputDecoration),
+                        _buildNameField(inputDecoration, theme),
                         if (_selectedRole == 'provider') ...[
                            const SizedBox(height: 24),
-                          _buildProfessionSelector(inputDecoration),
+                          _buildProfessionSelector(inputDecoration, theme),
                         ],
                         const SizedBox(height: 48),
-                        _buildSaveButton(accentColor),
+                        _buildSaveButton(theme),
                       ],
                     ) : const SizedBox.shrink(),
                   ),
@@ -253,11 +240,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
   
-  Text _buildSectionTitle(String title) {
-    return Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold));
+  Text _buildSectionTitle(String title, ThemeData theme) {
+    return Text(
+      title, 
+      style: theme.textTheme.titleLarge?.copyWith(
+        color: theme.colorScheme.onSurface, 
+        fontWeight: FontWeight.bold
+      )
+    );
   }
 
-  Row _buildRoleSelector(Color accentColor) {
+  Row _buildRoleSelector(ThemeData theme) {
+    final accentColor = theme.primaryColor;
     return Row(
       children: [
         Expanded(child: _RoleSelectionCard(
@@ -265,7 +259,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           icon: Icons.shopping_bag_outlined,
           isSelected: _selectedRole == 'client',
           onTap: () => setState(() => _selectedRole = 'client'),
-          accentColor: accentColor,
+          theme: theme,
         )),
         const SizedBox(width: 16),
         Expanded(child: _RoleSelectionCard(
@@ -273,18 +267,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           icon: Icons.store_mall_directory_outlined,
           isSelected: _selectedRole == 'provider',
           onTap: () => setState(() => _selectedRole = 'provider'),
-          accentColor: accentColor,
+          theme: theme,
         )),
       ],
     );
   }
 
-  DropdownButtonFormField<String> _buildCountrySelector(InputDecoration baseDecoration) {
+  DropdownButtonFormField<String> _buildCountrySelector(InputDecoration baseDecoration, ThemeData theme) {
     return DropdownButtonFormField<String>(
       initialValue: _selectedCountry,
-      decoration: baseDecoration.copyWith(labelText: 'País', prefixIcon: const Icon(Icons.public)),
-      dropdownColor: const Color(0xFF2D2D5A),
-      style: const TextStyle(color: Colors.white),
+      decoration: baseDecoration.copyWith(
+        labelText: 'País', 
+        prefixIcon: Icon(Icons.public, color: theme.inputDecorationTheme.prefixIconColor)
+      ),
+      // QA FIX: Dropdown con fondo de tarjeta del tema
+      dropdownColor: theme.cardTheme.color,
+      style: TextStyle(color: theme.colorScheme.onSurface), // Texto de items dinámico
       items: _countries.map((country) {
         return DropdownMenuItem(value: country['code'], child: Text(country['name']!));
       }).toList(),
@@ -293,14 +291,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  TextFormField _buildNameField(InputDecoration baseDecoration) {
+  TextFormField _buildNameField(InputDecoration baseDecoration, ThemeData theme) {
     final isProvider = _selectedRole == 'provider';
     return TextFormField(
       controller: _nameController,
-      style: const TextStyle(color: Colors.white),
+      // QA FIX: Texto de input dinámico
+      style: TextStyle(color: theme.colorScheme.onSurface),
       decoration: baseDecoration.copyWith(
         labelText: isProvider ? 'Nombre de tu Negocio o Marca' : 'Tu Nombre y Apellido',
-        prefixIcon: Icon(isProvider ? Icons.business_center_outlined : Icons.person_outline_rounded),
+        prefixIcon: Icon(
+          isProvider ? Icons.business_center_outlined : Icons.person_outline_rounded,
+          color: theme.inputDecorationTheme.prefixIconColor
+        ),
       ),
       textCapitalization: TextCapitalization.words,
       validator: (value) {
@@ -312,18 +314,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  DropdownButtonFormField<String> _buildProfessionSelector(InputDecoration baseDecoration) {
+  DropdownButtonFormField<String> _buildProfessionSelector(InputDecoration baseDecoration, ThemeData theme) {
     return DropdownButtonFormField<String>(
       initialValue: _selectedProfession,
-      decoration: baseDecoration.copyWith(labelText: 'Rubro Principal', prefixIcon: const Icon(Icons.work_outline_rounded)),
-      dropdownColor: const Color(0xFF2D2D5A),
-      style: const TextStyle(color: Colors.white),
+      decoration: baseDecoration.copyWith(
+        labelText: 'Rubro Principal', 
+        prefixIcon: Icon(Icons.work_outline_rounded, color: theme.inputDecorationTheme.prefixIconColor)
+      ),
+      dropdownColor: theme.cardTheme.color,
+      style: TextStyle(color: theme.colorScheme.onSurface),
       items: kProfessions.map((profession) {
         return DropdownMenuItem(
           value: profession['label'] as String,
           child: Row(
             children: [
-              Icon(profession['icon'] as IconData?, size: 20, color: Colors.white70),
+              Icon(profession['icon'] as IconData?, size: 20, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
               const SizedBox(width: 12),
               Text(profession['label'] as String),
             ],
@@ -335,18 +340,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  SizedBox _buildSaveButton(Color accentColor) {
+  SizedBox _buildSaveButton(ThemeData theme) {
     return SizedBox(
       height: 50,
       child: FilledButton(
         onPressed: _isLoading ? null : _saveAndFinish,
-        style: FilledButton.styleFrom(
-          backgroundColor: accentColor,
-          foregroundColor: Colors.black,
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        // El estilo viene del tema, pero podemos forzar overrides si queremos
         child: _isLoading
-            ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.black))
+            ? SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 3, color: theme.colorScheme.onPrimary))
             : const Text('Guardar y Finalizar'),
       ),
     );
@@ -358,40 +359,48 @@ class _RoleSelectionCard extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
-  final Color accentColor;
+  final ThemeData theme;
 
   const _RoleSelectionCard({
     required this.title,
     required this.icon,
     required this.isSelected,
     required this.onTap,
-    required this.accentColor,
+    required this.theme,
   });
 
   @override
   Widget build(BuildContext context) {
-    const surfaceColor = Color(0xFF2D2D5A);
+    // QA FIX: Usar colores del tema para la tarjeta
+    final cardColor = theme.cardTheme.color;
+    final accentColor = theme.primaryColor;
+    final textColor = theme.colorScheme.onSurface;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isSelected ? accentColor.withAlpha(50) : surfaceColor,
+          color: isSelected ? accentColor.withValues(alpha: 0.15) : cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? accentColor : Colors.white24,
+            color: isSelected ? accentColor : theme.dividerColor,
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 32, color: isSelected ? accentColor : Colors.white70),
+            Icon(
+              icon, 
+              size: 32, 
+              color: isSelected ? accentColor : textColor.withValues(alpha: 0.7)
+            ),
             const SizedBox(height: 8),
             Text(
               title,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white70,
+                color: isSelected ? theme.colorScheme.onSurface : textColor.withValues(alpha: 0.7),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -401,4 +410,3 @@ class _RoleSelectionCard extends StatelessWidget {
     );
   }
 }
-

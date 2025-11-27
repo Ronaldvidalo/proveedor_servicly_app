@@ -14,20 +14,33 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Usaremos ChoiceChip, que maneja bien el estado seleccionado/no seleccionado
+    // QA FIX: Estilos adaptables al tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        // Solo llamamos a onTap si el chip está siendo seleccionado (selected == true)
-        // Esto evita llamadas innecesarias si se toca el chip ya seleccionado.
         if (selected) {
           onTap();
         }
       },
-      // Puedes personalizar colores aquí si quieres
-      // selectedColor: Theme.of(context).colorScheme.primaryContainer,
-      // labelStyle: TextStyle(color: isSelected ? Colors.black : null),
+      // QA FIX: Colores explícitos basados en el tema
+      selectedColor: colorScheme.primary,
+      backgroundColor: theme.cardTheme.color,
+      
+      // Texto: Blanco/Negro si seleccionado (depende de onPrimary), OnSurface si no
+      labelStyle: TextStyle(
+        color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+      
+      // Borde: Sin borde si seleccionado, DividerColor si no
+      side: isSelected ? BorderSide.none : BorderSide(color: theme.dividerColor),
+      
+      // Eliminar checkmark para un look más limpio
+      showCheckmark: false,
     );
   }
 }

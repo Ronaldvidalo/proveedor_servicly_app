@@ -1,8 +1,9 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 26/10/2025
-// Style: Cyber Glow
-// QA FIX 26/11/2025: Implementación de Smart Currency Formatting
-// para manejar "Big Numbers" (Trillones/Cuatrillones) sin romper la UI.
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025: 
+// 1. Corregido nombre de clase a 'AnalysisTab' para resolver conflicto de imports.
+// 2. Implementado ThemeService para gráficos adaptables.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -27,22 +28,19 @@ class AnalysisTab extends ConsumerWidget {
     required this.analysisChartKey,
   });
 
-  // --- QA FIX: Formateador Estándar (para montos pequeños) ---
+  // Formateadores
   final _standardFormatter = NumberFormat.currency(
     locale: 'es_CL',
     symbol: '\$',
     decimalDigits: 0,
   );
 
-  // --- QA FIX: Formateador Compacto (para montos > 1 Millón) ---
-  // Convierte 1.000.000 en "1M", 1.000.000.000 en "1B", etc.
   final _compactFormatter = NumberFormat.compactCurrency(
-    locale: 'es_US', // Usamos US para que use K, M, B, T que son más cortos visualmente
+    locale: 'es_US', 
     symbol: '\$',
     decimalDigits: 1, 
   );
 
-  /// Helper para decidir qué formato usar dinámicamente
   String _formatSmartMoney(double amount) {
     if (amount.abs() >= 1000000) {
       return _compactFormatter.format(amount);
@@ -50,26 +48,24 @@ class AnalysisTab extends ConsumerWidget {
     return _standardFormatter.format(amount);
   }
 
-  // --- Paleta de Colores "Cyber Glow" ---
-  static const Color accentColor = Color(0xFF00BFFF);
-  static const Color surfaceColor = Color(0xFF2D2D5A);
-  static const Color successColor = Color(0xFF00FF7F);
-  static const Color errorColor = Colors.redAccent;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gastosAsync = ref.watch(gastosStreamProvider);
     final cobrosAsync = ref.watch(cobrosStreamProvider);
     final presupuestosAsync = ref.watch(presupuestosStreamProvider);
 
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (gastosAsync.isLoading || cobrosAsync.isLoading || presupuestosAsync.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: accentColor));
+      return Center(child: CircularProgressIndicator(color: colorScheme.primary));
     }
 
     if (gastosAsync.hasError || cobrosAsync.hasError || presupuestosAsync.hasError) {
       return Center(child: Text(
-        "Error al cargar datos: ${gastosAsync.error ?? cobrosAsync.error ?? presupuestosAsync.error}",
-        style: const TextStyle(color: errorColor),
+        "Error al cargar datos",
+        style: TextStyle(color: colorScheme.error),
       ));
     }
 
@@ -78,7 +74,7 @@ class AnalysisTab extends ConsumerWidget {
     final presupuestos = presupuestosAsync.value!;
 
     return Scaffold(
-      backgroundColor: Colors.transparent, 
+      backgroundColor: Colors.transparent, // El fondo lo da el padre (AdvancedFinanceScreen)
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -88,9 +84,9 @@ class AnalysisTab extends ConsumerWidget {
               // --- Sección 1: Gráficos de Tendencias ---
               Text(
                 "Tendencias de Crecimiento",
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white, 
+                      color: colorScheme.onSurface,
                     ),
               ),
               const SizedBox(height: 16),
@@ -102,7 +98,7 @@ class AnalysisTab extends ConsumerWidget {
                 description: 'Compara tus ingresos (verde) contra tus gastos (rojo) mes a mes.',
                 child: SizedBox(
                   height: 250,
-                  child: _buildIngresoVsGastoChart(context, cobros, gastos),
+                  child: _buildIngresoVsGastoChart(context, cobros, gastos, theme),
                 ),
               ),
               const SizedBox(height: 24),
@@ -110,7 +106,7 @@ class AnalysisTab extends ConsumerWidget {
               // --- Gráfico 2: Facturación (12 Meses) ---
               SizedBox(
                 height: 250,
-                child: _buildFacturacion12MesesChart(context, cobros),
+                child: _buildFacturacion12MesesChart(context, cobros, theme),
               ),
               const SizedBox(height: 32),
 
@@ -120,15 +116,15 @@ class AnalysisTab extends ConsumerWidget {
                 children: [
                   Text(
                     "Presupuestos de Gastos",
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: colorScheme.onSurface,
                         ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add_circle, color: accentColor, size: 28), 
+                    icon: Icon(Icons.add_circle, color: colorScheme.primary, size: 28), 
                     onPressed: () {
-                      _showAddBudgetModal(context);
+                      _showAddBudgetModal(context, theme);
                     },
                     tooltip: "Añadir Presupuesto",
                   ),
@@ -136,7 +132,7 @@ class AnalysisTab extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
 
-              _buildPresupuestosList(context, presupuestos, gastos),
+              _buildPresupuestosList(context, presupuestos, gastos, theme),
             ],
           ),
         ),
@@ -146,7 +142,7 @@ class AnalysisTab extends ConsumerWidget {
 
   /// Construye la lista de tarjetas de progreso de presupuesto
   Widget _buildPresupuestosList(BuildContext context, 
-      List<PresupuestoFinancieroModel> presupuestos, List<GastoModel> gastos) {
+      List<PresupuestoFinancieroModel> presupuestos, List<GastoModel> gastos, ThemeData theme) {
     
     final String mesActual = DateFormat('yyyy-MM').format(DateTime.now());
     final presupuestosMesActual = presupuestos.where((p) => p.mes == mesActual && p.activo).toList();
@@ -155,14 +151,16 @@ class AnalysisTab extends ConsumerWidget {
       return Container(
         padding: const EdgeInsets.all(24.0),
         decoration: BoxDecoration(
-          color: surfaceColor.withAlpha(150),
+          // QA FIX: Fondo tarjeta del tema
+          color: theme.cardTheme.color,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.dividerColor)
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             "No has definido presupuestos para este mes. \nToca el botón (+) para empezar.",
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70, fontSize: 15),
+            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 15),
           ),
         ),
       );
@@ -181,8 +179,6 @@ class AnalysisTab extends ConsumerWidget {
                 DateFormat('yyyy-MM').format(g.fecha) == presupuesto.mes)
             .fold(0.0, (sum, g) => sum + g.monto);
 
-        // NOTA DE QA: El widget BudgetProgressCard recibe el dato crudo.
-        // Asegúrate de aplicar las correcciones visuales dentro de ese archivo también.
         return BudgetProgressCard(
           presupuesto: presupuesto,
           gastoActual: gastoActual,
@@ -191,12 +187,12 @@ class AnalysisTab extends ConsumerWidget {
     );
   }
 
-  void _showAddBudgetModal(BuildContext context) {
+  void _showAddBudgetModal(BuildContext context, ThemeData theme) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: surfaceColor,
-      barrierColor: Colors.black.withAlpha(128),
+      // QA FIX: Fondo modal dinámico
+      backgroundColor: theme.cardTheme.color,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -207,11 +203,16 @@ class AnalysisTab extends ConsumerWidget {
     );
   }
 
-  /// GRÁFICO 1: Comparativa Ingresos vs Gastos (Estilo Cyber Glow)
-  Widget _buildIngresoVsGastoChart(BuildContext context, List<CobroModel> cobros, List<GastoModel> gastos) {
+  /// GRÁFICO 1: Comparativa Ingresos vs Gastos
+  Widget _buildIngresoVsGastoChart(BuildContext context, List<CobroModel> cobros, List<GastoModel> gastos, ThemeData theme) {
     final now = DateTime.now();
     final Map<int, double> ingresosPorMes = {};
     final Map<int, double> gastosPorMes = {};
+    
+    final colorScheme = theme.colorScheme;
+    // Colores semánticos
+    const successColor = Color(0xFF00FF7F);
+    final errorColor = Colors.redAccent;
 
     // 1. Calcular Ingresos
     final cobrosPagados = cobros.where((c) => c.estado == 'COBRADO');
@@ -272,10 +273,10 @@ class AnalysisTab extends ConsumerWidget {
         alignment: BarChartAlignment.spaceAround,
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => surfaceColor.withAlpha(240),
+            // QA FIX: Fondo del tooltip dinámico
+            getTooltipColor: (_) => theme.cardTheme.color!.withValues(alpha: 0.9),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final String label = (rodIndex == 0) ? 'Ingreso' : 'Gasto';
-              // QA FIX: Usamos _formatSmartMoney para evitar overflow en el tooltip
               return BarTooltipItem(
                 '$label\n${_formatSmartMoney(rod.toY)}',
                 TextStyle(color: rodIndex == 0 ? successColor : errorColor, fontWeight: FontWeight.bold),
@@ -296,7 +297,8 @@ class AnalysisTab extends ConsumerWidget {
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
                     space: 4,
-                    child: Text(reversedMeses[index], style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                    // QA FIX: Texto de ejes dinámico
+                    child: Text(reversedMeses[index], style: TextStyle(fontSize: 10, color: colorScheme.onSurface.withValues(alpha: 0.7))),
                   );
                 }
                 return const Text('');
@@ -312,7 +314,8 @@ class AnalysisTab extends ConsumerWidget {
           drawVerticalLine: false,
           horizontalInterval: maxY / 4,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withAlpha(50), 
+            // QA FIX: Líneas de grilla sutiles
+            color: theme.dividerColor,
             strokeWidth: 1,
             dashArray: [3, 3],
           ),
@@ -322,11 +325,13 @@ class AnalysisTab extends ConsumerWidget {
     );
   }
 
-  /// GRÁFICO 2: Facturación Total (Estilo Cyber Glow)
-  Widget _buildFacturacion12MesesChart(BuildContext context, List<CobroModel> cobros) {
+  /// GRÁFICO 2: Facturación Total
+  Widget _buildFacturacion12MesesChart(BuildContext context, List<CobroModel> cobros, ThemeData theme) {
     final now = DateTime.now();
     final Map<int, double> ingresosPorMes = {};
     final List<String> meses = [];
+    
+    final colorScheme = theme.colorScheme;
 
     final cobrosPagados = cobros.where((c) => c.estado == 'COBRADO');
     for (final cobro in cobrosPagados) {
@@ -360,7 +365,7 @@ class AnalysisTab extends ConsumerWidget {
           drawVerticalLine: false,
           horizontalInterval: maxY / 4,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withAlpha(50),
+            color: theme.dividerColor,
             strokeWidth: 1,
             dashArray: [3, 3],
           ),
@@ -379,7 +384,7 @@ class AnalysisTab extends ConsumerWidget {
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
                     space: 4,
-                    child: Text(reversedMeses[index], style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                    child: Text(reversedMeses[index], style: TextStyle(fontSize: 10, color: colorScheme.onSurface.withValues(alpha: 0.7))),
                   );
                 }
                 return const Text('');
@@ -399,14 +404,15 @@ class AnalysisTab extends ConsumerWidget {
           LineChartBarData(
             spots: spots.reversed.toList(),
             isCurved: true,
-            color: accentColor,
+            // QA FIX: Color de línea dinámico (Primario)
+            color: colorScheme.primary,
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
               gradient: LinearGradient(
-                colors: [accentColor.withAlpha(80), accentColor.withAlpha(0)],
+                colors: [colorScheme.primary.withValues(alpha: 0.3), colorScheme.primary.withValues(alpha: 0.0)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -415,13 +421,12 @@ class AnalysisTab extends ConsumerWidget {
         ],
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => surfaceColor.withAlpha(240),
+            getTooltipColor: (_) => theme.cardTheme.color!.withValues(alpha: 0.9),
             getTooltipItems: (List<LineBarSpot> touchedSpots) {
               return touchedSpots.map((spot) {
-                // QA FIX: Smart formatting aquí también
                 return LineTooltipItem(
                   _formatSmartMoney(spot.y),
-                  const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
                 );
               }).toList();
             },

@@ -1,10 +1,9 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 18/10/2025
-// Style: Cyber Glow
+// Style: Cyber Glow (Adaptive Light/Dark)
 // QA FIX 26/11/2025:
-// 1. Implementada validación estricta de existencia de correo para recuperación.
-// 2. Agregada lógica de bloqueo de seguridad tras 3 intentos fallidos.
-// 3. Regex mejorado para validación de emails.
+// 1. Refactorización completa para soportar Modo Claro/Oscuro usando ThemeService.
+// 2. Lógica de seguridad (Bloqueo, Regex, Validación) preservada.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -37,7 +36,7 @@ class _AuthScreenState extends State<AuthScreen>
   bool _isConfirmPasswordObscured = true;
   AnimationController? _animationController;
 
-  // --- VARIABLES DE SEGURIDAD (QA Requirement) ---
+  // --- VARIABLES DE SEGURIDAD ---
   int _failedLoginAttempts = 0;
   DateTime? _lockoutTime;
   static const int _maxAttempts = 3;
@@ -68,16 +67,15 @@ class _AuthScreenState extends State<AuthScreen>
       if (DateTime.now().isBefore(_lockoutTime!)) {
         final remaining = _lockoutTime!.difference(DateTime.now()).inMinutes;
         _showErrorSnackbar('Cuenta bloqueada por seguridad. Intenta en ${remaining + 1} minutos.');
-        return true; // Está bloqueado
+        return true; 
       } else {
-        // El tiempo pasó, reseteamos
         setState(() {
           _lockoutTime = null;
           _failedLoginAttempts = 0;
         });
       }
     }
-    return false; // No está bloqueado
+    return false; 
   }
 
   void _handleFailedAttempt() {
@@ -89,14 +87,7 @@ class _AuthScreenState extends State<AuthScreen>
       setState(() {
         _lockoutTime = DateTime.now().add(_lockoutDuration);
       });
-      
-      // Aquí iría la llamada a tu Backend/Cloud Function para enviar el email real
-      // await authService.sendSecurityAlertEmail(_emailController.text); 
-      
-      _showErrorSnackbar('Has excedido los intentos permitidos. Cuenta bloqueada temporalmente. Se ha enviado una alerta de seguridad.');
-      
-      // Opcional: Forzar modo recuperación
-      // _switchAuthMode(AuthMode.forgotPassword);
+      _showErrorSnackbar('Has excedido los intentos permitidos. Cuenta bloqueada temporalmente.');
     } else {
        _showErrorSnackbar('Contraseña incorrecta. Intentos restantes: ${_maxAttempts - _failedLoginAttempts}');
     }
@@ -107,7 +98,6 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() {
       _authMode = newMode;
       _formKey.currentState?.reset();
-      // Limpiamos password pero mantenemos email por comodidad
       _passwordController.clear();
       _confirmPasswordController.clear();
       _animationController?.forward(from: 0.0);
@@ -115,7 +105,6 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _submitForm() async {
-    // 1. Verificar bloqueo antes de nada
     if (_checkLockout()) return;
 
     final isValid = _formKey.currentState?.validate() ?? false;
@@ -124,7 +113,7 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() => _isLoading = true);
     final authService = context.read<AuthService>();
     final messenger = ScaffoldMessenger.of(context);
-    final firebaseAuth = FirebaseAuth.instance; // Acceso directo para verificar métodos
+    final firebaseAuth = FirebaseAuth.instance;
 
     try {
       if (_authMode == AuthMode.login) {
@@ -133,7 +122,6 @@ class _AuthScreenState extends State<AuthScreen>
             email: _emailController.text.trim(),
             password: _passwordController.text.trim());
         
-        // Si entra, reseteamos intentos
         setState(() {
           _failedLoginAttempts = 0;
           _lockoutTime = null;
@@ -147,35 +135,29 @@ class _AuthScreenState extends State<AuthScreen>
         );
 
       } else if (_authMode == AuthMode.forgotPassword) {
-        // --- RECUPERACIÓN (Lógica Mejorada QA) ---
+        // --- RECUPERACIÓN ---
         final email = _emailController.text.trim();
-        
-        // Paso 1: Verificar si el correo existe en la base de datos
-        // Nota: Esto requiere que "Email Enumeration Protection" esté OFF en Firebase Console
         final signInMethods = await firebaseAuth.fetchSignInMethodsForEmail(email);
 
         if (signInMethods.isEmpty) {
-          // El usuario NO existe
           if (mounted) {
              setState(() => _isLoading = false);
              _showUserNotFoundDialog();
           }
-          return; // Detenemos ejecución aquí
+          return;
         }
 
-        // Paso 2: El usuario existe, enviamos el correo
         await authService.sendPasswordResetEmail(email: email);
         
-        messenger.showSnackBar(const SnackBar(
-          content: Text('✔ Enlace enviado. Revisa tu correo para cambiar la clave.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 4),
+        messenger.showSnackBar(SnackBar(
+          content: Text('✔ Enlace enviado. Revisa tu correo.', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
         ));
         
         _switchAuthMode(AuthMode.login);
       }
     } on FirebaseAuthException catch (error) {
-      // Manejo específico para bloqueo
       if (error.code == 'wrong-password' && _authMode == AuthMode.login) {
         _handleFailedAttempt();
       } else {
@@ -188,29 +170,34 @@ class _AuthScreenState extends State<AuthScreen>
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // --- DIÁLOGOS DE QA ---
+  // --- UI HELPERS ADAPTATIVOS ---
+
   void _showUserNotFoundDialog() {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D5A),
-        title: const Text("Usuario no encontrado", style: TextStyle(color: Colors.white)),
-        content: const Text(
+        // QA FIX: Fondo dinámico (Blanco en Claro, Azul en Oscuro)
+        backgroundColor: theme.cardTheme.color,
+        title: Text("Usuario no encontrado", 
+            style: TextStyle(color: theme.colorScheme.onSurface)),
+        content: Text(
           "Este correo no está registrado en nuestra base de datos. ¿Deseas crear una cuenta nueva?",
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+            child: Text("Cancelar", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
           ),
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               _switchAuthMode(AuthMode.register);
             },
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00BFFF)),
-            child: const Text("Registrarme", style: TextStyle(color: Colors.black)),
+            // El color primario (Neón) se mantiene
+            style: FilledButton.styleFrom(backgroundColor: theme.primaryColor),
+            child: Text("Registrarme", style: TextStyle(color: theme.colorScheme.onPrimary)),
           ),
         ],
       ),
@@ -221,17 +208,15 @@ class _AuthScreenState extends State<AuthScreen>
     switch (e.code) {
       case 'user-not-found':
       case 'invalid-credential':
-        return 'Credenciales incorrectas. Verifica tu correo y contraseña.';
-      case 'wrong-password':
-        return 'La contraseña es incorrecta.'; // Este se maneja en lógica de intentos, pero por si acaso.
+        return 'Credenciales incorrectas.';
       case 'email-already-in-use':
-        return 'El correo electrónico ya está registrado.';
+        return 'El correo ya está registrado.';
       case 'invalid-email':
-        return 'El formato del correo electrónico no es válido.';
+        return 'Formato de correo inválido.';
       case 'weak-password':
-        return 'La contraseña es muy débil (mínimo 6 caracteres).';
+        return 'Contraseña muy débil (min 6 caracteres).';
       default:
-        return 'Ocurrió un error de autenticación (${e.code}).';
+        return 'Error: ${e.code}';
     }
   }
 
@@ -273,15 +258,14 @@ class _AuthScreenState extends State<AuthScreen>
     final isLogin = _authMode == AuthMode.login;
     final isRegister = _authMode == AuthMode.register;
     final isForgotPassword = _authMode == AuthMode.forgotPassword;
-    final textTheme = Theme.of(context).textTheme;
-    const primaryColor = Color(0xFF00BFFF);
-    const backgroundColor = Color(0xFF1A1A2E);
-    const surfaceColor = Color(0xFF2D2D5A);
-
-    final inputDecoration = _buildInputDecoration();
+    
+    // --- QA FIX: OBTENER TEMA DEL CONTEXTO ---
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // 1. Fondo dinámico (Gris claro / Azul Oscuro)
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
@@ -292,14 +276,12 @@ class _AuthScreenState extends State<AuthScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildHeader(isLogin, isRegister, isForgotPassword, textTheme,
-                      surfaceColor, primaryColor),
+                  _buildHeader(isLogin, isRegister, isForgotPassword, theme),
                   
                   const SizedBox(height: 32), 
 
-                  _buildFormFields(isForgotPassword, isLogin, inputDecoration),
+                  _buildFormFields(isForgotPassword, isLogin, theme),
 
-                  // Botón Olvidé contraseña (Solo en Login)
                   if (isLogin)
                     Align(
                       alignment: Alignment.centerRight,
@@ -307,22 +289,24 @@ class _AuthScreenState extends State<AuthScreen>
                         onPressed: _isLoading
                             ? null
                             : () => _switchAuthMode(AuthMode.forgotPassword),
-                        child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(color: Color(0xFF00BFFF))),
+                        child: Text('¿Olvidaste tu contraseña?', 
+                            // Texto usa color primario (Neón)
+                            style: TextStyle(color: colorScheme.primary)),
                       ),
                     ),
                   
                   const SizedBox(height: 24),
-                  _buildSubmitButton(isLogin, isRegister, primaryColor),
+                  _buildSubmitButton(isLogin, isRegister, theme),
                   
                   if (!isForgotPassword) ...[
                     const SizedBox(height: 24),
-                    _buildDivider(textTheme),
+                    _buildDivider(theme),
                     const SizedBox(height: 24),
-                    _buildGoogleSignInButton(surfaceColor),
+                    _buildGoogleSignInButton(theme),
                     const SizedBox(height: 16),
                   ],
                   
-                  _buildSwitchAuthModeButton(isLogin, isForgotPassword, primaryColor),
+                  _buildSwitchAuthModeButton(isLogin, isForgotPassword, theme),
                 ],
               ),
             ),
@@ -332,23 +316,31 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
+  // --- WIDGETS DE CONSTRUCCIÓN ADAPTADOS ---
+
   Widget _buildFormFields(
-      bool isForgotPassword, bool isLogin, InputDecoration inputDecoration) {
+      bool isForgotPassword, bool isLogin, ThemeData theme) {
+    
+    // Obtenemos colores directamente del tema para los inputs
+    // En nuestro AppThemes, inputDecorationTheme ya tiene fillColor definido
+    final textColor = theme.colorScheme.onSurface; 
+
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       child: Column(
         children: [
           TextFormField(
             controller: _emailController,
-            decoration: inputDecoration.copyWith(
-                labelText: 'Correo Electrónico',
-                prefixIcon: const Icon(Icons.alternate_email_rounded)),
-            style: const TextStyle(color: Colors.white),
+            // Texto del input dinámico (Negro en Light / Blanco en Dark)
+            style: TextStyle(color: textColor),
+            decoration: _getAdaptiveInputDecoration(
+              theme,
+              labelText: 'Correo Electrónico',
+              prefixIcon: Icons.alternate_email_rounded,
+            ),
             keyboardType: TextInputType.emailAddress,
-            // QA FIX: Regex robusto para validación de email
             validator: (value) {
               if (value == null || value.isEmpty) return 'El correo es obligatorio.';
-              // Regex estándar RFC 5322
               final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
               if (!emailRegex.hasMatch(value)) {
                 return 'Formato de correo inválido.';
@@ -360,7 +352,9 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
-              decoration: _buildInputDecoration(
+              style: TextStyle(color: textColor),
+              decoration: _getAdaptiveInputDecoration(
+                theme,
                 labelText: 'Contraseña',
                 prefixIcon: Icons.lock_outline_rounded,
                 suffixIcon: IconButton(
@@ -368,12 +362,12 @@ class _AuthScreenState extends State<AuthScreen>
                       _isPasswordObscured
                           ? Icons.visibility_off_rounded
                           : Icons.visibility_rounded,
-                      color: Colors.white70),
+                      // Icono gris adaptable
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
                   onPressed: () =>
                       setState(() => _isPasswordObscured = !_isPasswordObscured),
                 ),
               ),
-              style: const TextStyle(color: Colors.white),
               obscureText: _isPasswordObscured,
               validator: (value) {
                 if (value == null || value.length < 6) {
@@ -384,28 +378,59 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             const SizedBox(height: 16),
           ],
-          _buildConfirmPasswordField(isLogin || isForgotPassword, inputDecoration),
+          _buildConfirmPasswordField(isLogin || isForgotPassword, theme),
         ],
       ),
     );
   }
 
-  // ... (El resto de los widgets visuales: _buildHeader, _buildConfirmPasswordField, etc. se mantienen igual para ahorrar espacio visual, ya que no requieren cambios de lógica) ...
-  
-  // Incluyo las funciones visuales necesarias para que el código sea copy-pasteable y funcione:
-  
-    Widget _buildHeader(bool isLogin, bool isRegister, bool isForgotPassword,
-      TextTheme textTheme, Color surfaceColor, Color primaryColor) {
+  Widget _buildConfirmPasswordField(bool isHidden, ThemeData theme) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: isHidden
+          ? const SizedBox.shrink()
+          : TextFormField(
+              controller: _confirmPasswordController,
+              style: TextStyle(color: theme.colorScheme.onSurface),
+              decoration: _getAdaptiveInputDecoration(
+                theme,
+                labelText: 'Confirmar Contraseña',
+                prefixIcon: Icons.lock_outline_rounded,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                      _isConfirmPasswordObscured
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                  onPressed: () => setState(() =>
+                      _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
+                ),
+              ),
+              obscureText: _isConfirmPasswordObscured,
+              validator: (value) {
+                if (_authMode == AuthMode.register &&
+                    value != _passwordController.text) {
+                  return 'Las contraseñas no coinciden.';
+                }
+                return null;
+              },
+            ),
+    );
+  }
+
+  Widget _buildHeader(bool isLogin, bool isRegister, bool isForgotPassword, ThemeData theme) {
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: surfaceColor,
+            // QA FIX: Fondo del logo adaptable (Blanco en light / Azul Oscuro en dark)
+            color: theme.cardTheme.color, 
             boxShadow: [
               BoxShadow(
-                color: primaryColor.withAlpha(77),
+                color: theme.primaryColor.withValues(alpha: 0.3),
                 blurRadius: 10,
                 spreadRadius: 2,
               ),
@@ -426,9 +451,9 @@ class _AuthScreenState extends State<AuthScreen>
                 ? 'Bienvenido de Nuevo'
                 : (isRegister ? 'Crea tu Cuenta' : 'Recuperar Contraseña'),
             key: ValueKey(_authMode),
-            style: textTheme.headlineLarge?.copyWith(
+            // QA FIX: Usar textTheme para color automático
+            style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.white,
               letterSpacing: 1.2,
             ),
             textAlign: TextAlign.center,
@@ -439,149 +464,108 @@ class _AuthScreenState extends State<AuthScreen>
           isLogin
               ? 'Ingresa para continuar'
               : (isRegister ? 'Ingresa tu correo y contraseña' : 'Ingresa tu correo para validar tu cuenta'),
-          style: textTheme.titleMedium?.copyWith(color: Colors.white70),
+          // QA FIX: Texto secundario adaptable
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7)
+          ),
           textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  Widget _buildConfirmPasswordField(
-      bool isHidden, InputDecoration inputDecoration) {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      child: isHidden
-          ? const SizedBox.shrink()
-          : TextFormField(
-              controller: _confirmPasswordController,
-              decoration: inputDecoration.copyWith(
-                labelText: 'Confirmar Contraseña',
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                      _isConfirmPasswordObscured
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                      color: Colors.white70),
-                  onPressed: () => setState(() =>
-                      _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
-                ),
-              ),
-              style: const TextStyle(color: Colors.white),
-              obscureText: _isConfirmPasswordObscured,
-              validator: (value) {
-                if (_authMode == AuthMode.register &&
-                    value != _passwordController.text) {
-                  return 'Las contraseñas no coinciden.';
-                }
-                return null;
-              },
-            ),
-    );
-  }
-
-  Widget _buildSubmitButton(
-      bool isLogin, bool isRegister, Color primaryColor) {
-    String buttonText;
-    if (isLogin) {
-      buttonText = 'Ingresar';
-    } else if (isRegister) {
-      buttonText = 'Registrarme';
-    } else {
-      buttonText = 'Enviar Enlace';
-    }
+  Widget _buildSubmitButton(bool isLogin, bool isRegister, ThemeData theme) {
+    String buttonText = isLogin ? 'Ingresar' : (isRegister ? 'Registrarme' : 'Enviar Enlace');
 
     return SizedBox(
       width: double.infinity,
       child: FilledButton(
         onPressed: _isLoading ? null : _submitForm,
-        style: FilledButton.styleFrom(
-          backgroundColor: primaryColor,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          foregroundColor: Colors.black,
-        ),
+        // El estilo FilledButton ya viene configurado en AppTheme
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 24,
                 width: 24,
-                child:
-                    CircularProgressIndicator(strokeWidth: 3, color: Colors.black))
+                child: CircularProgressIndicator(
+                    strokeWidth: 3, 
+                    // Color contraste (Negro sobre neón suele ser mejor)
+                    color: theme.colorScheme.onPrimary))
             : Text(buttonText,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black)),
+                    color: theme.colorScheme.onPrimary)),
       ),
     );
   }
 
-  Widget _buildDivider(TextTheme textTheme) {
+  Widget _buildDivider(ThemeData theme) {
+    final dividerColor = theme.dividerColor;
     return Row(
       children: [
-        const Expanded(child: Divider(color: Colors.white24, thickness: 1)),
+        Expanded(child: Divider(color: dividerColor, thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0),
           child: Text('O',
-              style: textTheme.bodySmall?.copyWith(color: Colors.white70)),
+              style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
         ),
-        const Expanded(child: Divider(color: Colors.white24, thickness: 1)),
+        Expanded(child: Divider(color: dividerColor, thickness: 1)),
       ],
     );
   }
 
-  Widget _buildGoogleSignInButton(Color surfaceColor) {
+  Widget _buildGoogleSignInButton(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: _isLoading ? null : _signInWithGoogle,
         icon: const GoogleLogo(),
-        label: const Text('Continuar con Google',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: Text('Continuar con Google',
+            // Texto visible en ambos modos
+            style: TextStyle(
+                color: theme.colorScheme.onSurface, 
+                fontWeight: FontWeight.bold)),
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          side: const BorderSide(color: Colors.white24),
+          side: BorderSide(color: theme.dividerColor),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
   }
 
-  Widget _buildSwitchAuthModeButton(
-      bool isLogin, bool isForgotPassword, Color primaryColor) {
+  Widget _buildSwitchAuthModeButton(bool isLogin, bool isForgotPassword, ThemeData theme) {
     if (isForgotPassword) {
       return TextButton.icon(
         onPressed: _isLoading ? null : () => _switchAuthMode(AuthMode.login),
-        icon: const Icon(Icons.arrow_back_ios_new, size: 16),
-        label: const Text('Volver a Ingresar'),
+        icon: Icon(Icons.arrow_back_ios_new, size: 16, color: theme.colorScheme.onSurface),
+        label: Text('Volver a Ingresar', style: TextStyle(color: theme.colorScheme.onSurface)),
       );
     }
 
     return TextButton(
       onPressed: _isLoading
           ? null
-          : () =>
-              _switchAuthMode(isLogin ? AuthMode.register : AuthMode.login),
+          : () => _switchAuthMode(isLogin ? AuthMode.register : AuthMode.login),
       style: TextButton.styleFrom(
-        foregroundColor: primaryColor,
+        foregroundColor: theme.primaryColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Text.rich(
         TextSpan(
           text: isLogin ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? ',
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
           children: [
             TextSpan(
               text: isLogin ? 'Regístrate' : 'Ingresa',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: primaryColor,
+                color: theme.primaryColor,
                 decoration: TextDecoration.underline,
-                decorationColor: primaryColor,
+                decorationColor: theme.primaryColor,
               ),
             ),
           ],
@@ -590,43 +574,27 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  InputDecoration _buildInputDecoration({
+  // Helper para generar decoración usando el tema actual
+  InputDecoration _getAdaptiveInputDecoration(ThemeData theme, {
     String? labelText,
     IconData? prefixIcon,
     Widget? suffixIcon,
   }) {
-    const primaryColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF222244);
-
+    // Tomamos la base del tema (que ya tiene colores correctos)
     return InputDecoration(
       labelText: labelText,
-      labelStyle: const TextStyle(color: Colors.white70),
-      prefixIcon:
-          prefixIcon != null ? Icon(prefixIcon, color: Colors.white70) : null,
+      // Icono prefijo usa el color de texto secundario
+      prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: theme.inputDecorationTheme.labelStyle?.color) : null,
       suffixIcon: suffixIcon,
+      // Forzamos el uso del tema definido en AppThemes
       filled: true,
-      fillColor: surfaceColor,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: primaryColor, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-      ),
+      fillColor: theme.inputDecorationTheme.fillColor,
     );
   }
 }
 
 // --- WIDGETS AUXILIARES ---
+
 class GoogleLogo extends StatelessWidget {
   const GoogleLogo({super.key});
   @override
@@ -635,7 +603,7 @@ class GoogleLogo extends StatelessWidget {
       width: 22,
       height: 22,
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: Colors.white, // El logo de Google siempre lleva fondo blanco
         shape: BoxShape.circle,
       ),
       child: Center(

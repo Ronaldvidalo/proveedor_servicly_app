@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-// --- IMPORT NECESARIO PARA EL ERROR ---
-import 'package:provider/provider.dart' as provider;
+// Usamos alias para evitar conflictos con clases internas o externas
+import 'package:provider/provider.dart' as provider_pkg; 
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 
 // --- IMPORTS DE LOS WIDGETS (TARJETAS) ---
-// Asegúrate de que estos archivos existan en tu proyecto
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/daily_sales_card.dart';
+// Nota: Verifica que el nombre del archivo sea lowercase en tu disco (financial_health_card.dart)
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/FinancialHealthCard.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/inventory_alert_card.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/next_appointment_card.dart';
+
 
 // --- IMPORTS DE LAS PANTALLAS (PARA NAVEGACIÓN) ---
 import 'package:proveedor_servicly_app/features/sales/screens/sales_history_screen.dart';
@@ -41,37 +42,39 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // CORRECCIÓN: Eliminamos 'const' porque los hijos no son constantes
+    // Construimos las páginas aquí para tener acceso al context si fuera necesario
     _pages = [
       // 1. Ventas
       GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesHistoryScreen())),
-        child: Center(child: const DailySalesCard()), // const aquí si el constructor del widget lo permite
+        child: const Center(child: DailySalesCard()),
       ),
       // 2. Finanzas
       GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedFinanceScreen())),
-        child: Center(child: const FinancialHealthCard()),
+        child: const Center(child: FinancialHealthCard()),
       ),
       // 3. Inventario
       GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen())),
-        child: Center(child: const InventoryAlertCard()),
+        child: const Center(child: InventoryAlertCard()),
       ),
       // 4. Agenda
       GestureDetector(
         onTap: () {
-           // Obtenemos el usuario usando el alias 'provider' que definimos arriba
-           final user = provider.Provider.of<UserModel?>(context, listen: false);
+           // QA FIX: Uso correcto del alias del provider para obtener el UserModel
+           // Listen: false porque estamos en un callback, no reconstruyendo UI
+           final user = provider_pkg.Provider.of<UserModel?>(context, listen: false);
+           
            if (user != null) {
              Navigator.push(context, MaterialPageRoute(builder: (_) => AgendaScreen(user: user)));
            } else {
              ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content: Text("Error: Usuario no identificado"))
+               const SnackBar(content: Text("Error: Usuario no identificado"), backgroundColor: Colors.redAccent)
              );
            }
         },
-        child: Center(child: const NextAppointmentCard()),
+        child: const Center(child: NextAppointmentCard()),
       ),
     ];
   }
@@ -111,6 +114,10 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
 
   @override
   Widget build(BuildContext context) {
+    // QA FIX: Obtener tema para los indicadores (dots)
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       children: [
         SizedBox(
@@ -142,6 +149,7 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
         
         const SizedBox(height: 12),
 
+        // Indicadores de página (Dots)
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
@@ -152,9 +160,12 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
               height: 6,
               width: _currentPage == index ? 20 : 6,
               decoration: BoxDecoration(
+                // QA FIX: Colores dinámicos para los puntos
+                // Color activo: Primario (Azul/Rosa/Verde)
+                // Color inactivo: DividerColor (Gris visible en ambos modos)
                 color: _currentPage == index 
-                    ? const Color(0xFF00BFFF) 
-                    : Colors.white.withOpacity(0.2), // ignore: deprecated_member_use
+                    ? colorScheme.primary 
+                    : theme.dividerColor, 
                 borderRadius: BorderRadius.circular(3),
               ),
             ),

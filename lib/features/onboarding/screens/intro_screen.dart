@@ -1,8 +1,10 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 19/10/2025
-// Style: Cyber Glow
-// This screen was refactored to serve as the app's introductory visual tour.
-// Class names have been updated for clarity (IntroScreen, IntroPageModel).
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025:
+// 1. Refactorización completa para eliminar colores hardcoded.
+// 2. Adaptación automática a Modo Claro/Oscuro usando Theme.of(context).
+// 3. Actualización de métodos deprecados (.withValues).
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -76,14 +78,14 @@ class _IntroScreenState extends State<IntroScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isLastPage = _currentPageIndex == _pages.length - 1;
-
-    const primaryColor = Color(0xFF00BFFF);
-    const backgroundColor = Color(0xFF1A1A2E);
-    const surfaceColor = Color(0xFF2D2D5A);
-    const textColor = Colors.white;
+    
+    // QA FIX: Obtenemos el tema del contexto para colores dinámicos
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // 1. Fondo dinámico (Gris claro / Azul Oscuro)
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -92,7 +94,8 @@ class _IntroScreenState extends State<IntroScreen> {
               child: TextButton(
                 onPressed: widget.onFinished,
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.white70,
+                  // QA FIX: Texto visible en ambos modos (Gris oscuro / Gris claro)
+                  foregroundColor: colorScheme.onSurface.withValues(alpha: 0.6),
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
                 ),
                 child: const Text('Saltar'),
@@ -113,9 +116,6 @@ class _IntroScreenState extends State<IntroScreen> {
                     icon: page.icon,
                     title: page.title,
                     description: page.description,
-                    primaryColor: primaryColor,
-                    surfaceColor: surfaceColor,
-                    textColor: textColor,
                   );
                 },
               ),
@@ -129,16 +129,22 @@ class _IntroScreenState extends State<IntroScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
                       _pages.length,
-                      (index) => _buildDot(index: index, primaryColor: primaryColor, surfaceColor: surfaceColor),
+                      (index) => _buildDot(
+                        index: index, 
+                        activeColor: colorScheme.primary, 
+                        // QA FIX: Color inactivo sutil pero visible
+                        inactiveColor: theme.dividerColor
+                      ),
                     ),
                   ),
                   FloatingActionButton(
                     onPressed: _goToNextPage,
-                    backgroundColor: primaryColor,
+                    backgroundColor: colorScheme.primary,
                     elevation: 5,
                     child: Icon(
                       isLastPage ? Icons.check_rounded : Icons.arrow_forward_ios_rounded,
-                      color: Colors.black,
+                      // QA FIX: Texto sobre botón primario (generalmente negro para neón, o blanco)
+                      color: colorScheme.onPrimary,
                     ),
                   ),
                 ],
@@ -150,7 +156,7 @@ class _IntroScreenState extends State<IntroScreen> {
     );
   }
 
-  Widget _buildDot({required int index, required Color primaryColor, required Color surfaceColor}) {
+  Widget _buildDot({required int index, required Color activeColor, required Color inactiveColor}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -158,7 +164,7 @@ class _IntroScreenState extends State<IntroScreen> {
       height: 10,
       width: _currentPageIndex == index ? 30 : 10,
       decoration: BoxDecoration(
-        color: _currentPageIndex == index ? primaryColor : surfaceColor,
+        color: _currentPageIndex == index ? activeColor : inactiveColor,
         borderRadius: BorderRadius.circular(5),
       ),
     );
@@ -170,22 +176,19 @@ class _IntroPageWidget extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
-  final Color primaryColor;
-  final Color surfaceColor;
-  final Color textColor;
 
   const _IntroPageWidget({
     required this.icon,
     required this.title,
     required this.description,
-    required this.primaryColor,
-    required this.surfaceColor,
-    required this.textColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    // QA FIX: Accedemos al tema dentro del widget hijo
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -196,11 +199,12 @@ class _IntroPageWidget extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: surfaceColor,
+              // QA FIX: Color de superficie dinámico (Blanco / Azul Superficie)
+              color: theme.cardTheme.color,
               boxShadow: [
                 BoxShadow(
-                  // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
-                  color: primaryColor.withAlpha(77), // 0.3 opacity
+                  // QA FIX: Sombra neón dinámica con .withValues
+                  color: colorScheme.primary.withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -209,7 +213,8 @@ class _IntroPageWidget extends StatelessWidget {
             child: Icon(
               icon,
               size: 100,
-              color: primaryColor,
+              // QA FIX: El icono usa el color primario (Azul Neón / Rosa Neón, etc.)
+              color: colorScheme.primary,
             ),
           ),
           const SizedBox(height: 64),
@@ -217,7 +222,8 @@ class _IntroPageWidget extends StatelessWidget {
             title,
             style: textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: textColor,
+              // QA FIX: Color de texto principal dinámico
+              color: colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
           ),
@@ -225,7 +231,8 @@ class _IntroPageWidget extends StatelessWidget {
           Text(
             description,
             style: textTheme.titleMedium?.copyWith(
-              color: Colors.white70,
+              // QA FIX: Color secundario (grisáceo) dinámico
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
               height: 1.5,
             ),
             textAlign: TextAlign.center,

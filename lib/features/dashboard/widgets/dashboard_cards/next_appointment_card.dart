@@ -3,16 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 // --- Imports de Agenda ---
-import 'package:proveedor_servicly_app/features/agenda/data/models/agenda_event_model.dart';
 import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart';
-
-// --- Pantalla de Agenda (Para navegación) ---
-import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
-// Necesitamos el UserModel para navegar a la AgendaScreen. 
-// Usaremos un truco: obtenerlo del contexto o pasar un callback, 
-// pero para mantenerlo simple en el dashboard, asumimos que el padre maneja la navegación 
-// O podemos usar el provider de usuario si está disponible globalmente con Riverpod.
-// Por ahora, lo haremos solo visual y la navegación la maneja el DashboardSummaryCards.
 
 class NextAppointmentCard extends ConsumerWidget {
   const NextAppointmentCard({super.key});
@@ -21,11 +12,18 @@ class NextAppointmentCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Escuchamos la próxima cita real en tiempo real
     final nextEventAsync = ref.watch(nextAppointmentProvider);
-    const Color cardColor = Color(0xFF6C63FF); // Morado Agenda
+    
+    // QA FIX: Obtener tema del contexto
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
+
+    // Mantenemos el morado como color semántico de Agenda, pero lo adaptamos si es necesario
+    const Color semanticColor = Color(0xFF6C63FF); 
 
     return nextEventAsync.when(
-      loading: () => _buildPlaceholder(isLoading: true),
-      error: (_, __) => _buildPlaceholder(errorText: "Error"),
+      loading: () => _buildPlaceholder(theme, isLoading: true),
+      error: (_, __) => _buildPlaceholder(theme, errorText: "Error"),
       data: (event) {
         final bool hasAppointment = event != null;
         
@@ -33,17 +31,26 @@ class NextAppointmentCard extends ConsumerWidget {
           width: 160,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [cardColor.withAlpha(51), cardColor.withAlpha(13)], // 0.2 y 0.05 opacity
+            // QA FIX: Fondo dinámico (Gradiente solo en dark)
+            color: isDark ? null : theme.cardTheme.color,
+            gradient: isDark ? LinearGradient(
+              colors: [semanticColor.withValues(alpha: 0.2), semanticColor.withValues(alpha: 0.05)], 
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-            ),
+            ) : null,
             borderRadius: BorderRadius.circular(20),
-            // ignore: deprecated_member_use
-            border: Border.all(color: cardColor.withAlpha(128)),
+            // QA FIX: Borde adaptativo
+            border: Border.all(
+              color: isDark ? semanticColor.withValues(alpha: 0.5) : theme.dividerColor
+            ),
             boxShadow: [
-              // ignore: deprecated_member_use
-              BoxShadow(color: cardColor.withAlpha(26), blurRadius: 10, offset: const Offset(0, 4))
+               BoxShadow(
+                color: isDark 
+                    ? semanticColor.withValues(alpha: 0.1) 
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10, 
+                offset: const Offset(0, 4)
+              )
             ],
           ),
           child: Column(
@@ -51,33 +58,51 @@ class NextAppointmentCard extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today, color: cardColor, size: 18),
+                  const Icon(Icons.calendar_today, color: semanticColor, size: 18),
                   const SizedBox(width: 8),
-                  // ignore: deprecated_member_use
-                  Text("PRÓXIMA", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(
+                    "PRÓXIMA", 
+                    style: TextStyle(
+                      // Texto secundario adaptable
+                      color: colorScheme.onSurface.withValues(alpha: 0.6), 
+                      fontSize: 10, 
+                      fontWeight: FontWeight.bold
+                    )
+                  ),
                 ],
               ),
               const Spacer(),
               if (hasAppointment) ...[
                 Text(
                   DateFormat('HH:mm').format(event!.startTime), 
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    // Hora en grande (Texto principal)
+                    color: colorScheme.onSurface, 
+                    fontSize: 22, 
+                    fontWeight: FontWeight.bold
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   event.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: cardColor, fontSize: 12, fontWeight: FontWeight.w500),
+                  style: const TextStyle(color: semanticColor, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
                 Text(
                   // Si es hoy, dice "Hoy", si no, la fecha
                   _formatDate(event.startTime),
-                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                  style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 10),
                 ),
               ] else ...[
-                const Text("Libre", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const Text("Sin citas pendientes", style: TextStyle(color: Colors.white54, fontSize: 10)),
+                Text(
+                  "Libre", 
+                  style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)
+                ),
+                Text(
+                  "Sin citas pendientes", 
+                  style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 10)
+                ),
               ]
             ],
           ),
@@ -97,17 +122,19 @@ class NextAppointmentCard extends ConsumerWidget {
     return DateFormat('dd MMM').format(date);
   }
 
-  Widget _buildPlaceholder({bool isLoading = false, String? errorText}) {
+  Widget _buildPlaceholder(ThemeData theme, {bool isLoading = false, String? errorText}) {
+    final colorScheme = theme.colorScheme;
     return Container(
       width: 160,
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D5A),
+        color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
       child: Center(
         child: isLoading 
             ? const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))
-            : Text(errorText ?? "", style: const TextStyle(color: Colors.white38)),
+            : Text(errorText ?? "", style: TextStyle(color: colorScheme.error)),
       ),
     );
   }

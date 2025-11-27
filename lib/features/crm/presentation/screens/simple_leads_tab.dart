@@ -22,7 +22,7 @@ class SimpleLeadsTab extends StatefulWidget {
 class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
   int _currentLimit = 10;
   // ignore: unused_field
-  bool _isLoadingMore = false; // Mantenemos por si la usas luego en _loadMore
+  bool _isLoadingMore = false; 
 
   void _loadMore() {
     setState(() {
@@ -33,8 +33,11 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
+    // QA FIX: Obtener tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    // En una implementación real, esto vendría del UserModel o Provider
     const String userPlan = 'free'; 
 
     if (userId == null) return const Center(child: Text('Error: No usuario'));
@@ -42,7 +45,8 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      // QA FIX: Fondo dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -55,14 +59,14 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
         builder: (context, snapshot) {
           
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: accentColor));
+            return Center(child: CircularProgressIndicator(color: colorScheme.primary));
           }
 
           if (snapshot.hasError) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+                child: Text('Error: ${snapshot.error}', style: TextStyle(color: colorScheme.error), textAlign: TextAlign.center),
               ),
             );
           }
@@ -74,11 +78,11 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.inbox_outlined, size: 80, color: Colors.white.withAlpha(25)),
+                  Icon(Icons.inbox_outlined, size: 80, color: colorScheme.onSurface.withValues(alpha: 0.2)),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'No hay leads recientes',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -96,7 +100,7 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
                     child: TextButton(
                       onPressed: _loadMore,
-                      child: const Text("Ver más antiguos...", style: TextStyle(color: Colors.white54)),
+                      child: Text("Ver más antiguos...", style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5))),
                     ),
                   );
                 } else {
@@ -138,7 +142,7 @@ class _LeadCard extends StatelessWidget {
     if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio Producto';
     if (s.contains('cart')) return 'Carrito Abandonado';
-    if (s.contains('like')) return 'Le gustó un Producto'; // ❤️
+    if (s.contains('like')) return 'Le gustó un Producto'; 
     if (s.contains('telefono')) return 'Llamada';
     if (s.contains('email')) return 'Email';
     if (s.contains('presupuesto')) return 'Presupuesto';
@@ -147,17 +151,17 @@ class _LeadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const surfaceColor = Color(0xFF2D2D5A);
+    // QA FIX: Obtener tema
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final surfaceColor = theme.cardTheme.color;
     
     final displayName = hasAccess ? lead.nombreCompleto : 'Oportunidad Detectada'; 
     final displaySource = hasAccess ? _getFriendlySource(lead.source) : "Carrito/Interés (Solo PRO)";
 
     Color statusColor = Colors.blueGrey;
-    
-    // CORRECCIÓN 1: Usar .name para obtener el string del Enum
     String statusText = lead.estadoCRM.name; 
 
-    // CORRECCIÓN 2: Comparar Enum con Enum
     if (lead.estadoCRM == CrmEstado.leadNuevo) {
       statusColor = Colors.blueAccent;
       statusText = 'NUEVO';
@@ -169,7 +173,6 @@ class _LeadCard extends StatelessWidget {
       statusText = 'Cliente';
     }
 
-    // CORRECCIÓN 3: fechaAlta ya es DateTime?, no usar .toDate()
     final dateStr = lead.fechaAlta != null 
         ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!) 
         : '--/--';
@@ -185,7 +188,7 @@ class _LeadCard extends StatelessWidget {
           if (hasAccess) {
              Navigator.push(context, MaterialPageRoute(builder: (_) => LeadDetailScreen(lead: lead)));
           } else {
-             _showUpgradeDialog(context);
+             _showUpgradeDialog(context, theme);
           }
         },
         child: Stack(
@@ -204,41 +207,41 @@ class _LeadCard extends StatelessWidget {
                        crossAxisAlignment: CrossAxisAlignment.start,
                        children: [
                          hasAccess 
-                           ? Text(displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
+                           ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
                            : ImageFiltered(
                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                               child: Text(displayName, style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 16)),
+                               child: Text(displayName, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 16)),
                              ),
                          const SizedBox(height: 4),
                          Text(
                            displaySource,
                            style: TextStyle(
-                               color: hasAccess ? Colors.white70 : Colors.amber, 
-                               fontSize: 13, 
-                               fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
+                              color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
+                              fontSize: 13, 
+                              fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
                            ),
                          ),
                          const SizedBox(height: 8),
                          Row(
                            children: [
                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withAlpha(50),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: statusColor.withAlpha(100)),
-                                ),
-                                child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
-                              ),
-                              const Spacer(),
-                              Text(dateStr, style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                               decoration: BoxDecoration(
+                                 color: statusColor.withValues(alpha: 0.15),
+                                 borderRadius: BorderRadius.circular(4),
+                                 border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                               ),
+                               child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                             ),
+                             const Spacer(),
+                             Text(dateStr, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)),
                            ],
                          )
                        ],
                      ),
                    ),
                    if (hasAccess)
-                    const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
+                    Icon(Icons.arrow_forward_ios, color: colorScheme.onSurface.withValues(alpha: 0.3), size: 16),
                 ],
               ),
             ),
@@ -247,7 +250,7 @@ class _LeadCard extends StatelessWidget {
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(180),
+                    color: Colors.black.withValues(alpha: 0.7), // Siempre oscuro para el efecto blur
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -256,7 +259,7 @@ class _LeadCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.amber),
                         borderRadius: BorderRadius.circular(20),
-                        color: Colors.black.withAlpha(100)
+                        color: Colors.black.withValues(alpha: 0.5)
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -276,19 +279,19 @@ class _LeadCard extends StatelessWidget {
     );
   }
 
-  void _showUpgradeDialog(BuildContext context) {
+  void _showUpgradeDialog(BuildContext context, ThemeData theme) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D5A),
+        backgroundColor: theme.cardTheme.color,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [Icon(Icons.star, color: Colors.amber), SizedBox(width: 8), Text('Oportunidad Perdida', style: TextStyle(color: Colors.white))]),
-        content: const Text(
+        title: Row(children: [const Icon(Icons.star, color: Colors.amber), const SizedBox(width: 8), Text('Oportunidad Perdida', style: TextStyle(color: theme.colorScheme.onSurface))]),
+        content: Text(
           'Un cliente mostró interés pero no te contactó directamente.\n\nLos usuarios PRO pueden ver estos datos y contactar al cliente proactivamente.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
         ),
         actions: [
-          TextButton(child: const Text('Cerrar', style: TextStyle(color: Colors.white38)), onPressed: () => Navigator.pop(ctx)),
+          TextButton(child: Text('Cerrar', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))), onPressed: () => Navigator.pop(ctx)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
             child: const Text('MEJORAR PLAN'),
