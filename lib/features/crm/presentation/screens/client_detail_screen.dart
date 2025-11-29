@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
+// MANTENEMOS SOLO LA IMPORTACIÓN ESTÁNDAR DE PROVIDER
+import 'package:provider/provider.dart'; 
+// Asumimos que estas dependencias han sido importadas o creadas.
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/providers/client_list_viewmodel.dart'; 
+// --- IMPORTS REQUERIDOS PARA SERVI ---
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
+import 'package:proveedor_servicly_app/features/inventory/data/inventory_repository.dart';
+// NOTA: Debe crear este archivo en /lib/features/crm/presentation/providers/recommendations_viewmodel.dart
+import 'package:proveedor_servicly_app/features/crm/presentation/providers/recommendations_viewmodel.dart'; 
 
 // Widget auxiliar para mostrar un bloqueo de característica Pro
 class ProFeatureLock extends StatelessWidget {
@@ -14,8 +21,6 @@ class ProFeatureLock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // QA FIX: Adaptación visual para Dark/Light mode
-    // En lugar de un fondo amarillo solido que brilla demasiado en dark mode,
-    // usamos una transparencia.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = Colors.amber;
 
@@ -24,9 +29,9 @@ class ProFeatureLock extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         // Fondo sutil en ambos modos
-        color: baseColor.withValues(alpha: isDark ? 0.1 : 0.15),
+        color: baseColor.withOpacity(isDark ? 0.1 : 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: baseColor.withValues(alpha: 0.5)),
+        border: Border.all(color: baseColor.withOpacity(0.5)),
       ),
       child: Row(
         children: [
@@ -134,15 +139,30 @@ class ClientDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Aseguramos que usamos el Provider del paquete 'provider'
     final isProUser = Provider.of<ClientListViewModel>(context, listen: false).isProUser;
     final currencyFormat = NumberFormat.currency(locale: 'es_ES', symbol: '\$');
     
-    // QA FIX: Obtener tema
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return ChangeNotifierProvider(
-      create: (context) => ClientDetailViewModel(context.read<CrmRepository>(), cliente),
+    return MultiProvider( 
+      providers: [
+        // ViewModel de Detalles (Lógica local)
+        ChangeNotifierProvider(
+          create: (context) => ClientDetailViewModel(context.read<CrmRepository>(), cliente),
+        ),
+        // --- INYECCIÓN DE RECOMENDACIONES SERVI (MVP 1.5) ---
+        // ViewModel de Predicción (Lógica IA)
+        ChangeNotifierProvider( 
+          create: (context) => RecommendationsViewModel(
+            context.read<GeminiService>(), 
+            context.read<InventoryRepository>(), 
+            cliente,
+          ),
+        ),
+      ],
+      // Usamos Consumer del paquete Provider
       child: Consumer<ClientDetailViewModel>(
         builder: (context, viewModel, child) {
           final currentClient = viewModel.cliente;
@@ -200,9 +220,23 @@ class ClientDetailScreen extends StatelessWidget {
 
                   Divider(height: 30, color: theme.dividerColor),
 
+                    // --- SECCIÓN 5: RECOMENDACIONES PREDICTIVAS (MVP 1.5) ---
+                    if (isProUser) ...[
+                        _buildSectionTitle('SERVI Inteligencia de Venta', theme),
+                        Consumer<RecommendationsViewModel>( // <-- CONSUMER DEL VIEWMODEL DE RECOMENDACIONES
+                          builder: (context, recsViewModel, _) => const _RecommendationSection(),
+                        ),
+                        Divider(height: 30, color: theme.dividerColor),
+                    ] else ...[
+                        const ProFeatureLock(featureName: 'Recomendaciones de Producto IA'),
+                        Divider(height: 30, color: theme.dividerColor),
+                    ],
+                    
+
                   // --- SECCIÓN 4: Notas Privadas ---
                   _buildSectionTitle('Notas Privadas (Historial de Interacciones)', theme),
                   _buildNotesSection(context, viewModel, isProUser, theme),
+
 
                   const SizedBox(height: 40),
                 ],
@@ -214,7 +248,7 @@ class ClientDetailScreen extends StatelessWidget {
     );
   }
 
-  // --- WIDGETS AUXILIARES DE LA PANTALLA ---
+  // --- WIDGETS AUXILIARES DE LA PANTALLA (BUILDERS) ---
 
   Widget _buildSectionTitle(String title, ThemeData theme) {
     return Padding(
@@ -224,7 +258,6 @@ class ClientDetailScreen extends StatelessWidget {
         style: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          // QA FIX: Color primario (Neón) para títulos
           color: theme.colorScheme.primary,
         ),
       ),
@@ -247,7 +280,6 @@ class ClientDetailScreen extends StatelessWidget {
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w600, 
-                // QA FIX: Texto etiqueta adaptable
                 color: colorScheme.onSurface
               ),
             ),
@@ -256,7 +288,6 @@ class ClientDetailScreen extends StatelessWidget {
             child: Text(
               value.isEmpty ? 'N/A' : value,
               style: TextStyle(
-                // QA FIX: Texto valor adaptable o color específico
                 color: color ?? colorScheme.onSurface.withValues(alpha: 0.7)
               ),
             ),
@@ -370,4 +401,46 @@ class ClientDetailScreen extends StatelessWidget {
       ],
     );
   }
+}
+
+// =====================================================
+// DEFINICIÓN DEL WIDGET DE RECOMENDACIONES (MVP 1.5)
+// =====================================================
+
+class _RecommendationSection extends StatelessWidget {
+    const _RecommendationSection();
+    
+    // Este widget accede al ViewModel a través de Provider.of.
+    @override
+    Widget build(BuildContext context) {
+        final viewModel = Provider.of<RecommendationsViewModel>(context);
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        
+        if (viewModel.isLoading) {
+            return Center(child: CircularProgressIndicator(color: colorScheme.primary));
+        }
+
+        if (viewModel.recommendations.isEmpty) {
+            return const Text('No hay sugerencias predictivas por el momento.', style: TextStyle(color: Colors.grey));
+        }
+
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+                Text('SERVI sugiere estos productos:', style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                ...viewModel.recommendations.map((name) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6.0),
+                    child: Row(
+                        children: [
+                            Icon(Icons.lightbulb_outline, size: 18, color: colorScheme.secondary),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(name, style: TextStyle(color: colorScheme.onSurface))),
+                        ],
+                    ),
+                )).toList(),
+            ],
+        );
+    }
 }

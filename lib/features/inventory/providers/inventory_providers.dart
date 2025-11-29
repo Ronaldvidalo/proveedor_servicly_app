@@ -8,12 +8,17 @@ import '../data/inventory_repository.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 // 3. Importamos el Provider de Costos (Para leer el Costo Fijo Unitario)
 import 'package:proveedor_servicly_app/features/cost_structure/core/providers/cost_providers.dart';
+// 4. ¡CORRECCIÓN CLAVE! Importamos el Provider del Servicio de Inteligencia (de la Agenda)
+import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart'; // ASUMIDA LA RUTA
+
 
 // --- PROVIDER DEL REPOSITORIO ---
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
   return InventoryRepository(
     firestore: FirebaseFirestore.instance,
     auth: FirebaseAuth.instance,
+    // CORREGIDO: inventoryIntelligenceServiceProvider ya está accesible por la importación
+    intelligenceService: ref.watch(inventoryIntelligenceServiceProvider),
   );
 });
 
@@ -21,7 +26,9 @@ final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
 final productsStreamProvider = StreamProvider.autoDispose<List<ProductModel>>((ref) {
   final repository = ref.watch(inventoryRepositoryProvider);
   return repository.getProductsStream();
+  
 });
+
 
 // --- PROVIDER CALCULADORA INTELIGENTE ---
 // Este provider escucha el Costo Fijo Unitario y ayuda a calcular precios
@@ -33,4 +40,6 @@ final smartPricingProvider = Provider.autoDispose<double>((ref) {
     data: (config) => config.costoFijoUnitarioCalculado,
     orElse: () => 0.0,
   );
-});
+  
+
+  });

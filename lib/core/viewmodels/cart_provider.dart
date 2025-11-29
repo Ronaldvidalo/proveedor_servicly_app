@@ -28,8 +28,8 @@ class CartProvider with ChangeNotifier {
   double get totalProfit {
     var profit = 0.0;
     _items.forEach((key, cartItem) {
-      // Obtenemos el costo total unitario desde el nuevo ProductModel
-      final double costoUnitario = cartItem.product.costPrice + cartItem.product.fixedCostSnapshot;
+      // CORRECCIÓN CLAVE: costPrice ya no existe. Usamos el nuevo nombre 'cost'.
+      final double costoUnitario = cartItem.product.cost + cartItem.product.fixedCostSnapshot;
       
       // Margen por unidad
       final double margenUnitario = cartItem.product.price - costoUnitario;

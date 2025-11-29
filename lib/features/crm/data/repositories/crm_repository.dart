@@ -147,4 +147,40 @@ class CrmRepository {
       'notasInternas': notes,
     });
   }
+  
+  // ----------------------------------------------------
+  // --- MVP 2.0: AUDITORÍA DE PRECISIÓN DE SERVI (IA) ---
+  // ----------------------------------------------------
+  
+  // Helper para la colección de auditoría (servi_audit)
+  CollectionReference _getServiAuditRef(String clientId) => 
+    _clientesRef.doc(clientId).collection('servi_audit');
+
+  /// Registra una interacción del usuario con una recomendación de SERVI.
+  /// Añade el ID de la orden para medir el ROI generado por la IA.
+  Future<void> recordServiRecommendation(
+    String clientId, 
+    String suggestedProduct, 
+    bool wasSuccessful,
+    String? relatedOrderId) async { // <-- AGREGADO DE CAMPO OPCIONAL
+  
+    // 1. Registrar la interacción en la subcolección de auditoría
+    await _getServiAuditRef(clientId).add({
+      'timestamp': FieldValue.serverTimestamp(),
+      'feature': 'product_recommendation',
+      'suggested_product': suggestedProduct,
+      'was_successful': wasSuccessful,
+      'status': wasSuccessful ? 'Accepted' : 'Ignored',
+      'related_order_id': relatedOrderId, // Trazabilidad de la venta
+    });
+    
+    // 2. Opcional: Añadir etiqueta de éxito al cliente
+    if (wasSuccessful) {
+      await _clientesRef.doc(clientId).update({
+        // Usamos arrayUnion para añadir la etiqueta sin sobrescribir las existentes
+        'etiquetas': FieldValue.arrayUnion(['servi_win', 'recom_${suggestedProduct.toLowerCase()}']), 
+        'ultimaInteraccion': FieldValue.serverTimestamp(),
+      });
+    }
+  }
 }

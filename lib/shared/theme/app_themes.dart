@@ -1,23 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// --- Paleta de Colores "Cyber Glow" (Oscuro) ---
+// --- COLORES BASE ---
+
+// Neutros MODO OSCURO (Cyber Glow)
 const Color _darkBackground = Color(0xFF1A1A2E);
 const Color _darkSurface = Color(0xFF2D2D5A);
 const Color _darkTextPrimary = Colors.white;
-const Color _darkTextSecondary = Color.fromARGB(179, 234, 195, 195);
+const Color _darkTextSecondary = Color.fromARGB(179, 234, 195, 195); // Tu color personalizado
 
-// --- Paleta "Cyber Light" (Claro) ---
-const Color _lightBackground = Color(0xFFF8F8F8);
-const Color _lightSurface = Color(0xFFFFFFFF);
-const Color _lightTextPrimary = Color(0xFF0A0A0A);
+// Neutros MODO CLARO (Cyber Clean - Ajustado)
+// 1. Fondo más oscuro (Gris azulado suave) para reducir el brillo general
+const Color _lightBackground = Color(0xFFF0F2F5); 
+// 2. Superficie blanca pura para contraste limpio contra el fondo gris
+const Color _lightSurface = Color(0xFFFFFFFF); 
+const Color _lightTextPrimary = Color(0xFF1A1A2E); // Azul oscuro como negro
 const Color _lightTextSecondary = Color(0xFF6B7280);
 
-// --- Paletas de Acento ---
-const Color _accentBlue = Color(0xFF0066CC);
-const Color _accentGreen = Color(0xFF00FF7F);
-const Color _accentPink = Color(0xFFFF00FF);
-const Color _accentOrange = Color(0xFFFFA500);
+// --- PALETAS DE ACENTO (DUAL) ---
+
+// 1. MODO OSCURO: Colores NEÓN (Brillantes)
+const Color _darkAccentBlue = Color(0xFF00BFFF);
+const Color _darkAccentGreen = Color(0xFF00FF7F);
+const Color _darkAccentPink = Color(0xFFFF00FF);
+const Color _darkAccentOrange = Color(0xFFFFA500);
+
+// 2. MODO CLARO: Colores SÓLIDOS (Profesionales/Legibles)
+// Ajustados para mayor contraste sobre blanco (WCAG 2.1 compliant)
+const Color _lightAccentBlue = Color(0xFF0056D2);   // Azul más profundo e intenso
+const Color _lightAccentGreen = Color(0xFF007A33);  // Verde bosque corporativo
+const Color _lightAccentPink = Color(0xFFB0003A);   // Rojo-rosado fuerte
+const Color _lightAccentOrange = Color(0xFFC63F00); // Teja/Ladrillo intenso
 
 enum AppPalette {
   blue,
@@ -28,6 +41,26 @@ enum AppPalette {
 
 class AppThemes {
   
+  // --- MAPA DE TEMAS OSCUROS (Usa acentos Neón) ---
+  static final Map<AppPalette, ThemeData> darkThemes = {
+    AppPalette.blue: _buildDarkTheme(_darkAccentBlue),
+    AppPalette.green: _buildDarkTheme(_darkAccentGreen),
+    AppPalette.pink: _buildDarkTheme(_darkAccentPink),
+    AppPalette.orange: _buildDarkTheme(_darkAccentOrange),
+  };
+
+  // --- MAPA DE TEMAS CLAROS (Usa acentos Sólidos) ---
+  static final Map<AppPalette, ThemeData> lightThemes = {
+    AppPalette.blue: _buildLightTheme(_lightAccentBlue),
+    AppPalette.green: _buildLightTheme(_lightAccentGreen),
+    AppPalette.pink: _buildLightTheme(_lightAccentPink),
+    AppPalette.orange: _buildLightTheme(_lightAccentOrange),
+  };
+
+  // ===========================================================================
+  // CONSTRUCTORES DE TEMA
+  // ===========================================================================
+
   // --- TEMA OSCURO ---
   static ThemeData _buildDarkTheme(Color accentColor) {
     final baseTheme = ThemeData.dark();
@@ -47,8 +80,8 @@ class AppThemes {
         seedColor: accentColor,
         brightness: Brightness.dark,
         primary: accentColor,
-        onPrimary: Colors.black, 
-        secondary: _accentPink,
+        onPrimary: Colors.black, // Texto negro sobre neón para contraste
+        secondary: _darkAccentPink,
         surface: _darkSurface,
         onSurface: _darkTextPrimary,
         error: Colors.redAccent,
@@ -68,7 +101,6 @@ class AppThemes {
         ),
       ),
       
-      // CORRECCIÓN AQUÍ: Usamos CardThemeData en lugar de CardTheme
       cardTheme: CardThemeData(
         color: _darkSurface,
         elevation: 0,
@@ -141,18 +173,18 @@ class AppThemes {
       primaryColor: accentColor,
       scaffoldBackgroundColor: _lightBackground,
       cardColor: _lightSurface,
-      dividerColor: Colors.black.withValues(alpha: 0.06), 
+      dividerColor: Colors.black.withValues(alpha: 0.08), // Divisor un poco más visible
       
       colorScheme: ColorScheme.fromSeed(
         seedColor: accentColor,
         brightness: Brightness.light,
         primary: accentColor,
-        onPrimary: Colors.white, 
-        secondary: _accentPink, 
+        onPrimary: Colors.white, // Texto BLANCO sobre colores sólidos oscuros
+        secondary: _lightAccentPink, 
         onSecondary: Colors.white,
         surface: _lightSurface, 
         onSurface: _lightTextPrimary,
-        error: Colors.red.shade600,
+        error: Colors.red.shade700, // Error más oscuro para leerse bien
         outline: _lightTextSecondary,
       ).copyWith(
         surface: _lightSurface, 
@@ -161,7 +193,7 @@ class AppThemes {
       textTheme: textTheme,
       
       appBarTheme: AppBarTheme(
-        backgroundColor: _lightBackground,
+        backgroundColor: _lightBackground, // AppBar del mismo color que el fondo para limpieza
         elevation: 0,
         foregroundColor: _lightTextPrimary,
         titleTextStyle: textTheme.titleLarge?.copyWith(
@@ -171,12 +203,14 @@ class AppThemes {
         iconTheme: IconThemeData(color: _lightTextPrimary),
       ),
       
-      // CORRECCIÓN AQUÍ: Usamos CardThemeData en lugar de CardTheme
       cardTheme: CardThemeData(
         color: _lightSurface,
-        elevation: 2,
-        shadowColor: Colors.black.withValues(alpha: 0.05),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        // Elevación sutil y borde imperceptible para separar del fondo gris
+        elevation: 0, 
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.05), width: 1),
+        ),
       ),
 
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
@@ -184,23 +218,24 @@ class AppThemes {
         selectedItemColor: accentColor,
         unselectedItemColor: _lightTextSecondary,
         type: BottomNavigationBarType.fixed,
-        elevation: 8,
+        elevation: 10, // Elevación para separar del contenido
       ),
 
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: _lightSurface,
         selectedIconTheme: IconThemeData(color: accentColor),
         unselectedIconTheme: const IconThemeData(color: Colors.black54),
-        indicatorColor: accentColor.withValues(alpha: 0.2), 
+        indicatorColor: accentColor.withValues(alpha: 0.1), 
       ),
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: accentColor,
-          foregroundColor: Colors.white,
+          foregroundColor: Colors.white, // Texto blanco para contraste
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 16),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          elevation: 2, // Sombra ligera en botones principales
         ),
       ),
 
@@ -208,7 +243,7 @@ class AppThemes {
         filled: true,
         fillColor: _lightSurface,
         prefixIconColor: accentColor,
-        labelStyle: const TextStyle(color: _lightTextSecondary),
+        labelStyle: TextStyle(color: _lightTextSecondary),
         hintStyle: TextStyle(color: _lightTextPrimary.withValues(alpha: 0.4)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -228,25 +263,11 @@ class AppThemes {
       
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: _darkSurface, 
+          color: _lightTextPrimary, 
           borderRadius: BorderRadius.circular(8),
         ),
         textStyle: const TextStyle(color: Colors.white, fontSize: 12),
       ),
     );
   }
-
-  static final Map<AppPalette, ThemeData> darkThemes = {
-    AppPalette.blue: _buildDarkTheme(_accentBlue),
-    AppPalette.green: _buildDarkTheme(_accentGreen),
-    AppPalette.pink: _buildDarkTheme(_accentPink),
-    AppPalette.orange: _buildDarkTheme(_accentOrange),
-  };
-
-  static final Map<AppPalette, ThemeData> lightThemes = {
-    AppPalette.blue: _buildLightTheme(_accentBlue),
-    AppPalette.green: _buildLightTheme(_accentGreen),
-    AppPalette.pink: _buildLightTheme(_accentPink),
-    AppPalette.orange: _buildLightTheme(_accentOrange),
-  };
 }

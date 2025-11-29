@@ -66,6 +66,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             _buildFormatRow("2. Descripción", "Ej: 500ml Anti-caída"),
             _buildFormatRow("3. Precio Venta", "Ej: 1500.00"),
             _buildFormatRow("4. Stock", "Ej: 50"),
+            // CAMBIO VISUAL: El campo 5 ahora se llama Costo (el nuevo campo 'cost')
             _buildFormatRow("5. Costo", "Ej: 800.00 (Opcional)"),
             const SizedBox(height: 16),
             Container(
@@ -173,6 +174,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         final String desc = row.length > 1 ? row[1].toString() : '';
         final double price = row.length > 2 ? (double.tryParse(row[2].toString()) ?? 0.0) : 0.0;
         final int stock = row.length > 3 ? (int.tryParse(row[3].toString()) ?? 0) : 0;
+        
+        // CAMBIO: Usamos 'cost' en lugar de costPrice (Columna 5 del CSV)
         final double cost = row.length > 4 ? (double.tryParse(row[4].toString()) ?? 0.0) : 0.0;
 
         newProducts.add(ProductModel(
@@ -182,7 +185,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           description: desc,
           price: price,
           quantity: stock,
-          costPrice: cost,
+          
+            // --- CORRECCIONES REQUERIDAS POR EL NUEVO MODELO ---
+          cost: cost, // CORREGIDO: Usamos el nuevo nombre 'cost'
+            sku: '', // REQUERIDO: Valor por defecto/vacío
+            category: 'Importado', // REQUERIDO: Valor por defecto
+            // ----------------------------------------------------
+            
           createdAt: cloud_firestore.Timestamp.now(),
           imageUrl: '', 
           minStock: 5,
@@ -207,7 +216,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)
+          SnackBar(content: Text('Error al importar: $e'), backgroundColor: Colors.red)
         );
       }
     } finally {
@@ -295,6 +304,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 fillColor: surfaceColor,
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: accentColor, width: 2)),
               ),
             ),
           ),

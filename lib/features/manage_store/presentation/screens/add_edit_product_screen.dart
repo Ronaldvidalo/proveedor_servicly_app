@@ -15,6 +15,9 @@ import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 
+// Definimos el alias para Timestamp de Firestore para usarlo en la función _saveProduct
+import 'package:cloud_firestore/cloud_firestore.dart' as cloud_firestore; 
+
 class AddEditProductScreen extends StatefulWidget {
   final UserModel user;
   final ProductModel? productToEdit;
@@ -40,6 +43,12 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   late final TextEditingController _promoTextController;
   late final TextEditingController _quantityController; 
 
+  // --- CONTROLADORES DE INVENTARIO Y COSTOS (NUEVOS) ---
+  late final TextEditingController _costController;
+  late final TextEditingController _skuController;
+  late final TextEditingController _inventoryCategoryController;
+  // ----------------------------------------------------
+
   DateTime? _expiryDate;
   XFile? _mainImageFile;
   bool _isUploading = false;
@@ -61,7 +70,15 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _promoTextController = TextEditingController(text: product?.promoText ?? '');
     _quantityController = TextEditingController(text: product?.quantity?.toString() ?? '');
     
-    _expiryDate = product?.expiryDate?.toDate();
+    // --- INICIALIZACIÓN DE NUEVOS CAMPOS ---
+    _costController = TextEditingController(text: product?.cost.toString() ?? '0.0'); 
+    _skuController = TextEditingController(text: product?.sku ?? '');
+    _inventoryCategoryController = TextEditingController(text: product?.category ?? 'General');
+    // ----------------------------------------
+    
+    // CORRECCIÓN 1: Convertimos Timestamp? (del modelo) a DateTime? (para la pantalla)
+    _expiryDate = product?.expiryDate?.toDate(); 
+    
     _selectedCategoryId = product?.categoryId ?? widget.preselectedCategory?.id;
 
     // Clonamos la galería
@@ -76,6 +93,13 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _promoPriceController.dispose();
     _promoTextController.dispose();
     _quantityController.dispose();
+    
+    // --- DISPOSE DE NUEVOS CONTROLADORES ---
+    _costController.dispose();
+    _skuController.dispose();
+    _inventoryCategoryController.dispose();
+    // ----------------------------------------
+    
     super.dispose();
   }
 
@@ -158,7 +182,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         }
       }
 
-      // --- 3. LECTURA DEL CEREBRO FINANCIERO (NUEVO) ---
+      // --- 3. LECTURA DEL CEREBRO FINANCIERO ---
       double currentFixedCost = 0.0;
       try {
         // Leemos directamente de Firestore para asegurar el dato más reciente
@@ -193,11 +217,17 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         mediaGallery: finalGalleryList,
         promoPrice: double.tryParse(_promoPriceController.text),
         promoText: _promoTextController.text.trim().isNotEmpty ? _promoTextController.text.trim() : null,
-        expiryDate: _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
-        createdAt: widget.productToEdit?.createdAt ?? Timestamp.now(),
         
-        // --- ASIGNACIÓN INTELIGENTE DE COSTOS ---
-        costPrice: widget.productToEdit?.costPrice ?? 0.0, // Por ahora 0, lo editaremos en Inventario
+        // CORRECCIÓN 2: Convertir DateTime? (_expiryDate) a Timestamp? para el modelo
+        expiryDate: _expiryDate != null ? cloud_firestore.Timestamp.fromDate(_expiryDate!) : null,
+        
+        // CORRECCIÓN 3: createdAt ya es Timestamp en el modelo. Lo pasamos directamente.
+        createdAt: widget.productToEdit?.createdAt ?? cloud_firestore.Timestamp.now(),
+        
+        // --- ASIGNACIÓN INTELIGENTE DE COSTOS (NUEVOS CAMPOS) ---
+        cost: double.tryParse(_costController.text) ?? 0.0, // Antes costPrice
+        sku: _skuController.text.trim(),
+        category: _inventoryCategoryController.text.trim(),
         
         // Si editamos, conservamos el histórico. Si es nuevo, estampamos el costo de hoy.
         fixedCostSnapshot: _isEditing 
@@ -393,6 +423,43 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                 ),
                 
                 const SizedBox(height: 24),
+                
+                // --- CAMPOS DE INVENTARIO (SERVI) ---
+                Text('Datos de Costos e Inventario', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white70)),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _costController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: inputDecoration.copyWith(labelText: 'Costo Unitario', prefixText: '\$ '),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (v) => v!.isEmpty ? 'Costo requerido' : null,
+                ),
+                const SizedBox(height: 16),
+
+                Row(
+                    children: [
+                        Expanded(
+                            child: TextFormField(
+                              controller: _skuController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: inputDecoration.copyWith(labelText: 'SKU / Código'),
+                              validator: (v) => v!.isEmpty ? 'SKU requerido' : null,
+                            ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                            child: TextFormField(
+                              controller: _inventoryCategoryController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: inputDecoration.copyWith(labelText: 'Cat. Inventario'),
+                            ),
+                        ),
+                    ],
+                ),
+                const SizedBox(height: 16),
+                // --- FIN CAMPOS DE INVENTARIO ---
+
                 TextFormField(
                   controller: _promoPriceController,
                   style: const TextStyle(color: Colors.white),

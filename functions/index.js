@@ -145,5 +145,15 @@ exports.onCobroPagado = onDocumentUpdated('users/{userId}/cobros/{cobroId}', asy
         // 4. Ejecuta la actualización atómica
         t.update(clienteRef, updates);
         console.log(`Cliente ${clienteId} actualizado con nuevo LTV y estado.`);
+
+        // --- Exportar las funciones de SERVI (IA) ---
+        // Este es el paso clave para cargar las nuevas funciones sin mezclar la lógica.
+        const serviAi = require('./servi_ai');
+
+        // Las exportamos bajo el namespace 'ai' o directamente para un despliegue limpio
+        exports.extractInvoiceData = serviAi.extractInvoiceData;
+
+        // Opcional: Si desea agruparlas bajo un prefijo (no es común para funciones onCall)
+        // exports.ai = serviAi;
     });
 });
