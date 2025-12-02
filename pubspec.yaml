@@ -30,6 +30,8 @@ dependencies:
   chewie: ^1.7.4
   geolocator: ^12.0.0
   geocoding: ^3.0.0
+  speech_to_text: ^7.3.0 # Para STT (Voz a Texto)
+  flutter_tts: ^4.0.2    # Para TTS (Texto a Voz)
   
 
   # --- GESTIÓN DE ESTADO ---
@@ -56,6 +58,10 @@ dependencies:
   file_picker: ^10.3.7
   csv: ^6.0.0
   cloud_functions: ^5.0.0 # Nueva e importante
+  google_generative_ai: ^0.1.0 # O la versión más reciente
+  http: ^1.1.0 # Para llamadas HTTPS
+  permission_handler: ^11.3.1
+
 
 dev_dependencies:
   flutter_test:
