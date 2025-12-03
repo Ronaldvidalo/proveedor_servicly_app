@@ -1,42 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:permission_handler/permission_handler.dart'; // 👈 IMPORTACIÓN AGREGADA
+import 'package:permission_handler/permission_handler.dart'; 
 
 // --- IMPORTACIONES CLAVE DE PROVIDERS Y FEATURES ---
 import 'package:proveedor_servicly_app/providers/app_providers.dart' hide userIdProvider; 
 import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart'; 
 import 'package:proveedor_servicly_app/features/inventory/providers/inventory_providers.dart'; 
-// Asumimos que estas son las rutas correctas:
-// import 'package:proveedor_servicly_app/ai/model/intention_result_model.dart';
-// import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
+
+// Importaciones de Clases REALES
+import 'package:proveedor_servicly_app/ai/model/intention_result_model.dart';
+import 'package:proveedor_servicly_app/ai/services/tts_service.dart'; 
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart'; 
+
+// 🚨 SOLUCIÓN AL ERROR DE AMBIGÜEDAD (Severity 8):
+// 1. Ocultamos el conector de la importación del servicio conversacional para eliminar la duplicidad.
+import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart' hide ServiApiConnectorService;
+
+// 2. Importamos el conector dedicado con un PREFIJO para que el compilador lo distinga.
+import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart' as Connector; 
 
 
-// --- PLACEHOLDERS ---
-class IntentionResult {
-    final String responseText;
-    final String ttsText;
-    IntentionResult(this.responseText, this.ttsText);
-}
-
-class TtsService {
-    Future<void> speak(String text) async {
-        debugPrint("TTS SPEAKING: $text");
-    }
-}
-class ServiConversationalService {
-    ServiConversationalService(geminiService, agendaRepo, inventoryRepo, intelligenceService);
-    Future<IntentionResult> processQueryAndRespond(String query, String userId) async {
-        await Future.delayed(const Duration(seconds: 1));
-        return IntentionResult(
-            "Tienes 1 cita y 2 pagos críticos.\n* Cita: Reunión con Proveedor X a las 10:00.\n* Pagos: Nómina vencida hoy (\$3,000.00).",
-            "Para hoy, tienes una cita importante y dos pagos críticos, incluyendo la nómina que vence hoy."
-        );
-    }
-}
-// --- FIN PLACEHOLDERS ---
-
-
+// -----------------------------------------------------------
 // --- DEFINICIÓN DE PROVIDERS ---
+// -----------------------------------------------------------
 
 final ttsServiceProvider = Provider<TtsService>((ref) {
     return TtsService(); 
@@ -48,7 +34,16 @@ final serviConversationalServiceProvider = Provider<ServiConversationalService>(
     final inventoryRepo = ref.watch(inventoryRepositoryProvider); 
     final intelligenceService = ref.watch(inventoryIntelligenceServiceProvider); 
     
-    return ServiConversationalService(geminiService, agendaRepo, inventoryRepo, intelligenceService);
+    // 2. CREAR EL CONECTOR DE API (Usando la clase importada del archivo dedicado)
+    final apiConnector = Connector.ServiApiConnectorService( 
+        geminiService, 
+        agendaRepo, 
+        inventoryRepo, 
+        intelligenceService
+    );
+    
+    // 3. CONSTRUIR EL SERVICIO CONVERSACIONAL (Pasando el conector)
+    return ServiConversationalService(apiConnector);
 });
 
 
@@ -70,6 +65,7 @@ class _ServiChatScreenState extends ConsumerState<ServiChatScreen> {
     @override
     void initState() {
         super.initState();
+        // Inicializa el servicio TTS desde el provider
         _ttsService = ref.read(ttsServiceProvider);
     }
     
@@ -86,12 +82,14 @@ class _ServiChatScreenState extends ConsumerState<ServiChatScreen> {
         final userId = ref.read(userIdProvider);
         
         try {
-            final IntentionResult result = await conversationalService.processQueryAndRespond(text, userId);
+            // Utilizamos el modelo real IntentionResultModel
+            final IntentionResultModel result = await conversationalService.processQueryAndRespond(text, userId);
             
             setState(() {
                 _messages.insert(0, {"sender": "servi", "text": result.responseText}); 
             });
             
+            // Lanza el texto a voz
             _ttsService.speak(result.ttsText);
             
         } catch (e) {
@@ -106,9 +104,9 @@ class _ServiChatScreenState extends ConsumerState<ServiChatScreen> {
         }
     }
 
-    // Método para la funcionalidad de voz (STT) - Ahora con solicitud de permiso
+    // Método para la funcionalidad de voz (STT) - Con manejo de permisos
     void _startListening() async {
-        // 1. Verificar y solicitar permiso
+        // 1. Verificar y solicitar permiso de Micrófono
         var status = await Permission.microphone.status;
         if (status.isDenied) {
             status = await Permission.microphone.request();
@@ -118,15 +116,13 @@ class _ServiChatScreenState extends ConsumerState<ServiChatScreen> {
         if (status.isGranted) {
             setState(() => _isListening = true);
             
-            // **AQUÍ VA EL CÓDIGO REAL DE STT** (e.g., speech_to_text package)
-            // Esto es solo la simulación del tiempo de escucha.
+            // Simulación de respuesta STT después de 3 segundos:
             Future.delayed(const Duration(seconds: 3), () {
                 setState(() => _isListening = false);
-                _handleSubmitted("Consulta transcrita por STT"); // Llama con el texto transcrito
+                // Usamos la prueba de bypass de Rol
+                _handleSubmitted("quien eres?"); 
             });
         } else {
-            // Manejo de permiso denegado
-            // Muestra un SnackBar o alerta
             debugPrint("Permiso de micrófono denegado.");
         }
     }
@@ -183,7 +179,6 @@ class _ServiChatScreenState extends ConsumerState<ServiChatScreen> {
                             margin: isUser ? const EdgeInsets.only(left: 80) : const EdgeInsets.only(right: 80),
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                                // Los warnings de deprecated_member_use (withOpacity) son de severidad baja y cosméticos.
                                 color: isUser ? colorSchemePrimary.withOpacity(0.1) : Theme.of(context).cardTheme.color,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: color.withOpacity(0.3)),

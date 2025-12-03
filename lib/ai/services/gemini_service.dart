@@ -5,8 +5,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart'; 
 import 'package:http/http.dart' as http; 
 import 'package:flutter/services.dart'; // Para rootBundle
+import 'dart:async'; // Necesario para Future
 
-// Asegúrese de que esta ruta sea correcta para su modelo de factura
+// Asumimos que esta ruta contiene la definición de la clase Invoice que USAMOS en extractDataFromImage
 // import 'package:proveedor_servicly_app/ai/model/ai_response_model.dart'; 
 
 // --- DEFINICIONES GLOBALES ---
@@ -16,41 +17,32 @@ const String MODEL_TO_CALL = 'gemini-2.5-flash';
 
 
 class GeminiService {
-  // Ahora que se usan Cloud Functions, _functions debe ser instanciada.
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
 
-  // --- MÉTODOS EXISTENTES (Simplemente revisados por dependencias) ---
-  // Nota: Dejé el código de sus métodos de OCR, Clasificación, etc., intactos,
-  // asumiendo que las clases como 'Invoice' y 'HttpsCallable' existen.
+  // --- MÉTODOS EXISTENTES (OCR, Clasificación) ---
 
+  // NOTA: Para resolver el conflicto de tipos en la pantalla de escaneo, 
+  // esta función debe devolver la clase Invoice definida en ai_response_model.dart
   Future<Invoice> extractDataFromImage(String base64Image) async {
-      // ... (código original aquí)
       throw UnimplementedError('extractDataFromImage not fully implemented in example');
   }
 
   Future<String> suggestCategory(String productName) async {
-      // ... (código original aquí)
       return 'General';
   }
   
   Future<String> classifyTransaction(String description, List<String> categories) async {
-      // ... (código original aquí)
       return 'Gasto General';
   }
 
   Future<List<String>> predictClientRecommendations(String clientId, List<String> productNamesList, List<String> clientHistory) async {
-      // ... (código original aquí)
       return ['Error: No se pudieron obtener las sugerencias.'];
   }
   
   // --- FUNCIÓN HELPER: LECTURA DEL PROMPT DE SERVI ---
-  // Implementación real en Dart para leer el archivo de assets.
   Future<String> _readSystemPromptFromFile() async {
     try {
-      // Asumimos que el archivo servi_system_prompt.txt fue copiado a la carpeta 'assets'
-      // o que se accede directamente al archivo usando rootBundle, lo cual es común en Flutter.
-      // Adaptar la ruta según donde haya colocado el archivo:
       const String promptPath = 'assets/prompts/servi_system_prompt.txt'; 
       return await rootBundle.loadString(promptPath);
     } catch (e) {
@@ -66,7 +58,6 @@ class GeminiService {
       final match = regex.firstMatch(rawText);
       
       if (match != null) {
-          // Usa el contenido del match sin caracteres extra
           return match.group(0)!.trim();
       }
       debugPrint('ERROR PARSING: No se encontró JSON en la respuesta del LLM.');
@@ -74,7 +65,7 @@ class GeminiService {
   }
 
 
-  // --- MVP 3.0: ASISTENTE CONVERSACIONAL CONTEXTUAL (Método Completo) ---
+  // --- MVP 3.0: ASISTENTE CONVERSACIONAL CONTEXTUAL (MÉTODO CENTRAL) ---
   
   /// IMPLEMENTACIÓN DEL MÉTODO REQUERIDO: callContextualLLM
   Future<Map<String, dynamic>> callContextualLLM(
@@ -144,11 +135,6 @@ class GeminiService {
       };
     }
   }
-
-  // El método handleUserQuery original ya no se necesita para el flujo conversacional principal.
-  // Si todavía lo utiliza como clasificador, debe mantenerlo. Si no, puede eliminarlo.
-
-  // Future<Map<String, dynamic>> handleUserQuery(String query) async { ... }
 }
 
 // Clase placeholder necesaria para el código original:
