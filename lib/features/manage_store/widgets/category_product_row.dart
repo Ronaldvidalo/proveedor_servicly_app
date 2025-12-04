@@ -108,7 +108,7 @@ class CategoryProductRow extends StatelessWidget {
                       );
                     }
                     
-                    // 3. Tarjeta de Producto Real
+                    // 3. Producto Real
                     final product = products[index - 1];
                     return Padding(
                       padding: const EdgeInsets.only(right: 12.0),
@@ -116,8 +116,9 @@ class CategoryProductRow extends StatelessWidget {
                         width: 160,
                         child: ProductCardRefactor(
                           product: product,
-                          brandColor: kCyberAccent,
-                          onDetailTap: () => Navigator.push(context, MaterialPageRoute(
+                          brandColor: const Color(0xFF00BFFF),
+                          isEditable: true, // <--- IMPORTANTE: MODO GESTOR ACTIVADO
+                          onTap: () => Navigator.push(context, MaterialPageRoute(
                             builder: (_) => AddEditProductScreen(user: user, productToEdit: product),
                           )),
                         ),

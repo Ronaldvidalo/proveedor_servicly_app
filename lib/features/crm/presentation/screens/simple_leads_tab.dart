@@ -22,7 +22,7 @@ class SimpleLeadsTab extends StatefulWidget {
 class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
   int _currentLimit = 10;
   // ignore: unused_field
-  bool _isLoadingMore = false; 
+  final bool _isLoadingMore = false; 
 
   void _loadMore() {
     setState(() {
@@ -130,7 +130,6 @@ class _LeadCard extends StatelessWidget {
   final String userPlan;
   
   const _LeadCard({
-    super.key,
     required this.lead, 
     required this.hasAccess,
     required this.userPlan,
@@ -173,9 +172,7 @@ class _LeadCard extends StatelessWidget {
       statusText = 'Cliente';
     }
 
-    final dateStr = lead.fechaAlta != null 
-        ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!) 
-        : '--/--';
+    final dateStr = DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!);
 
     return Card(
       color: surfaceColor,

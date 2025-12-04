@@ -260,7 +260,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
           future: _modulesFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return _LoadingSkeleton();
+              // CORRECCIÓN 1: Se asegura que se llame al constructor del widget _LoadingSkeleton
+              return const _LoadingSkeleton(); 
             }
 
             if (_isTourCheckPending) {
@@ -332,7 +333,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             key: _keyPublicProfile,
             title: 'Perfil Público',
             description: 'Gestiona tu presencia online.',
-            child: _PublicProfileButton(userModel: userModel),
+            // CORRECCIÓN 2: Se llama al widget como una clase, no como un método.
+            child: _PublicProfileButton(userModel: userModel), 
           ),
           const SizedBox(height: 32),
 
@@ -414,8 +416,8 @@ class _ProviderHomeTabRedesigned extends StatelessWidget {
               backgroundColor: colors.errorContainer,
               foregroundColor: colors.onErrorContainer,
               onPressed: () => Navigator.pop(context),
-              child: const Icon(Icons.close_rounded),
               tooltip: 'Salir del modo diseño',
+              child: const Icon(Icons.close_rounded),
             ),
             body: SafeArea(
               bottom: false,
@@ -575,7 +577,7 @@ class _ProfileIconAction extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.surfaceVariant.withOpacity(0.4), // Fix surfaceVariant
+        color: colors.surfaceContainerHighest.withOpacity(0.4), // Fix surfaceVariant
         shape: BoxShape.circle,
       ),
       child: IconButton(
@@ -683,7 +685,7 @@ class _ModuleTileCompact extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.surfaceVariant.withOpacity(0.3), // surfaceContainerLow replacement
+        color: colors.surfaceContainerHighest.withOpacity(0.3), // surfaceContainerLow replacement
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: colors.outline.withOpacity(0.1)),
       ),
@@ -775,7 +777,8 @@ class _ProfileCompletionBanner extends StatelessWidget {
 // --- WIDGET DE MÉTRICAS (Refactorizado) ---
 class _MetricsSection extends StatelessWidget {
   final UserModel userModel;
-  const _MetricsSection({required this.userModel});
+  // CORRECCIÓN 3: Constructor corregido
+  const _MetricsSection({super.key, required this.userModel}); 
 
   @override
   Widget build(BuildContext context) {
@@ -903,7 +906,7 @@ class _MetricItem extends StatelessWidget {
 
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
-  const _PublicProfileButton({required this.userModel});
+  const _PublicProfileButton({super.key, required this.userModel}); // CORRECCIÓN 2: Se asegura la llamada con argumentos
 
   @override
   Widget build(BuildContext context) {
@@ -923,72 +926,30 @@ class _PublicProfileButton extends StatelessWidget {
 
 // --- Skeleton Loading ---
 class _LoadingSkeleton extends StatefulWidget {
-  const _LoadingSkeleton();
+  // CORRECCIÓN 1: Se agrega super.key al constructor
+  const _LoadingSkeleton({super.key}); 
 
   @override
   State<_LoadingSkeleton> createState() => _LoadingSkeletonState();
 }
 
 class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  // El controller y su lógica se dejó simplificada en la corrección anterior,
+  // por lo que solo mantengo la estructura básica del State.
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return const Center(child: CircularProgressIndicator());
-      },
-    );
-  }
-}
-
-class _ShimmerObject extends StatelessWidget {
-  final double? width;
-  final double? height;
-  final bool isCircle;
-  final LinearGradient gradient;
-
-  const _ShimmerObject({
-    required this.gradient,
-    this.width,
-    this.height,
-    this.isCircle = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: isCircle ? null : BorderRadius.circular(16),
-        shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-      ),
-    );
-  }
-}
-
-class _SlidingGradientTransform extends GradientTransform {
-  const _SlidingGradientTransform({required this.slidePercent});
-  final double slidePercent;
-
-  @override
-  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
-    final translationX = bounds.width * slidePercent * 2.0 - bounds.width;
-    return Matrix4.translationValues(translationX, 0.0, 0.0);
+    // Se ha simplificado para solo mostrar un indicador de progreso central
+    return Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary));
   }
 }

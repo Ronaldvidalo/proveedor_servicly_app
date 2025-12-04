@@ -1,217 +1,150 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 
 class ProductCardRefactor extends StatelessWidget {
   final ProductModel product;
   final Color brandColor;
-  final VoidCallback onDetailTap;
+  final VoidCallback? onTap;
+  final bool isEditable; // TRUE = Modo Gestor, FALSE = Modo Tienda Pública
+  final VoidCallback? onLikeToggle; // Solo para modo público
+  final bool isLiked; // Solo para modo público
 
   const ProductCardRefactor({
     super.key,
     required this.product,
-    required this.brandColor,
-    required this.onDetailTap,
+    this.brandColor = const Color(0xFF00BFFF),
+    this.onTap,
+    this.isEditable = true, // Por defecto es modo gestor
+    this.onLikeToggle,
+    this.isLiked = false,
   });
-
-  // --- FUNCIÓN DE UTILIDAD PARA FORMATO DE PRECIO ---
-  String _formatPrice(double price) {
-    final format = NumberFormat.currency(
-      locale: 'es_AR',
-      symbol: '\$',
-      decimalDigits: 2,
-    );
-    return format.format(price);
-  }
-
-  // Lógica de colores de estado (Borde)
-  Color _getBorderColor() {
-    if (product.isOutOfStock) return Colors.grey.shade700;
-    if (product.isExpired) return Colors.redAccent.shade700;
-    if (product.isExpiringSoon) return Colors.orangeAccent.shade700;
-    return brandColor.withAlpha(150);
-  }
-
-  // WIDGET AUXILIAR: ETIQUETA DE STOCK
-  Widget _buildQuantityBadge() {
-    if (product.isOutOfStock) {
-      return const _StatusBadge(text: 'AGOTADO', color: Color(0xFFC62828), icon: Icons.block);
-    }
-    
-    if (product.quantity != null && product.quantity! > 0 && product.quantity! <= 5) {
-      return _StatusBadge(
-        text: 'Quedan ${product.quantity}', // Texto un poco más corto
-        color: Colors.orange.shade700,
-        icon: Icons.inventory_2_outlined,
-      );
-    }
-    return const SizedBox.shrink();
-  }
-
-  // WIDGET AUXILIAR: ETIQUETA DE DESCUENTO
-  Widget _buildPromoBadge() {
-    if (product.isOnSale && product.promoPrice != null && product.promoPrice! < product.price) {
-      // Calculamos porcentaje y evitamos división por cero
-      if (product.price == 0) return const SizedBox.shrink();
-      final discount = (1 - (product.promoPrice! / product.price)) * 100;
-      
-      return Transform.translate(
-        offset: const Offset(4, -4),
-        child: ClipPath(
-          clipper: _DiscountClipper(), 
-          child: Container(
-            width: 50, 
-            height: 50, 
-            color: Colors.redAccent,
-            alignment: Alignment.topCenter,
-            child: Transform.rotate(
-              angle: 0.785, // 45 grados
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8.0, left: 10.0),
-                child: Text(
-                  '-${discount.toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return const SizedBox.shrink();
-  }
 
   @override
   Widget build(BuildContext context) {
-    const surfaceColor = Color(0xFF2D2D5A);
-    final borderColor = _getBorderColor();
-    final isAgotado = product.isOutOfStock;
+    // 1. LÓGICA DE IMAGEN INTELIGENTE
+    // Si imageUrl está vacía, buscamos la primera imagen en la galería
+    String displayImage = product.imageUrl;
+    
+    if ((displayImage.isEmpty) && product.mediaGallery.isNotEmpty) {
+       // Buscamos el primer elemento que sea imagen o video con thumbnail
+       final firstMedia = product.mediaGallery.firstWhere(
+         (m) => m['url'] != null && m['url'].toString().isNotEmpty,
+         orElse: () => {},
+       );
+       if (firstMedia.isNotEmpty) {
+         displayImage = firstMedia['url'];
+       }
+    } else if (product.imageUrl.isEmpty && product.mediaGallery.isEmpty) {
+      // Si no hay nada de nada
+      displayImage = ''; 
+    }
+
+    // Lógica de Stock Bajo (Menos de 5 unidades)
+    final bool isLowStock = product.quantity != null && product.quantity! > 0 && product.quantity! < 5;
+    final bool isOutOfStock = product.quantity == 0;
 
     return GestureDetector(
-      onTap: onDetailTap,
+      onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: surfaceColor,
+          color: const Color(0xFF2D2D5A),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 1.5),
+          border: Border.all(color: brandColor.withOpacity(0.5), width: 1),
           boxShadow: [
             BoxShadow(
-              color: borderColor.withAlpha(80),
-              blurRadius: 12,
-              spreadRadius: 1,
-            )
+              color: brandColor.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
             children: [
-              // --- 1. Imagen y Badges ---
-              Expanded(
-                flex: 3,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Imagen/Thumbnail
-                    product.imageUrl.isNotEmpty
-                        ? Image.network(
-                            product.imageUrl,
-                            fit: BoxFit.cover,
-                            // OPTIMIZACIÓN DE MEMORIA: Redimensiona la imagen en caché
-                            cacheWidth: 400, 
-                            loadingBuilder: (context, child, progress) =>
-                                progress == null ? child : Center(child: CircularProgressIndicator(strokeWidth: 2, color: brandColor)),
-                            errorBuilder: (context, error, stack) =>
-                                const Center(child: Icon(Icons.image_not_supported_outlined, color: Colors.white38, size: 40)),
-                          )
-                        : Container(
-                            color: Colors.black.withAlpha(51),
-                            child: const Center(child: Icon(Icons.shopping_bag_outlined, color: Colors.white38, size: 40)),
-                          ),
-                    
-                    // Overlay oscuro si está agotado
-                    if (isAgotado) Container(color: Colors.black54),
+              // --- FONDO DE IMAGEN ---
+              Positioned.fill(
+                child: displayImage.isNotEmpty
+                    ? Image.network(
+                        displayImage,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                      )
+                    : _buildPlaceholder(),
+              ),
 
-                    // Badges
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: _buildQuantityBadge(),
+              // --- GRADIENTE PARA TEXTO ---
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 80,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFF1A1A2E).withOpacity(0.9),
+                      ],
                     ),
-                    
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: _buildPromoBadge(),
+                  ),
+                ),
+              ),
+
+              // --- INFORMACIÓN DEL PRODUCTO ---
+              Positioned(
+                bottom: 12,
+                left: 12,
+                right: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '\$${product.price.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        color: brandColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              // --- 2. Detalles ---
-              Expanded(
-               flex: 2,
-               child: Padding(
-               padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0), 
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                     mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                      // Título
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15), // Ligero ajuste de fuente
-                        maxLines: 2, 
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      
-                      const SizedBox(height: 6),
-                      
-                      // Precios
-                      if (product.isOnSale && product.promoPrice != null)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _formatPrice(product.price),
-                              style: TextStyle(
-                                  color: Colors.red.shade400,
-                                  decoration: TextDecoration.lineThrough,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.normal),
-                            ),
-                            Text(
-                              _formatPrice(product.promoPrice!),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  color: brandColor, 
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16),
-                            ),
-                          ],
-                        )
-                      else
-                        Text(
-                          _formatPrice(product.price),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: brandColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16),
-                        ),
-                    ],
-                  ),
+              // --- ETIQUETAS DE STOCK (Arriba Izquierda) ---
+              if (isOutOfStock)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: _buildTag('Agotado', Colors.red),
+                )
+              else if (isLowStock)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: _buildTag('Quedan ${product.quantity}', Colors.orange),
                 ),
+
+              // --- ACCIONES (Arriba Derecha) ---
+              Positioned(
+                top: 8,
+                right: 8,
+                child: isEditable
+                    ? _buildEditButton() // Modo Gestor: Icono Editar
+                    : _buildLikeButton(), // Modo Tienda: Corazón
               ),
             ],
           ),
@@ -219,57 +152,68 @@ class ProductCardRefactor extends StatelessWidget {
       ),
     );
   }
-}
 
-// -------------------------------------------------------------------
-// WIDGETS AUXILIARES
-// -------------------------------------------------------------------
-
-class _StatusBadge extends StatelessWidget {
-  final String text;
-  final Color color;
-  final IconData icon;
-
-  const _StatusBadge({required this.text, required this.color, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
+  // Widget Placeholder (Bolsa de compras)
+  Widget _buildPlaceholder() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-        // CORRECCIÓN: Usamos withAlpha para evitar warnings de deprecación
-        boxShadow: [BoxShadow(color: color.withAlpha(128), blurRadius: 4)],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 10),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
-          ),
-        ],
+      color: const Color(0xFF2D2D5A),
+      child: Center(
+        child: Icon(
+          Icons.shopping_bag_outlined,
+          size: 40,
+          color: Colors.white.withOpacity(0.2),
+        ),
       ),
     );
   }
-}
 
-class _DiscountClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.lineTo(size.width, 0);       
-    path.lineTo(size.width, size.height * 0.5); 
-    path.lineTo(size.width * 0.5, size.height); 
-    path.lineTo(0, size.height);       
-    path.close();
-    return path;
+  // Etiqueta (Tag)
+  Widget _buildTag(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+  // Botón Editar (Solo Gestor)
+  Widget _buildEditButton() {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E).withOpacity(0.7),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.edit, color: Colors.white, size: 16),
+    );
+  }
+
+  // Botón Like (Solo Tienda Pública)
+  Widget _buildLikeButton() {
+    return GestureDetector(
+      onTap: onLikeToggle,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E).withOpacity(0.7),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          isLiked ? Icons.favorite : Icons.favorite_border,
+          color: isLiked ? Colors.redAccent : Colors.white,
+          size: 18,
+        ),
+      ),
+    );
+  }
 }

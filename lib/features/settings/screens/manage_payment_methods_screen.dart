@@ -568,7 +568,7 @@ class _AddEditMethodDialogState extends State<_AddEditMethodDialog> {
             children: [
               // 1. Dropdown de Tipo de Método (PaymentMethodType)
               DropdownButtonFormField<PaymentMethodType>(
-                value: _type,
+                initialValue: _type,
                 decoration: inputDecoration.copyWith(labelText: 'Tipo de Método'),
                 dropdownColor: surfaceColor,
                 style: const TextStyle(color: Colors.white),
@@ -590,7 +590,7 @@ class _AddEditMethodDialogState extends State<_AddEditMethodDialog> {
               // 2. Dropdown Condicional para Nombre (Banco/Wallet/Cripto)
               if (_type != PaymentMethodType.other) ...[
                 DropdownButtonFormField<String>(
-                  value: _selectedName,
+                  initialValue: _selectedName,
                   isExpanded: true,
                   decoration: inputDecoration.copyWith(
                     labelText: _type == PaymentMethodType.crypto

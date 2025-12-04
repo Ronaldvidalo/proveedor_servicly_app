@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 // Modelos
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/core/models/user_model.dart';
 
 // Servicios
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';

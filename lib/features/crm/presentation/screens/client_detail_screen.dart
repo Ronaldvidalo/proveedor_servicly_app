@@ -439,7 +439,7 @@ class _RecommendationSection extends StatelessWidget {
                             Expanded(child: Text(name, style: TextStyle(color: colorScheme.onSurface))),
                         ],
                     ),
-                )).toList(),
+                )),
             ],
         );
     }

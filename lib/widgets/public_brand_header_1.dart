@@ -4,7 +4,6 @@ import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/widgets/follow_button.dart';
 
 // Widgets de CRM y UI
-import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 // Asegúrate de que LeadCaptureIcon exista o usa el widget que acabamos de crear si quieres reemplazar los iconos pequeños también
 import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_icon.dart'; 
 // IMPORTANTE: Importamos el botón que acabamos de crear

@@ -4,7 +4,6 @@ import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
-import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 
 /// Encabezado de Marca (REUTILIZABLE)
 class BrandHeaderCard extends StatefulWidget {

@@ -142,18 +142,21 @@ class FirestoreService {
           await _modulesCollection.orderBy('defaultOrder').get(); // Asumimos orden
 
       if (snapshot.docs.isEmpty) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
               "[FirestoreService] getAvailableModules: No se encontraron módulos.");
+        }
         return [];
       }
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] getAvailableModules: ${snapshot.docs.length} módulos encontrados.");
+      }
       return snapshot.docs.map((doc) => ModuleModel.fromFirestore(doc)).toList();
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[FirestoreService] !! ERROR al obtener availableModules: $e');
+      }
       rethrow;
     }
   }
@@ -163,21 +166,24 @@ class FirestoreService {
     required String templateId,
   }) async {
     // ... (código sin cambios) ...
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Solicitando setPublicProfileTemplate para UID: $userId con templateId: $templateId");
+    }
     try {
       await _usersCollection.doc(userId).update({
         'publicProfileCreated': true,
         'publicProfileTemplate': templateId,
       });
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] publicProfileTemplate ACTUALIZADO para UID: $userId");
+      }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR al actualizar publicProfileTemplate para UID: $userId. Error: $e');
+      }
       rethrow;
     }
   }
@@ -199,35 +205,40 @@ class FirestoreService {
           .snapshots()
           .map((snapshot) {
         if (snapshot.docs.isEmpty) {
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint(
                 "[FirestoreService] getCategoriesStream (PRODUCTOS): No se encontraron categorías para UID: $uid.");
+          }
           return <CategoryModel>[]; // Devolver lista vacía tipada
         }
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
               "[FirestoreService] getCategoriesStream (PRODUCTOS): ${snapshot.docs.length} categorías emitidas para UID: $uid.");
+        }
         return snapshot.docs
             .map((doc) => CategoryModel.fromFirestore(doc))
             .toList();
       }).handleError((error) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint(
               '[FirestoreService] !! ERROR en getCategoriesStream (PRODUCTOS) para UID: $uid. Error: $error');
+        }
         return <CategoryModel>[];
       });
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR al configurar getCategoriesStream (PRODUCTOS) para UID: $uid. Error: $e');
+      }
       return Stream.value(<CategoryModel>[]).handleError((_) => throw e);
     }
   }
 
   Future<void> addCategory(String userId, String name) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Intentando añadir categoría de PRODUCTO '$name' para UID: $userId");
+    }
     try {
       final categoriesCollection =
           _usersCollection.doc(userId).collection(_productCategoriesCollection);
@@ -237,64 +248,73 @@ class FirestoreService {
           ? 0
           : (currentCategories.docs.first.data()['order'] as int? ?? -1) + 1;
       await categoriesCollection.add({'name': name, 'order': nextOrder});
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] Categoría de PRODUCTO '$name' añadida exitosamente para UID: $userId con orden $nextOrder");
+      }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[FirestoreService] !! ERROR al añadir categoría de PRODUCTO: $e');
+      }
       rethrow;
     }
   }
 
   Future<void> updateCategoryName(
       String userId, String categoryId, String newName) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Intentando actualizar categoría de PRODUCTO $categoryId a '$newName' para UID: $userId");
+    }
     try {
       await _usersCollection
           .doc(userId)
           .collection(_productCategoriesCollection)
           .doc(categoryId)
           .update({'name': newName});
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] Categoría de PRODUCTO $categoryId actualizada exitosamente a '$newName' para UID: $userId");
+      }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR al actualizar categoría de PRODUCTO: $e');
+      }
       rethrow;
     }
   }
 
   Future<void> deleteCategory(String userId, String categoryId) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Intentando eliminar categoría de PRODUCTO $categoryId para UID: $userId");
+    }
     try {
       await _usersCollection
           .doc(userId)
           .collection(_productCategoriesCollection)
           .doc(categoryId)
           .delete();
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] Categoría de PRODUCTO $categoryId eliminada exitosamente para UID: $userId");
+      }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR al eliminar categoría de PRODUCTO: $e');
+      }
       rethrow;
     }
   }
 
   Future<void> reorderCategories(String userId, List<CategoryModel> currentList,
       int oldIndex, int newIndex) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Reordenando categorías de PRODUCTOS para UID: $userId de $oldIndex a $newIndex");
+    }
     try {
       final batch = _db.batch();
       final categoriesCollection =
@@ -307,13 +327,15 @@ class FirestoreService {
         batch.update(categoriesCollection.doc(reorderedList[i].id), {'order': i});
       }
       await batch.commit();
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] Categorías de PRODUCTOS reordenadas exitosamente en Firestore para UID: $userId");
+      }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR al reordenar categorías de PRODUCTOS: $e');
+      }
       rethrow;
     }
   }
@@ -420,9 +442,10 @@ class FirestoreService {
 
   /// (Responde a 'addCatalogPortfolioCategory')
   Future<void> addCatalogPortfolioCategory(String userId, String name) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Añadiendo categoría de PORTAFOLIO (catálogos) '$name' para UID: $userId");
+    }
     try {
       final categoriesRef = _catalogsCollection // <-- ¡CAMBIO!
           .doc(userId)
@@ -449,9 +472,10 @@ class FirestoreService {
   /// (Responde a 'updateCatalogPortfolioCategory')
   Future<void> updateCatalogPortfolioCategory(
       String userId, String categoryId, String newName) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Actualizando categoría de PORTAFOLIO (catálogos) $categoryId a '$newName'");
+    }
     try {
       await _catalogsCollection // <-- ¡CAMBIO!
           .doc(userId)
@@ -468,9 +492,10 @@ class FirestoreService {
   /// (Responde a 'deleteCatalogPortfolioCategory')
   Future<void> deleteCatalogPortfolioCategory(
       String userId, String categoryId) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Eliminando categoría de PORTAFOLIO (catálogos) $categoryId");
+    }
     try {
       await _catalogsCollection // <-- ¡CAMBIO!
           .doc(userId)
@@ -487,9 +512,10 @@ class FirestoreService {
   /// (Responde a 'updateCatalogPortfolioCategoriesOrder')
   Future<void> updateCatalogPortfolioCategoriesOrder(
       String userId, Map<String, int> newOrderMap) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Reordenando categorías de PORTAFOLIO (catálogos) para UID: $userId");
+    }
     try {
       final batch = _db.batch();
       final categoriesRef = _catalogsCollection // <-- ¡CAMBIO!
@@ -527,9 +553,10 @@ class FirestoreService {
           .map((doc) => PortfolioItemModel.fromFirestore(doc))
           .toList();
     }).handleError((error) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR en getCatalogPortfolioItemsStream UID: $userId CatID: $categoryId. Error: $error');
+      }
       return <PortfolioItemModel>[];
     });
   }
@@ -542,9 +569,10 @@ class FirestoreService {
     required String url,
     String? caption,
   }) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] addCatalogPortfolioItem UID: $userId CatID: $categoryId Type: $type");
+    }
     final itemsRef = _catalogsCollection // <-- ¡CAMBIO!
         .doc(userId)
         .collection(_portfolioItemsCollection);
@@ -570,18 +598,20 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR addCatalogPortfolioItem UID: $userId CatID: $categoryId. Error: $e');
+      }
       rethrow;
     }
   }
 
   /// (Responde a 'deleteCatalogPortfolioItem')
   Future<void> deleteCatalogPortfolioItem(String userId, String itemId) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] deleteCatalogPortfolioItem ItemID: $itemId UID: $userId");
+    }
     try {
       await _catalogsCollection // <-- ¡CAMBIO!
           .doc(userId)
@@ -589,9 +619,10 @@ class FirestoreService {
           .doc(itemId)
           .delete();
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             "[FirestoreService] !! ERROR deleteCatalogPortfolioItem ItemID: $itemId UID: $userId. Error: $e");
+      }
       rethrow;
     }
   }
@@ -635,9 +666,10 @@ class FirestoreService {
           .map((doc) => PortfolioItemModel.fromFirestore(doc))
           .toList();
     }).handleError((error) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[FirestoreService] !! ERROR en getPortfolioItemsStream (obsoleto) UID: $userId CatID: $categoryId. Error: $error');
+      }
       return <PortfolioItemModel>[];
     });
   }
@@ -672,9 +704,10 @@ class FirestoreService {
   // --- ¡MÉTODO NUEVO: ACTUALIZAR DISPONIBILIDAD! ---
   /// Actualiza la disponibilidad del proveedor para recibir trabajos (Switch "Disponible").
   Future<void> updateProviderAvailability(String uid, bool isAvailable) async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Actualizando disponibilidad (isAvailable: $isAvailable) para UID: $uid");
+    }
     try {
       // 1. Actualizar en 'users' (para lógica interna)
       await _usersCollection.doc(uid).update({'isAvailable': isAvailable});

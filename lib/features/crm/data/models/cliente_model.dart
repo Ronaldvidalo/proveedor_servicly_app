@@ -128,7 +128,7 @@ class Cliente {
       source: source ?? this.source,
       displayName: displayName ?? this.displayName,
       // --- ¡ASIGNACIÓN DE NUEVOS CAMPOS! ---
-      logoUrl: logoUrl ?? this.logoUrl,
+      logoUrl: logoUrl ?? logoUrl,
       location: location ?? this.location,
     );
   }

@@ -291,7 +291,7 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
       ),
       child: InkWell(
         onTap: _pickVideo,
-        child: Container(
+        child: SizedBox(
           height: 60,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

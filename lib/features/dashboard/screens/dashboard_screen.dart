@@ -27,6 +27,10 @@ import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_card
 // --- Widget de Métricas Extraído ---
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart';
 
+// --- IMPORTACIÓN CLAVE SERVI (MVP 3.0) ---
+import 'package:proveedor_servicly_app/ai/screens/servi_chat_screen.dart'; 
+
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -294,6 +298,13 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
               style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
             ),
           ),
+          
+          // --- A. NUEVO: BARRA DE PROMPT SERVI (MVP 3.0) ---
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24.0),
+            child: _ServiPromptBar(),
+          ),
+          // --- FIN NUEVO ---
 
           Showcase(
             key: _keyMetrics,
@@ -359,10 +370,56 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 }
 
 // ===================================================================
-// --- WIDGETS AUXILIARES ---
+// --- WIDGETS AUXILIARES (SERVI IMPLEMENTATION) ---
 // ===================================================================
 
+/// Componente de entrada de texto que lleva al chat conversacional de SERVI.
+class _ServiPromptBar extends StatelessWidget {
+    const _ServiPromptBar();
+
+    @override
+    Widget build(BuildContext context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        
+        return GestureDetector(
+            onTap: () {
+                // Navegación CLAVE: Al tocar, lleva a la pantalla de chat.
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const ServiChatScreen(),
+                ));
+            },
+            child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                    color: theme.cardTheme.color, // Fondo de la tarjeta
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.primary.withOpacity(0.5)),
+                ),
+                child: Row(
+                    children: [
+                        Icon(Icons.mic_none, color: colorScheme.primary),
+                        const SizedBox(width: 12),
+                        // El texto guía al usuario a interactuar con la IA
+                        Expanded(
+                            child: Text(
+                                "¿Pregúntale a SERVI: 'Cuál es mi próxima cita?'",
+                                style: TextStyle(
+                                    color: colorScheme.onSurface.withOpacity(0.6),
+                                    fontStyle: FontStyle.italic,
+                                ),
+                            ),
+                        ),
+                        Icon(Icons.assistant_direction, color: colorScheme.onSurface.withOpacity(0.3)),
+                    ],
+                ),
+            ),
+        );
+    }
+}
+
 class _PlaceholderScreen extends StatelessWidget {
+// ... (resto de _PlaceholderScreen)
   final String title;
   const _PlaceholderScreen({required this.title}); // (Fix: key removido)
 
@@ -405,6 +462,7 @@ class _PlaceholderScreen extends StatelessWidget {
 }
 
 class _ProfileCompletionBanner extends StatelessWidget {
+// ... (resto de _ProfileCompletionBanner)
   final VoidCallback onCompleteProfile;
   const _ProfileCompletionBanner({required this.onCompleteProfile});
 
@@ -452,12 +510,12 @@ class _ProfileCompletionBanner extends StatelessWidget {
 }
 
 class _PublicProfileButton extends StatelessWidget {
+// ... (resto de _PublicProfileButton)
   final UserModel userModel;
   const _PublicProfileButton({required this.userModel});
 
   @override
   Widget build(BuildContext context) {
-    // (Fix: Eliminado el check nulo muerto '?? false' si userModel.publicProfileCreated es bool)
     final bool isProfileCreated = userModel.publicProfileCreated ?? false; 
     final String buttonText = isProfileCreated ? 'Ver mi Perfil Público' : 'Crear mi Perfil Público';
     final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
@@ -490,6 +548,7 @@ class _PublicProfileButton extends StatelessWidget {
 }
 
 class _LoadingSkeleton extends StatefulWidget {
+// ... (resto de _LoadingSkeleton)
   final String? userName;
   final String? businessName;
   const _LoadingSkeleton({this.userName, this.businessName}); // (Fix: key removido)
@@ -499,6 +558,7 @@ class _LoadingSkeleton extends StatefulWidget {
 }
 
 class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerProviderStateMixin {
+// ... (resto de _LoadingSkeletonState)
   late AnimationController _shimmerController;
 
   @override
@@ -583,6 +643,7 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerPro
 }
 
 class _ShimmerObject extends StatelessWidget {
+// ... (resto de _ShimmerObject)
   final double? width;
   final double? height;
   final bool isCircle;

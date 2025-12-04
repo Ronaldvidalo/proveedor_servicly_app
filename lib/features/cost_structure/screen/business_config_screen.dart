@@ -17,7 +17,6 @@ import 'package:proveedor_servicly_app/features/cost_structure/core/providers/co
 import 'package:proveedor_servicly_app/features/cost_structure/screen/mentor_card.dart'; // Ajustar ruta si es necesario
 // import 'package:proveedor_servicly_app/features/cost_structure/data/models/fixed_cost_model.dart'; // Duplicado
 // --- IMPORTS DE FINANZAS (REPO Y PROVIDER GENERAL) ---
-import 'package:proveedor_servicly_app/features/finance/data/repositories/finance_repository.dart';
 import 'package:proveedor_servicly_app/features/finance/presentation/providers/finance_providers.dart';
 import 'package:proveedor_servicly_app/features/cost_structure/widgets/fixed_cost_modal.dart';
 

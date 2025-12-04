@@ -1,89 +1,72 @@
-/**
- * LÓGICA DE BACKEND PARA EL MÓDULO CRM (CLIENT-MANAGEMENT)
- * * Este archivo contiene las Cloud Functions que automatizan el flujo de trabajo CRM
- * (Lead-to-Client) y controlan el límite de contactos para la versión gratuita.
- *
- * NOTA: Usa la sintaxis moderna del SDK v2, que corrige el error 'functions.firestore.document is not a function'.
- */
+// functions/index.js (MODIFIED TO USE ESM SYNTAX)
 
-// Importa los módulos necesarios
-const { initializeApp } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
-const { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+// 1. Importaciones de módulos (usando sintaxis ESM)
+import * as functions from 'firebase-functions/v2';
+import { initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+// Importaciones de triggers de Firestore v2
+import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
-// Inicializa la app de Firebase Admin
+// Importar las funciones de IA desde servi_ai.js
+// IMPORTANTE: El .js es requerido para el entorno ESM
+import * as serviAi from './servi_ai.js';
+
+// 2. Inicialización de Firebase Admin
 initializeApp();
 const db = getFirestore();
 
 // --- Utilidades ---
+
 /**
- * Obtiene el documento de control del usuario para el plan y el contador de clientes.
- * @param {string} userId - ID del usuario.
- * @returns {Promise<FirebaseFirestore.DocumentSnapshot>} Snapshot del documento.
+ * Función auxiliar para obtener el perfil del usuario (proveedor)
+ * @param {string} uid 
+ * @returns {Promise<any>}
  */
-const getUserData = async(userId) => {
-    return db.collection('users').doc(userId).get();
+const getUserData = async(uid) => {
+    const doc = await db.collection('users').doc(uid).get();
+    return doc.data();
 };
 
 /**
- * Función genérica para incrementar o decrementar el contador de clientes del usuario.
- * @param {string} userId - ID del usuario.
- * @param {number} amount - Cantidad a incrementar (1) o decrementar (-1).
+ * Función auxiliar para actualizar el contador de clientes en el documento del proveedor.
+ * Se llama desde los triggers de Firestore.
+ * @param {string} providerId
  */
-const updateClienteCount = async(userId, amount) => {
-    const userRef = db.collection('users').doc(userId);
+const updateClienteCount = async(providerId) => {
+    // Esto podría ser un trigger en la vida real, pero lo modelamos como helper
+    const snapshot = await db.collection('users').doc(providerId).collection('clientes').count().get();
+    const count = snapshot.count || 0;
 
-    // Transacción atómica para garantizar la integridad del contador
-    await db.runTransaction(async(t) => {
-        const userDoc = await t.get(userRef);
-
-        if (userDoc.exists) {
-            const currentCount = userDoc.data().clienteCount || 0;
-            const newCount = currentCount + amount;
-
-            // Si el nuevo conteo cae por debajo de cero, lo establecemos en cero (prevención)
-            t.update(userRef, {
-                clienteCount: newCount < 0 ? 0 : newCount
-            });
-        }
+    await db.collection('users').doc(providerId).update({
+        clienteCount: count,
+        lastUpdated: FieldValue.serverTimestamp(),
     });
 };
 
 
-// --- 1. Control de Límites para Versión FREE ---
+// 3. Triggers Firestore (Lógica de Negocio CRM)
 
-/**
- * 1.1. Se activa cuando se crea un nuevo documento en /users/{userId}/clientes/{clienteId}.
- * Incrementa el contador total de clientes del usuario.
- */
-exports.onClienteCreated = onDocumentCreated('users/{userId}/clientes/{clienteId}', async(event) => {
-    const userId = event.params.userId;
-    if (!userId) {
-        console.error("No se pudo obtener el userId.");
-        return;
-    }
+// Trigger cuando se crea un nuevo documento de cliente/lead
+export const onClienteCreated = onDocumentCreated('users/{providerId}/clientes/{clienteId}', async(event) => {
+    const providerId = event.params.providerId;
+    const clienteData = event.data.data();
 
-    console.log(`Cliente creado para el usuario: ${userId}. Incrementando contador.`);
-    return updateClienteCount(userId, 1);
+    functions.logger.info(`Nuevo cliente/lead creado para ${providerId}: ${clienteData.nombreCompleto}`);
+
+    // Lógica para actualizar el contador de clientes
+    await updateClienteCount(providerId);
 });
 
-/**
- * 1.2. Se activa cuando se elimina un documento en /users/{userId}/clientes/{clienteId}.
- * Decrementa el contador total de clientes del usuario.
- */
-exports.onClienteDeleted = onDocumentDeleted('users/{userId}/clientes/{clienteId}', async(event) => {
-    const userId = event.params.userId;
-    if (!userId) {
-        console.error("No se pudo obtener el userId.");
-        return;
-    }
+// Trigger cuando se elimina un documento de cliente/lead
+export const onClienteDeleted = onDocumentDeleted('users/{providerId}/clientes/{clienteId}', async(event) => {
+    const providerId = event.params.providerId;
 
-    console.log(`Cliente eliminado para el usuario: ${userId}. Decrementando contador.`);
-    return updateClienteCount(userId, -1);
+    functions.logger.info(`Cliente/lead eliminado para ${providerId}.`);
+
+    // Lógica para actualizar el contador de clientes
+    await updateClienteCount(providerId);
 });
 
-
-// --- 2. Integración Crítica con el Módulo de Finanzas (Lógica de Conversión) ---
 
 /**
  * 2.1. Se activa cuando un documento en la colección 'cobros' (del módulo de Finanzas)
@@ -93,14 +76,14 @@ exports.onClienteDeleted = onDocumentDeleted('users/{userId}/clientes/{clienteId
  * RUTA ASUMIDA: /users/{userId}/cobros/{cobroId}
  * Condición: (after.data().estado === 'COBRADO') && (before.data().estado !== 'COBRADO')
  */
-exports.onCobroPagado = onDocumentUpdated('users/{userId}/cobros/{cobroId}', async(event) => {
+export const onCobroPagado = onDocumentUpdated('users/{providerId}/cobros/{cobroId}', async(event) => {
     const after = event.data.after.data();
     const before = event.data.before.data();
-    const userId = event.params.userId;
+    const providerId = event.params.providerId; // Usamos providerId en v2
 
     // Verificación 1: Debe ser un cambio de estado a COBRADO
     if (after.estado !== 'COBRADO' || before.estado === 'COBRADO') {
-        console.log("Cobro no completado o ya procesado. Terminando función.");
+        functions.logger.log("Cobro no completado o ya procesado. Terminando función.");
         return null;
     }
 
@@ -108,18 +91,18 @@ exports.onCobroPagado = onDocumentUpdated('users/{userId}/cobros/{cobroId}', asy
     const montoCobrado = after.monto || 0;
 
     if (!clienteId) {
-        console.warn(`Cobro ${event.params.cobroId} no tiene clienteId. Saltando actualización de CRM.`);
+        functions.logger.warn(`Cobro ${event.params.cobroId} no tiene clienteId. Saltando actualización de CRM.`);
         return null;
     }
 
-    const clienteRef = db.collection('users').doc(userId).collection('clientes').doc(clienteId);
+    const clienteRef = db.collection('users').doc(providerId).collection('clientes').doc(clienteId);
 
     // Transacción para garantizar la integridad del montoTotalFacturado
     return db.runTransaction(async(t) => {
         const clienteDoc = await t.get(clienteRef);
 
         if (!clienteDoc.exists) {
-            console.error(`Cliente ID: ${clienteId} no encontrado.`);
+            functions.logger.error(`Cliente ID: ${clienteId} no encontrado.`);
             return;
         }
 
@@ -133,27 +116,25 @@ exports.onCobroPagado = onDocumentUpdated('users/{userId}/cobros/{cobroId}', asy
         updates.montoTotalFacturado = currentLTV + montoCobrado;
 
         // 2. Actualizar Última Interacción
-        updates.ultimaInteraccion = new Date();
+        updates.ultimaInteraccion = FieldValue.serverTimestamp(); // Usamos FieldValue
 
         // 3. Lógica de Conversión (si el cliente era un LEAD)
         if (clienteEstado && clienteEstado.startsWith('LEAD')) {
-            // Convierte cualquier estado LEAD (NUEVO, CONTACTADO, COTIZADO) a CLIENTE_ACTIVO
+            // Convierte cualquier estado LEAD a CLIENTE_ACTIVO
             updates.estadoCRM = 'CLIENTE_ACTIVO';
-            console.log(`LEAD ${clienteId} convertido automáticamente a CLIENTE_ACTIVO.`);
+            functions.logger.log(`LEAD ${clienteId} convertido automáticamente a CLIENTE_ACTIVO.`);
         }
 
         // 4. Ejecuta la actualización atómica
         t.update(clienteRef, updates);
-        console.log(`Cliente ${clienteId} actualizado con nuevo LTV y estado.`);
-
-        // --- Exportar las funciones de SERVI (IA) ---
-        // Este es el paso clave para cargar las nuevas funciones sin mezclar la lógica.
-        const serviAi = require('./servi_ai');
-
-        // Las exportamos bajo el namespace 'ai' o directamente para un despliegue limpio
-        exports.extractInvoiceData = serviAi.extractInvoiceData;
-
-        // Opcional: Si desea agruparlas bajo un prefijo (no es común para funciones onCall)
-        // exports.ai = serviAi;
+        functions.logger.log(`Cliente ${clienteId} actualizado con nuevo LTV y estado.`);
     });
 });
+
+
+// 4. Exportación de las funciones de SERVI (IA)
+// Estas funciones se importan desde servi_ai.js y se re-exportan para Firebase
+export const extractInvoiceData = serviAi.extractInvoiceData;
+export const classifyTransaction = serviAi.classifyTransaction;
+export const predictClientRecommendations = serviAi.predictClientRecommendations;
+export const handleUserQuery = serviAi.handleUserQuery; // El asistente conversacional

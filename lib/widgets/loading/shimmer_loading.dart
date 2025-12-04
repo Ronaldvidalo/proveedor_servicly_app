@@ -1,8 +1,7 @@
 // lib/common/widgets/loading/shimmer_loading.dart
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui; // Necesario para PathMetric y listEquals
+// Necesario para PathMetric y listEquals
 
 // --- Estilos Globales utilizados en el Shimmer ---
 // Colores base del tema 'Cyber Glow' oscuro

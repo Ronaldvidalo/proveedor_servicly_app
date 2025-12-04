@@ -92,7 +92,7 @@ class PaymentService {
         batch.update(doc.reference, {'isPrimary': true});
       } else {
         // 3. Desmarca cualquier otro que fuera primario
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         if (data['isPrimary'] == true) {
           batch.update(doc.reference, {'isPrimary': false});
         }

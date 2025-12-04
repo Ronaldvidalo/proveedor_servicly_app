@@ -150,9 +150,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     final friendlySource = _getFriendlySource(lead.source);
     final friendlyName = _getFriendlyName(lead.nombreCompleto);
     
-    final dateStr = lead.fechaAlta != null 
-        ? DateFormat('dd/MM/yyyy - HH:mm').format(lead.fechaAlta!) 
-        : '--/--';
+    final dateStr = DateFormat('dd/MM/yyyy - HH:mm').format(lead.fechaAlta!);
 
     return Scaffold(
       // QA FIX: Fondo dinámico

@@ -11,13 +11,11 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 
 // --- IMPORTACIÓN CRÍTICA PARA GEOCODING ---
 import 'package:proveedor_servicly_app/core/services/geocoding_service.dart';
 
 // Importamos el ThemeService para leer el tema
-import 'package:proveedor_servicly_app/core/services/theme_service.dart';
 
 // --- Navegación ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';

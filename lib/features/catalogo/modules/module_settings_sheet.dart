@@ -48,7 +48,7 @@ class ModuleSettingsSheet extends StatelessWidget {
               return SwitchListTile(
                 title: Text("Módulo de Bienvenida", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showWelcomeModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showWelcomeModule',
@@ -65,7 +65,7 @@ class ModuleSettingsSheet extends StatelessWidget {
               return SwitchListTile(
                 title: Text("Módulo de Agendar Cita", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showBookingModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showBookingModule',
@@ -82,7 +82,7 @@ class ModuleSettingsSheet extends StatelessWidget {
               return SwitchListTile(
                 title: Text("Módulo de Portafolio", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showPortfolioModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: permissions.canUsePortfolioModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showPortfolioModule',
@@ -105,7 +105,7 @@ class ModuleSettingsSheet extends StatelessWidget {
                   ],
                 ),
                 value: provider.profile.showPromotionsModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: permissions.canUsePromotionsModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showPromotionsModule',
@@ -128,7 +128,7 @@ class ModuleSettingsSheet extends StatelessWidget {
                   ],
                 ),
                 value: provider.profile.showGiftCardModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: permissions.canUseGiftCardModule ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showGiftCardModule',
@@ -151,7 +151,7 @@ class ModuleSettingsSheet extends StatelessWidget {
                   ],
                 ),
                 value: provider.profile.showQuotesModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: canUse ? (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showQuotesModule',
@@ -168,7 +168,7 @@ class ModuleSettingsSheet extends StatelessWidget {
               return SwitchListTile(
                 title: Text("Módulo de Reseñas", style: TextStyle(color: colorScheme.onSurface)),
                 value: provider.profile.showReviewsModule,
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 onChanged: (newValue) {
                   provider.setModuleVisibility(
                     moduleKey: 'showReviewsModule',

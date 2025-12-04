@@ -1,0 +1,9 @@
+[{
+        "role": "system",
+        "content": "--- INSTRUCCIONES DEL SISTEMA PARA SERVI ---\nEste modelo de Lenguaje Grande (LLM) gestiona la interacción por voz (VAD/ASR) y debe generar la respuesta de texto y el texto para la conversión a voz (TTS)... [RESTO DEL PROMPT COMPILADO DE SERVI AQUÍ]"
+    },
+    {
+        "role": "user",
+        "content": "--- CONTEXTO DINÁMICO DE LA EMPRESA ---\n\n{\n  \"fecha_consulta\": \"Lunes, 1 de diciembre de 2025\",\n  \"agenda_data\": null,\n  \"pagos_pendientes\": null,\n  \"inventario_consulta\": {\n    \"nombre\": \"Filtro de Aceite X\",\n    \"stock_actual\": 15,\n    \"alerta_stock\": \"BAJO_STOCK\"\n  },\n  \"ventas_hoy\": null\n}\n\n--- PREGUNTA DEL USUARIO ---\n\n¿Cuál es el stock de los filtros de aceite X?"
+    }
+]

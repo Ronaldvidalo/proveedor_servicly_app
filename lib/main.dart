@@ -12,7 +12,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:flutter/foundation.dart'; 
 
 // --- Importaciones de Firebase ---
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -22,7 +21,6 @@ import 'firebase_options.dart';
 import 'package:proveedor_servicly_app/core/services/theme_service.dart';
 // Nota: AppThemes se usa dentro de ThemeService, no es estrictamente necesario importarlo aquí
 // a menos que uses AppPalette en el main, pero lo dejamos por si acaso.
-import 'package:proveedor_servicly_app/shared/theme/app_themes.dart';
 
 // --- Servicios Core ---
 import 'core/services/auth_service.dart';

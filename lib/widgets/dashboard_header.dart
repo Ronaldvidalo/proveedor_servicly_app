@@ -58,7 +58,7 @@ class DashboardHeader extends StatelessWidget {
                 Text(
                   businessName,
                   style: theme.textTheme.headlineSmall?.copyWith( 
-                    color: colors.onBackground,
+                    color: colors.onSurface,
                     fontWeight: FontWeight.bold,
                     shadows: [
                       Shadow(color: colors.primary.withValues(alpha: 0.5), blurRadius: 10),

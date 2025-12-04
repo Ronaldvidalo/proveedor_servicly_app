@@ -35,8 +35,9 @@ class InventoryProductCard extends StatelessWidget {
     // Si el margen es < 20% lo ponemos en amarillo, si es negativo en rojo
     final margen = product.margenGananciaPublico * 100;
     Color marginColor = Colors.green;
-    if (margen < 0) marginColor = Colors.red;
-    else if (margen < 20) marginColor = Colors.orange;
+    if (margen < 0) {
+      marginColor = Colors.red;
+    } else if (margen < 20) marginColor = Colors.orange;
 
     final currencyFormat = NumberFormat.currency(locale: 'es_AR', symbol: '\$', decimalDigits: 0);
 

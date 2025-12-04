@@ -143,7 +143,7 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
                       // QA FIX: Dropdown fondo tarjeta
                       dropdownColor: theme.cardTheme.color,
                       style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
-                      value: viewModel.estadoSeleccionado,
+                      initialValue: viewModel.estadoSeleccionado,
                       items: viewModel.availableStates.map((CrmEstado estado) {
                         return DropdownMenuItem<CrmEstado>(
                           value: estado,

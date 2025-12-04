@@ -152,7 +152,7 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
                 Expanded(
                   flex: 2,
                   child: DropdownButtonFormField<String>(
-                    value: _selectedFrecuencia,
+                    initialValue: _selectedFrecuencia,
                     // QA FIX: Fondo del dropdown dinámico
                     dropdownColor: theme.cardTheme.color,
                     style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
@@ -170,7 +170,7 @@ class _FixedCostModalState extends ConsumerState<FixedCostModal> {
             const SizedBox(height: 16),
             
             DropdownButtonFormField<String>(
-              value: _selectedCategoria,
+              initialValue: _selectedCategoria,
               dropdownColor: theme.cardTheme.color,
               style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
               decoration: _inputDecoration(theme, "Categoría", Icons.category_outlined),

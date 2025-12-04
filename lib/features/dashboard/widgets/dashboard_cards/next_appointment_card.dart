@@ -74,7 +74,7 @@ class NextAppointmentCard extends ConsumerWidget {
               const Spacer(),
               if (hasAppointment) ...[
                 Text(
-                  DateFormat('HH:mm').format(event!.startTime), 
+                  DateFormat('HH:mm').format(event.startTime), 
                   style: TextStyle(
                     // Hora en grande (Texto principal)
                     color: colorScheme.onSurface, 

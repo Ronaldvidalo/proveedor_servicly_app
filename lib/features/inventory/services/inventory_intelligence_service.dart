@@ -29,7 +29,7 @@ class InventoryIntelligenceService {
         
         final event = AgendaEvent(
           title: '🚨 Revisar caducidad: ${product.name}',
-          description: 'El producto ${product.name} caduca en ${daysUntilExpiry} días. Revisa si se puede vender con descuento o si debe ser desechado.',
+          description: 'El producto ${product.name} caduca en $daysUntilExpiry días. Revisa si se puede vender con descuento o si debe ser desechado.',
           startTime: reviewDate,
           endTime: reviewDate.add(const Duration(minutes: 30)), // Bloqueo de 30 minutos
           eventType: EventType.personal_reminder, 
@@ -45,7 +45,7 @@ class InventoryIntelligenceService {
     if (currentQuantity <= minStock) {
        final event = AgendaEvent(
           title: '📦 Reponer Stock Crítico: ${product.name}',
-          description: 'El stock (${currentQuantity}) de ${product.name} está en o por debajo del nivel mínimo (${minStock}). ¡Es hora de realizar un pedido!',
+          description: 'El stock ($currentQuantity) de ${product.name} está en o por debajo del nivel mínimo ($minStock). ¡Es hora de realizar un pedido!',
           startTime: DateTime.now().add(const Duration(hours: 1)), // Sugerencia de tarea inmediata
           endTime: DateTime.now().add(const Duration(hours: 1, minutes: 30)),
           eventType: EventType.personal_reminder,

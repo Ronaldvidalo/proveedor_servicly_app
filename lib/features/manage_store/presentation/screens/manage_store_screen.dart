@@ -13,7 +13,6 @@ import 'package:proveedor_servicly_app/core/services/product_service.dart';
 
 // --- Screens & Widgets ---
 import 'package:proveedor_servicly_app/widgets/brand_header_card.dart';
-import 'package:proveedor_servicly_app/widgets/info_chip.dart';
 import 'package:proveedor_servicly_app/widgets/provider_stats_panel.dart';
 import 'package:proveedor_servicly_app/widgets/pending_sales_summary.dart';
 import 'package:proveedor_servicly_app/widgets/VideoCard.dart';

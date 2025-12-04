@@ -1,13 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Importamos los modelos
 import 'package:proveedor_servicly_app/features/cost_structure/data/models/business_config_model.dart';
 import 'package:proveedor_servicly_app/features/cost_structure/data/models/fixed_cost_model.dart';
 
 // Importamos el repositorio
-import 'package:proveedor_servicly_app/features/finance/data/repositories/finance_repository.dart';
 // Importamos el provider del repositorio
 import 'package:proveedor_servicly_app/features/finance/presentation/providers/finance_providers.dart';
 

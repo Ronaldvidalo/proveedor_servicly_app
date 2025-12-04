@@ -2,8 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 
 /// Un servicio dedicado a gestionar las operaciones CRUD para los productos.
-///
-/// ACTUALIZADO: Ahora utiliza la colección RAÍZ 'products' y filtra por 'providerId'.
 class ProductService {
   final FirebaseFirestore _db;
 
@@ -64,18 +62,32 @@ class ProductService {
   }
 
   /// Añade un nuevo producto a Firestore (Colección Raíz).
+  /// CORREGIDO: Genera ID automático si viene vacío.
   Future<void> addProduct(String userId, ProductModel product) async {
-    // Aseguramos que el modelo tenga el providerId correcto antes de guardar
-    // (Aunque el modelo ya debería tenerlo, esto es doble seguridad)
-    final productData = product.toJson();
-    productData['providerId'] = userId;
+    DocumentReference docRef;
 
-    // Usamos .set con el ID del producto para consistencia
-    await _productsRef.doc(product.id).set(productData);
+    // 1. Si el ID está vacío, generamos uno nuevo automáticamente
+    if (product.id.isEmpty) {
+      docRef = _productsRef.doc(); 
+    } else {
+      docRef = _productsRef.doc(product.id);
+    }
+
+    // 2. Preparamos los datos para guardar
+    final productData = product.toJson();
+    
+    // Aseguramos que campos críticos estén presentes
+    productData['providerId'] = userId;
+    productData['id'] = docRef.id; // Guardamos el ID generado DENTRO del documento
+
+    // 3. Guardamos usando el documento con el ID correcto
+    await docRef.set(productData);
   }
 
   /// Actualiza un producto existente en Firestore.
   Future<void> updateProduct(String userId, ProductModel product) async {
+    if (product.id.isEmpty) return; // Validación extra de seguridad
+
     // Solo actualizamos si el ID existe en la raíz
     await _productsRef.doc(product.id).update(product.toJson());
   }

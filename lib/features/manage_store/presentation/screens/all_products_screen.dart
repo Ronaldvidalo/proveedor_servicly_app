@@ -11,7 +11,6 @@ import 'package:proveedor_servicly_app/core/services/product_service.dart';
 
 // --- Widgets y Pantallas ---
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
-// Asegúrate de importar tu tarjeta de producto refactorizada
 import 'package:proveedor_servicly_app/widgets/ProductCardRefactor.dart'; 
 
 class AllProductsScreen extends StatelessWidget {
@@ -43,7 +42,6 @@ class AllProductsScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // TODO: Implementar búsqueda en el futuro
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
@@ -87,7 +85,7 @@ class AllProductsScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.inventory_2_outlined, size: 64, color: Colors.white.withOpacity(0.3)),
+                  Icon(Icons.inventory_2_outlined, size: 64, color: Colors.white.withAlpha(77)), // Corregido warning
                   const SizedBox(height: 16),
                   Text(
                     categoryFilter != null 
@@ -122,8 +120,10 @@ class AllProductsScreen extends StatelessWidget {
               return ProductCardRefactor(
                 product: product,
                 brandColor: accentColor,
-                // Al tocar, vamos a editar
-                onDetailTap: () {
+                isEditable: true, // <--- IMPORTANTE: Activamos modo edición (lápiz)
+                
+                // CORRECCIÓN: Cambiado de onDetailTap a onTap
+                onTap: () {
                   Navigator.push(context, MaterialPageRoute(
                     builder: (_) => AddEditProductScreen(user: user, productToEdit: product),
                   ));

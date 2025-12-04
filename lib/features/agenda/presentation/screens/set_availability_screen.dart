@@ -130,8 +130,11 @@ class _DayCard extends StatelessWidget {
   }
   
   void _updateTime(int index, TimeOfDay newTime, bool isStart) {
-    if (isStart) dayData.workSlots[index].start = newTime;
-    else dayData.workSlots[index].end = newTime;
+    if (isStart) {
+      dayData.workSlots[index].start = newTime;
+    } else {
+      dayData.workSlots[index].end = newTime;
+    }
     onUpdate(dayData);
   }
 
@@ -162,7 +165,7 @@ class _DayCard extends StatelessWidget {
                 Switch(
                   value: dayData.isEnabled,
                   onChanged: _toggleDay,
-                  activeColor: accentColor,
+                  activeThumbColor: accentColor,
                 ),
               ],
             ),

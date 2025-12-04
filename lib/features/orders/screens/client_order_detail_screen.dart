@@ -107,7 +107,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              )).toList(),
+              )),
             ],
           ),
 

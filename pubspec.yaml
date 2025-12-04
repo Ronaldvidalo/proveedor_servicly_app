@@ -32,6 +32,9 @@ dependencies:
   geocoding: ^3.0.0
   speech_to_text: ^7.3.0 # Para STT (Voz a Texto)
   flutter_tts: ^4.0.2    # Para TTS (Texto a Voz)
+  video_thumbnail: ^0.5.3 # Para sacar la foto del video
+  path_provider: ^2.1.2 # Necesario para guardar la miniatura temporal
+  share_plus: ^10.0.0
   
 
   # --- GESTIÓN DE ESTADO ---

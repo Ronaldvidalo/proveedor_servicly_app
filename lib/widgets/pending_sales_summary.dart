@@ -105,7 +105,7 @@ class PendingSalesSummary extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colors.background, // Fondo del icono
+              color: colors.surface, // Fondo del icono
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(Icons.pending_actions_rounded, color: colors.primary, size: 30),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Para PathMetric
-import 'package:flutter/foundation.dart';
 
 // Constantes de Diseño (Cyber Glow Theme)
 const kCyberBg = Color(0xFF1A1A2E);
