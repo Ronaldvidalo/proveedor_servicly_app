@@ -1,6 +1,7 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 26/11/2025
 // Style: Cyber Glow Integration
+// Update: Integración completa de Módulos Presupuesto (Quotes), Inventario e IA
 // ---------------------------------
 
 // Ocultamos conflictos de nombres entre Riverpod y Provider
@@ -12,15 +13,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import explícito para instancias
 
 // --- Importaciones de Firebase ---
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
-// --- SERVICIOS DE TEMA (NUEVO) ---
+// --- SERVICIOS DE TEMA ---
 import 'package:proveedor_servicly_app/core/services/theme_service.dart';
-// Nota: AppThemes se usa dentro de ThemeService, no es estrictamente necesario importarlo aquí
-// a menos que uses AppPalette en el main, pero lo dejamos por si acaso.
 
 // --- Servicios Core ---
 import 'core/services/auth_service.dart';
@@ -44,6 +44,17 @@ import 'core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; 
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; 
 
+// --- MÓDULO DE INVENTARIO (Dependencias) ---
+import 'package:proveedor_servicly_app/features/inventory/data/inventory_repository.dart';
+import 'package:proveedor_servicly_app/features/inventory/services/inventory_intelligence_service.dart';
+import 'package:proveedor_servicly_app/features/agenda/data/repositories/agenda_repository.dart';
+
+// --- MÓDULO DE PRESUPUESTOS (QUOTES) & IA ---
+import 'package:proveedor_servicly_app/features/budget/repositories/quote_repository.dart';
+import 'package:proveedor_servicly_app/features/budget/providers/quote_provider.dart';
+import 'package:proveedor_servicly_app/features/budget/services/quote_intelligence_service.dart'; // Import añadido
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart'; // Import añadido
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_ES', null);
@@ -59,7 +70,7 @@ void main() async {
 
   // --- 1. Cargar el NUEVO servicio de tema ---
   final themeService = ThemeService();
-  await themeService.loadTheme(); // Carga la paleta guardada por el usuario
+  await themeService.loadTheme(); 
 
   runApp(
     ProviderScope( // Riverpod Scope
@@ -90,8 +101,9 @@ class MyApp extends StatelessWidget {
         Provider<FollowService>(create: (_) => FollowService()),
         Provider<PaymentService>(create: (_) => PaymentService()),
         Provider<FirestoreService>(create: (_) => FirestoreService()),
-        Provider<CrmRepository>(create: (_) => CrmRepository()),
         
+        // --- AUTH SERVICE ---
+        // Configurado sin parámetros extra, ya que AuthService maneja sus instancias internamente o vía DI
         Provider<AuthService>(create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
@@ -101,6 +113,35 @@ class MyApp extends StatelessWidget {
         ProxyProvider<FirestoreService, ProviderService>(
           update: (context, firestoreService, previousProviderService) =>
               ProviderService(firestoreService: firestoreService),
+        ),
+
+        // --- REPOSITORIOS CORE ---
+        Provider<CrmRepository>(create: (_) => CrmRepository()),
+
+        // --- REPOSITORIO DE INVENTARIO ---
+        Provider<InventoryRepository>(
+          create: (_) => InventoryRepository(
+            firestore: FirebaseFirestore.instance,
+            auth: FirebaseAuth.instance,
+            intelligenceService: InventoryIntelligenceService(
+              AgendaRepository(
+                firestore: FirebaseFirestore.instance,
+                auth: FirebaseAuth.instance,
+              ), 
+              FirebaseAuth.instance.currentUser?.uid ?? '',
+            ),
+          ),
+        ),
+
+        // --- REPOSITORIO DE PRESUPUESTOS (QUOTES) ---
+        Provider<QuoteRepository>(create: (_) => QuoteRepository()),
+
+        // --- SERVICIO DE INTELIGENCIA DE COTIZACIONES ---
+        // Este servicio alimenta el "Botón Mágico" en el editor
+        Provider<QuoteIntelligenceService>(
+          create: (context) => QuoteIntelligenceService(
+            GeminiService(), 
+          ),
         ),
 
         // --- PROVIDERS DE ESTADO (Streams Globales) ---
@@ -135,23 +176,29 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
         ),
+
+        // --- PROVIDER DE PRESUPUESTOS (QUOTES) ---
+        ChangeNotifierProxyProvider<UserModel?, QuoteProvider>(
+          create: (context) => QuoteProvider(
+            repository: context.read<QuoteRepository>(),
+            userId: '', 
+          ),
+          update: (context, userModel, previous) => QuoteProvider(
+            repository: context.read<QuoteRepository>(),
+            userId: userModel?.uid ?? '',
+          ),
+        ),
       ],
       
-      // --- 3. Consumimos el ThemeService para aplicar cambios en tiempo real ---
+      // --- 3. Consumimos el ThemeService ---
       child: Consumer<ThemeService>(
         builder: (context, themeService, child) {
           return MaterialApp(
             title: 'Servicly',
             debugShowCheckedModeBanner: false,
-            
-            // --- AQUÍ OCURRE LA MAGIA ---
-            // Los temas vienen dinámicamente desde AppThemes a través del servicio
             theme: themeService.lightTheme, 
             darkTheme: themeService.darkTheme,
-            
-            // Permitimos que el sistema decida (o puedes forzarlo aquí)
             themeMode: ThemeMode.system, 
-            
             home: const SplashScreen(), 
           );
         },

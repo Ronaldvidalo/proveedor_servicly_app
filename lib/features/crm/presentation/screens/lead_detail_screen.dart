@@ -1,14 +1,23 @@
+// --- UX/UI Enhancement Comment ---
+// Pantalla: LeadDetailScreen
+// Actualización: Integración con el Módulo de Cotizaciones.
+// Corrección: Errores de tipado, null safety y mapeo de modelos solucionados.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui';
+// import 'dart:ui'; // Eliminado: Innecesario
 
-// Modelos y Servicios
+// Modelos y Servicios CRM
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart';
+
+// --- NUEVOS IMPORTS: MÓDULO DE PRESUPUESTOS ---
+import 'package:proveedor_servicly_app/features/budget/screens/quote_editor_screen.dart';
+import 'package:proveedor_servicly_app/features/budget/models/quote_request_model.dart'; 
 
 class LeadDetailScreen extends StatefulWidget {
   final Cliente lead;
@@ -33,7 +42,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     if (s.contains('like')) return 'Le gustó un Producto'; 
     if (s.contains('telefono') || s.contains('phone')) return 'Llamada';
     if (s.contains('email') || s.contains('mail')) return 'Email';
-    if (s.contains('presupuesto')) return 'Solicitó Presupuesto';
+    // Unificación de términos
+    if (s.contains('presupuesto') || s.contains('quote') || s.contains('cotiz')) return 'Solicitó Cotización';
     
     return 'Consulta';
   }
@@ -88,6 +98,44 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     }
   }
 
+  // --- NUEVA ACCIÓN: CREAR COTIZACIÓN ---
+  void _navigateToQuoteEditor() {
+    // CORRECCIÓN: Adaptador de datos.
+    // Convertimos el modelo 'Cliente' (CRM) en un 'QuoteRequestModel' temporal 
+    // para que el editor de cotizaciones pueda pre-llenar los campos.
+    
+    final requestAdapter = QuoteRequestModel(
+      id: 'crm_lead_${widget.lead.id}', // ID temporal para referencia
+      clientId: widget.lead.id, // CORRECCIÓN: Usamos .id en lugar de .userId que no existía
+      providerId: '', // Se llenará automáticamente en el provider
+      clientName: widget.lead.nombreCompleto,
+      clientPhone: widget.lead.telefono,
+      
+      // Inferimos el servicio según la fuente o notas
+      serviceType: _getFriendlySource(widget.lead.source),
+      description: widget.lead.notasInternas.isNotEmpty 
+          ? widget.lead.notasInternas 
+          : "Generado desde CRM (Cliente existente)",
+      quantity: '1', 
+      location: widget.lead.location ?? '', // CORRECCIÓN: Verificamos nulo explícitamente solo si location es nullable
+      preferredDate: DateTime.now(),
+      createdAt: DateTime.now(),
+      status: 'pending',
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuoteEditorScreen(
+          isNew: true,
+          sourceRequest: requestAdapter, // Pasamos el adaptador
+        ),
+      ),
+    ).then((_) {
+      // Opcional: Podríamos actualizar el estado del lead a 'cotizado' al volver
+    });
+  }
+
   // --- Gestión CRM ---
   Future<void> _updateStatus(CrmEstado newStatus) async {
     setState(() => _isLoading = true);
@@ -119,7 +167,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema del contexto
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final accentColor = colorScheme.primary;
@@ -152,8 +199,11 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     
     final dateStr = DateFormat('dd/MM/yyyy - HH:mm').format(lead.fechaAlta!);
 
+    // CORRECCIÓN: Variable 'isQuoteRelevant' eliminada si no se usa, o usada para lógica visual.
+    // Aquí la usamos para darle prioridad visual al botón.
+    final isQuoteRelevant = friendlySource.contains('Cotización') || friendlySource.contains('Presupuesto');
+
     return Scaffold(
-      // QA FIX: Fondo dinámico
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Detalle del Interesado'),
@@ -172,14 +222,12 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  // QA FIX: Fondo tarjeta
                   color: theme.cardTheme.color,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: accentColor.withValues(alpha: 0.3)), 
                 ),
                 child: Row(
                   children: [
-                    // FOTO DE PERFIL (USANDO SAFE AVATAR)
                     SafeAvatar(
                       imageUrl: lead.logoUrl, 
                       name: friendlyName,
@@ -194,11 +242,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                         children: [
                           Text(
                             friendlyName,
-                            // QA FIX: Texto dinámico
                             style: TextStyle(color: colorScheme.onSurface, fontSize: 20, fontWeight: FontWeight.bold),
                           ),
                           
-                          // UBICACIÓN
+                          // CORRECCIÓN: Validamos si location existe y no está vacía de forma segura
                           if (lead.location != null && lead.location!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(
@@ -206,7 +253,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                                 Icon(Icons.location_on, size: 14, color: colorScheme.onSurface.withValues(alpha: 0.5)),
                                 const SizedBox(width: 4),
                                 Text(
-                                  lead.location!,
+                                  lead.location!, 
                                   style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13),
                                 ),
                               ],
@@ -215,7 +262,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
 
                           const SizedBox(height: 8),
                           
-                          // BADGES
                           Wrap(
                             spacing: 8,
                             children: [
@@ -235,6 +281,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               // --- ACCIONES DE CONTACTO ---
               Text('Responder Ahora', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
+              
+              // Fila Principal de Botones
               Row(
                 children: [
                   if (lead.telefono.isNotEmpty) ...[
@@ -247,6 +295,26 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                      Expanded(child: _ActionButton(icon: Icons.email, label: 'Email', color: Colors.orange, onTap: _launchEmail, theme: theme)),
                   ]
                 ],
+              ),
+
+              // --- BOTÓN GRANDE: CREAR COTIZACIÓN (INTEGRACIÓN) ---
+              // Usamos isQuoteRelevant para cambiar el estilo del botón (Visual Cue)
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _navigateToQuoteEditor, 
+                  icon: const Icon(Icons.request_quote),
+                  label: Text(isQuoteRelevant ? "CREAR COTIZACIÓN (PRIORIDAD)" : "CREAR COTIZACIÓN FORMAL"),
+                  style: ElevatedButton.styleFrom(
+                    // Si es relevante, lo hacemos más llamativo
+                    backgroundColor: isQuoteRelevant ? Colors.purple : theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: isQuoteRelevant ? 6 : 2,
+                  ),
+                ),
               ),
               
               if (lead.telefono.isEmpty && lead.email.isEmpty)
@@ -264,7 +332,6 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  // QA FIX: Fondo sutil para info
                   color: theme.dividerColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: theme.dividerColor),
@@ -325,7 +392,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   label: const Text('CONVERTIR A CLIENTE'),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.green,
-                    foregroundColor: Colors.white, // Texto botón siempre blanco
+                    foregroundColor: Colors.white, 
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -429,7 +496,6 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      // Fondo del botón adaptable
       color: color.withValues(alpha: 0.15), 
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
@@ -471,7 +537,6 @@ class _PipelineButton extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         onTap: onTap,
-        // Fondo de Tile: Tarjeta
         tileColor: theme.cardTheme.color,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),

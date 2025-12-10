@@ -1,5 +1,3 @@
-// lib/common/widgets/grids/module_grid.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:ui' as ui;
@@ -19,6 +17,9 @@ import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_reposi
 import 'package:proveedor_servicly_app/features/sales/screens/pos_screen.dart';
 import 'package:proveedor_servicly_app/features/cost_structure/screen/business_config_screen.dart';
 import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
+// IMPORTANTE: Asegúrate de tener creada esta pantalla o comenta la línea si aún no existe
+import 'package:proveedor_servicly_app/features/budget/models/quote_model.dart';
+import 'package:proveedor_servicly_app/features/budget/screens/quote_list_screen.dart';
 
 // --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
@@ -33,6 +34,8 @@ const Map<String, IconData> _iconMap = {
   'point_of_sale': Icons.point_of_sale_rounded,
   'fast_sales': Icons.price_check_rounded,
   'extension_outlined': Icons.extension_outlined, 
+  // NUEVO ICONO PARA COTIZACIONES
+  'quotes': Icons.description_outlined,
 };
 
 // ----------------------------------------------------------------------
@@ -53,6 +56,10 @@ class ModulesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // AQUÍ CONECTARÍAS TU PROVIDER REAL DE NOTIFICACIONES
+    // Por ahora simulamos que hay 3 cotizaciones nuevas para ver el badge
+    final int quoteNotifications = 3; 
+
     return GridView.count(
       crossAxisCount: 4, 
       crossAxisSpacing: 12,
@@ -85,9 +92,16 @@ class ModulesGrid extends StatelessWidget {
 
         // Módulos activos mapeados desde Firebase
         ...activeModules.map((module) {
+          // Lógica para detectar si este módulo lleva Badge
+          int badgeCount = 0;
+          if (module.moduleId == 'quotes') {
+            badgeCount = quoteNotifications;
+          }
+
           return _ModuleCard(
             title: module.name,
             icon: _iconMap[module.icon] ?? Icons.extension_outlined,
+            notificationCount: badgeCount, // Pasamos el contador
             onTap: () {
               _navigateToModule(context, module.moduleId, user);
             },
@@ -127,6 +141,10 @@ class ModulesGrid extends StatelessWidget {
       case 'pos_system':
         destination = const PosScreen();
         break;
+      // NUEVO CASO DE NAVEGACIÓN
+      case 'quotes':
+        destination = const QuoteListScreen(); 
+        break;
     }
 
     if (destination != null) {
@@ -139,16 +157,21 @@ class ModulesGrid extends StatelessWidget {
 }
 
 // ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta de Módulo Individual
+// WIDGET AUXILIAR: Tarjeta de Módulo Individual (CON BADGE)
 // ----------------------------------------------------------------------
 
 class _ModuleCard extends StatefulWidget {
   final String title;
   final IconData icon;
   final VoidCallback onTap;
+  final int notificationCount; // Nuevo parámetro para el Badge
 
-  const _ModuleCard(
-      {required this.title, required this.icon, required this.onTap});
+  const _ModuleCard({
+    required this.title, 
+    required this.icon, 
+    required this.onTap,
+    this.notificationCount = 0, // Por defecto 0 (sin badge)
+  });
 
   @override
   State<_ModuleCard> createState() => _ModuleCardState();
@@ -170,73 +193,115 @@ class _ModuleCardState extends State<_ModuleCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            if (isDark)
-              BoxShadow(
-                color: _isHovered
-                    ? primaryColor.withValues(alpha: 0.5)
-                    : primaryColor.withValues(alpha: 0.25),
-                blurRadius: _isHovered ? 12 : 8,
-                spreadRadius: 1,
-              )
-            else
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-          ],
-        ),
-        child: Material(
-          color: cardColor,
-          // QA FIX CRÍTICO: Eliminado 'borderRadius' como propiedad directa.
-          // Todo se maneja dentro de 'shape'.
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            // Borde solo en modo claro para contraste
-            side: !isDark 
-                ? BorderSide(color: theme.dividerColor.withValues(alpha: 0.5))
-                : BorderSide.none,
-          ),
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(12),
-            splashColor: primaryColor.withValues(alpha: 0.3),
-            highlightColor: primaryColor.withValues(alpha: 0.1),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(widget.icon, size: 32, color: primaryColor), 
-                const SizedBox(height: 8), 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0), 
-                  child: Text(
-                    widget.title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12),
+      child: Stack(
+        clipBehavior: Clip.none, // Permite que el badge sobresalga un poco si se desea
+        children: [
+          // --- TARJETA PRINCIPAL ---
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                if (isDark)
+                  BoxShadow(
+                    color: _isHovered
+                        ? primaryColor.withValues(alpha: 0.5)
+                        : primaryColor.withValues(alpha: 0.25),
+                    blurRadius: _isHovered ? 12 : 8,
+                    spreadRadius: 1,
+                  )
+                else
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
                   ),
-                ),
               ],
             ),
+            child: Material(
+              color: cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                // Borde solo en modo claro para contraste
+                side: !isDark 
+                    ? BorderSide(color: theme.dividerColor.withValues(alpha: 0.5))
+                    : BorderSide.none,
+              ),
+              child: InkWell(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(12),
+                splashColor: primaryColor.withValues(alpha: 0.3),
+                highlightColor: primaryColor.withValues(alpha: 0.1),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Icon(widget.icon, size: 32, color: primaryColor), 
+                    const SizedBox(height: 8), 
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0), 
+                      child: Text(
+                        widget.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+
+          // --- BADGE DE NOTIFICACIÓN ---
+          if (widget.notificationCount > 0)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent, // Color de alerta vibrante
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.redAccent.withOpacity(0.4),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                  border: Border.all(color: cardColor ?? Colors.white, width: 1.5), // Borde para separar del fondo
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 20,
+                  minHeight: 20,
+                ),
+                child: Center(
+                  child: Text(
+                    widget.notificationCount > 99 ? '99+' : widget.notificationCount.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 // ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta para Añadir Módulo
+// WIDGET AUXILIAR: Tarjeta para Añadir Módulo (SIN CAMBIOS)
 // ----------------------------------------------------------------------
 
 class _AddModuleCard extends StatelessWidget {
@@ -251,7 +316,6 @@ class _AddModuleCard extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      // QA FIX: Solo usamos 'shape', nunca 'borderRadius' aquí.
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
@@ -290,7 +354,7 @@ class _AddModuleCard extends StatelessWidget {
 
 
 // ----------------------------------------------------------------------
-// UTILIDAD: DottedBorder
+// UTILIDAD: DottedBorder (SIN CAMBIOS)
 // ----------------------------------------------------------------------
 
 enum BorderType { rect, rRect }

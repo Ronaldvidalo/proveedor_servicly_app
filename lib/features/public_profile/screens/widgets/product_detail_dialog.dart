@@ -1,11 +1,6 @@
-// (Nota: Asegúrate de guardar este archivo con el nombre correcto,
-// parece que antes lo tenías en un archivo aparte o dentro de otro.
-// Este código es para el archivo que contiene la clase ProductDetailDialog)
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:share_plus/share_plus.dart';
 
 // --- Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
@@ -15,6 +10,9 @@ import 'package:proveedor_servicly_app/core/services/analytics_service.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_button.dart';
+
+// --- NUEVO WIDGET REUTILIZABLE ---
+import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/share_product_button.dart'; // <--- IMPORTA ESTO
 
 class ProductDetailDialog extends StatefulWidget {
   final ProductModel product;
@@ -32,7 +30,7 @@ class ProductDetailDialog extends StatefulWidget {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withAlpha(200), // Fondo más oscuro para enfoque
+      barrierColor: Colors.black.withAlpha(200),
       builder: (_) => MultiProvider(
         providers: [
           Provider.value(value: profile),
@@ -84,33 +82,23 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
     }
   }
 
-  void _shareProduct() {
-    const String appDownloadLink = "https://servicly.app/download"; 
-    final String message = 
-        "¡Mira lo que encontré en Servicly! 🚀\n\n"
-        "*${widget.product.name}* a solo \$${widget.product.price.toStringAsFixed(2)}\n\n"
-        "${widget.product.description.length > 50 ? widget.product.description.substring(0, 50) + '...' : widget.product.description}\n\n"
-        "📲 Descárgalo aquí: $appDownloadLink";
-
-    Share.share(message, subject: "Mira este producto: ${widget.product.name}");
-  }
-
   @override
   Widget build(BuildContext context) {
+    // ignore: unused_local_variable
     final theme = Theme.of(context);
+    // ignore: unused_local_variable
     final colors = theme.colorScheme;
     final profile = context.watch<ProviderProfileModel>();
     final cart = context.read<CartProvider>();
     
-    // Usamos Dialog en lugar de AlertDialog para control total del layout
     return Dialog(
-      backgroundColor: Colors.transparent, // Hacemos transparente el fondo del Dialog
-      insetPadding: const EdgeInsets.all(16), // Margen externo
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
       child: Container(
         width: double.maxFinite,
-        constraints: const BoxConstraints(maxWidth: 500), // Ancho máximo en tablets
+        constraints: const BoxConstraints(maxWidth: 500),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D2D5A), // Surface Color Cyber Glow
+          color: const Color(0xFF2D2D5A),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: widget.brandColor.withAlpha(100), width: 1),
           boxShadow: [
@@ -124,25 +112,22 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // --- 1. CABECERA (Título y Compartir) ---
+            // --- 1. CABECERA ---
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
+              padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       widget.product.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // USAMOS LA LÓGICA ESTÁTICA DEL WIDGET
                   IconButton(
-                    onPressed: _shareProduct,
+                    onPressed: () => ShareProductButton.share(context, widget.product),
                     icon: const Icon(Icons.share_rounded),
                     color: widget.brandColor,
                     tooltip: 'Compartir',
@@ -159,13 +144,12 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
             
             const Divider(color: Colors.white10, height: 1),
 
-            // --- 2. CONTENIDO SCROLLEABLE ---
+            // --- 2. CONTENIDO ---
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Carrusel de Imágenes
                     if (widget.product.imageUrl.isNotEmpty || widget.product.mediaGallery.isNotEmpty)
                       _DetailMediaCarousel(product: widget.product),
                     
@@ -182,28 +166,16 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
                               if (widget.product.isOnSale) ...[
                                 Text(
                                   '\$${widget.product.price.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: Colors.white54,
-                                    decoration: TextDecoration.lineThrough,
-                                    fontSize: 16,
-                                  ),
+                                  style: const TextStyle(color: Colors.white54, decoration: TextDecoration.lineThrough, fontSize: 16),
                                 ),
                                 Text(
                                   '\$${widget.product.promoPrice!.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    color: widget.brandColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: TextStyle(fontSize: 28, color: widget.brandColor, fontWeight: FontWeight.bold),
                                 ),
                               ] else ...[
                                 Text(
                                   '\$${widget.product.price.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    color: widget.brandColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: TextStyle(fontSize: 28, color: widget.brandColor, fontWeight: FontWeight.bold),
                                 ),
                               ]
                             ],
@@ -219,18 +191,35 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
                             
                           const SizedBox(height: 24),
                           
-                          // WhatsApp Button (Si existe)
-                          if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty)
-                            LeadCaptureButton(
-                              actionType: ContactAction.whatsapp,
-                              contactValue: profile.whatsapp!,
-                              providerId: profile.providerId,
-                              label: 'Consultar por WhatsApp',
-                              brandColor: const Color(0xFF25D366), // Color oficial WhatsApp
-                              message: 'Hola, estoy interesado en el producto: ${widget.product.name}',
-                              isOutline: true,
-                              onPressedOverride: () => Navigator.pop(context),
-                            ),
+                          // --- BARRA SOCIAL ---
+                          Row(
+                            children: [
+                              // 1. WIDGET REUTILIZABLE COMPARTIR
+                              Expanded(
+                                child: ShareProductButton(
+                                  product: widget.product,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              
+                              const SizedBox(width: 12),
+
+                              // 2. WhatsApp
+                              if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty)
+                                Expanded(
+                                  child: LeadCaptureButton(
+                                    actionType: ContactAction.whatsapp,
+                                    contactValue: profile.whatsapp!,
+                                    providerId: profile.providerId,
+                                    label: 'Consultar',
+                                    brandColor: const Color(0xFF25D366),
+                                    message: 'Hola, estoy interesado en el producto: ${widget.product.name}',
+                                    isOutline: false,
+                                    onPressedOverride: () => Navigator.pop(context),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -241,16 +230,15 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
 
             const Divider(color: Colors.white10, height: 1),
 
-            // --- 3. BARRA DE ACCIÓN INFERIOR (Fija) ---
+            // --- 3. BARRA INFERIOR ---
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
-                color: Color(0xFF222244), // Ligeramente más oscuro
+                color: Color(0xFF222244),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
               ),
               child: Row(
                 children: [
-                  // Selector de Cantidad Compacto
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(10),
@@ -269,11 +257,7 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
                         ),
                         Text(
                           '$_quantity',
-                          style: const TextStyle(
-                            fontSize: 16, 
-                            fontWeight: FontWeight.bold, 
-                            color: Colors.white
-                          ),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         IconButton(
                           icon: const Icon(Icons.add, size: 18, color: Colors.white),
@@ -287,7 +271,6 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
                   
                   const SizedBox(width: 16),
                   
-                  // Botón Añadir Grande
                   Expanded(
                     child: SizedBox(
                       height: 48,
@@ -298,7 +281,7 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Se añadieron $_quantity "${widget.product.name}" al carrito.', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                              backgroundColor: const Color(0xFF00FF7F), // Verde Éxito
+                              backgroundColor: const Color(0xFF00FF7F),
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -325,7 +308,7 @@ class _ProductDetailDialogState extends State<ProductDetailDialog> {
   }
 }
 
-// --- WIDGET PRIVADO: Carrusel (Mejorado) ---
+// --- WIDGET PRIVADO: Carrusel ---
 class _DetailMediaCarousel extends StatelessWidget {
   final ProductModel product;
 
@@ -382,7 +365,7 @@ class _DetailMediaCarousel extends StatelessWidget {
         height: 250,
         viewportFraction: 1.0,
         enableInfiniteScroll: mediaWidgets.length > 1,
-        autoPlay: false, // Mejor false para que el usuario explore
+        autoPlay: false,
       ),
     );
   }
@@ -394,7 +377,10 @@ class _DetailMediaCarousel extends StatelessWidget {
       width: double.infinity,
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
-        return Center(child: CircularProgressIndicator(value: progress.expectedTotalBytes != null ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes! : null));
+        return Center(child: CircularProgressIndicator(
+          value: progress.expectedTotalBytes != null ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes! : null,
+          color: Colors.white30,
+        ));
       },
       errorBuilder: (context, error, stackTrace) => 
         Container(color: Colors.grey.shade900, child: const Icon(Icons.broken_image, color: Colors.white54)),

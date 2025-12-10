@@ -135,6 +135,45 @@ class GeminiService {
       };
     }
   }
+
+  // --- NUEVO MÉTODO: GENERACIÓN DE TEXTO SIMPLE (Para QuoteIntelligenceService) ---
+  /// Envía un prompt a Gemini y devuelve la respuesta como String simple.
+  /// Usado para reescribir textos, generar descripciones, etc.
+  Future<String?> generateText(String prompt) async {
+    try {
+      final String apiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/$MODEL_TO_CALL:generateContent?key=$GEMINI_API_KEY_DIRECT';
+      
+      final Map<String, dynamic> requestBody = {
+        "contents": [
+          {
+            "parts": [{"text": prompt}]
+          }
+        ],
+        // No forzamos JSON aquí, queremos texto libre
+        "generationConfig": {
+            "temperature": 0.7, // Un poco más creativo para reescritura
+        }
+      };
+
+      final response = await http.post(
+          Uri.parse(apiEndpoint),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+          final jsonResponse = json.decode(response.body);
+          final text = jsonResponse['candidates']?[0]['content']?['parts']?[0]['text'];
+          return text?.toString().trim();
+      } else {
+          debugPrint('Error Gemini generateText: ${response.body}');
+          return null;
+      }
+    } catch (e) {
+      debugPrint('Error en generateText: $e');
+      return null;
+    }
+  }
 }
 
 // Clase placeholder necesaria para el código original:

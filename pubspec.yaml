@@ -35,6 +35,8 @@ dependencies:
   video_thumbnail: ^0.5.3 # Para sacar la foto del video
   path_provider: ^2.1.2 # Necesario para guardar la miniatura temporal
   share_plus: ^10.0.0
+  pdf: ^3.10.8       # Motor de creación de documentos
+  printing: ^5.13.1  # Vista previa, impresión y compartir nativo
   
 
   # --- GESTIÓN DE ESTADO ---
