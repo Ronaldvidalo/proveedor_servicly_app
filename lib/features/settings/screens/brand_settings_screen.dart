@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart'; // Control de audio
+
 // --- Imports para el Tour ---
 import 'package:showcaseview/showcaseview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,11 +17,13 @@ import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 // --- IMPORTACIÓN CRÍTICA PARA GEOCODING ---
 import 'package:proveedor_servicly_app/core/services/geocoding_service.dart';
 
-// Importamos el ThemeService para leer el tema
-
 // --- Navegación ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/manage_payment_methods_screen.dart';
+
+// --- IMPORTS DE LA IA (SERVI) ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 // ===================================================================
 // --- DEFINICIONES DE TEMA PÚBLICO ---
@@ -132,6 +136,10 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   XFile? _selectedImageFile;
   String? _existingLogoUrl;
 
+  // --- VARIABLES DE IA (SERVI) ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  bool _isSpeaking = false;
+
   Color _selectedBrandColor = const Color(0xFF00BFFF);
 
   final List<Color> _predefinedBrandColors = [
@@ -160,18 +168,29 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
     _initializeFields();
 
-    // --- Iniciar chequeo del Tour ---
+    // 1. Listeners de Voz
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _isSpeaking = state == PlayerState.playing);
+    });
+
+    // 2. Iniciar chequeo del Tour
     _checkIfFirstTime();
   }
 
   Future<void> _checkIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
-    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v1') ?? false;
+    // V2 para forzar el tour con la nueva voz
+    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v2') ?? false;
 
     if (!hasSeenTour) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _startTour();
-        prefs.setBool('hasSeenBrandSettingsTour_v1', true);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // Bienvenida inicial de la IA antes del tour visual
+        await _speak("Bienvenido al estudio de diseño. Aquí definiremos cómo te ve el mundo.");
+        
+        if (mounted) {
+          _startTour();
+          prefs.setBool('hasSeenBrandSettingsTour_v2', true);
+        }
       });
     }
   }
@@ -186,6 +205,55 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         _keySaveButton,
       ]);
     }
+  }
+
+  Future<void> _speak(String text) async {
+    await _voiceService.speak(text);
+  }
+
+  // --- GUION DEL TOUR ---
+  String _getScriptForStep(GlobalKey key) {
+    if (key == _keyIdentitySection) {
+      return "Empecemos por lo básico. Sube tu logo y confirma el nombre de tu negocio. ¡Es tu carta de presentación!";
+    } else if (key == _keyColorSection) {
+      return "El color transmite emociones. Elige uno que represente la energía de tu marca.";
+    } else if (key == _keyThemeSection) {
+      return "La atmósfera es clave. Prueba los temas oscuros o neón para destacar sobre la competencia.";
+    } else if (key == _keyFormatSection) {
+      return "Confirma el formato. ¿Recuerdas? Tienda para productos o Catálogo para servicios.";
+    } else if (key == _keySaveButton) {
+      return "Cuando te guste lo que ves, guarda los cambios para publicar tu sitio web.";
+    }
+    return "";
+  }
+
+  // --- CALLBACK INTELIGENTE DEL TOUR ---
+  void _onShowcaseStepStart(int? index, GlobalKey key) {
+    String script = _getScriptForStep(key);
+    
+    // Auto-Scroll para asegurar visibilidad
+    if (key.currentContext != null) {
+      Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
+    }
+
+    if (script.isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) _speak(script);
+      });
+    }
+  }
+
+  void _giveContextualHelp() {
+    if (_isSpeaking) {
+      _voiceService.stop();
+      return;
+    }
+    _speak("Estás en el editor de marca. Aquí puedes cambiar colores, logos y redes sociales cuando quieras. No olvides guardar al final.");
   }
 
   void _initializeFields() {
@@ -236,6 +304,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _instagramController.dispose();
     _facebookController.dispose();
     _tiktokController.dispose();
+    _voiceService.dispose(); // Liberar voz
     super.dispose();
   }
 
@@ -259,11 +328,14 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
 
   // ===================================================================================
-  // --- FUNCIÓN DE GUARDADO (ACTUALIZADA PARA EVITAR DUPLICACIÓN) ---
+  // --- FUNCIÓN DE GUARDADO ---
   // ===================================================================================
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate() || _isLoading) return;
     setState(() => _isLoading = true);
+
+    // Feedback auditivo al guardar
+    _speak("Guardando tu marca. Esto se verá genial.");
 
     final firestoreService = context.read<FirestoreService>();
     final storageService = context.read<StorageService>();
@@ -284,7 +356,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
             'brandProfiles/${userModel.uid}/profile_logo.jpg';
         if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
           try {
-            // Intentamos eliminar el logo anterior para limpiar Storage
             await storageService.deleteFileByUrl(_existingLogoUrl!);
           } catch (e) {
             debugPrint("No se pudo borrar logo anterior: $e");
@@ -297,14 +368,14 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         );
       }
 
-      // 2. Lógica de GEOCODING (Convertir dirección a coordenadas)
+      // 2. Lógica de GEOCODING
       final addressText = _addressController.text.trim();
       if (addressText.isNotEmpty) {
         try {
           String queryAddress = addressText;
           if (_countryController.text.trim().isNotEmpty) {
              if (!addressText.toLowerCase().contains(_countryController.text.trim().toLowerCase())) {
-                queryAddress = "$addressText, ${_countryController.text.trim()}";
+               queryAddress = "$addressText, ${_countryController.text.trim()}";
              }
           }
 
@@ -325,13 +396,10 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
           '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}';
 
       // 3. CREAMOS EL MAPA COMPLETO DE PERSONALIZACIÓN
-      // Este mapa se usa para: A) Guardar en el doc de Usuario y B) Guardar en el doc de Perfil Público.
       final Map<String, dynamic> updatedPersonalization = {};
       
-      // Copiamos módulos existentes para no borrarlos, si existen
       updatedPersonalization.addAll(userModel.personalization); 
 
-      // Actualizamos campos modificables
       updatedPersonalization.addAll({
         'businessName': _businessNameController.text.trim(),
         'logoUrl': newLogoUrl ?? _existingLogoUrl ?? '',
@@ -341,7 +409,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'country': _countryController.text.trim(),
         'slogan': _sloganController.text.trim(),
         'welcomeMessage': _sloganController.text.trim(),
-        // --- CAMPOS DE CONTACTO (CRÍTICO) ---
+        // --- CAMPOS DE CONTACTO ---
         'phone': _phoneController.text.trim(),
         'whatsapp': _whatsappController.text.trim(),
         'website': _websiteController.text.trim(),
@@ -351,13 +419,11 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'publicProfileTheme': _selectedPublicTheme,
       });
 
-      // --- Guardado de Coordenadas (Solo si existen) ---
       if (newLatitude != null) updatedPersonalization['latitude'] = newLatitude;
       if (newLongitude != null) updatedPersonalization['longitude'] = newLongitude;
 
 
-      // 4. ESCRITURA 1: Actualizar el Documento del Usuario (anidado)
-      // Esto mantiene los datos de configuración en el documento base del usuario.
+      // 4. ESCRITURA 1: Actualizar el Documento del Usuario
       await firestoreService.updateUser(userModel.uid, {
         'personalization': updatedPersonalization,
         'publicProfileTemplate': _selectedFormat,
@@ -365,18 +431,15 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'publicProfileCreated': true,
       });
 
-      // 5. ESCRITURA 2: Actualizar el Documento del Perfil Público (PLANO)
-      // Usamos updatedPersonalization, que contiene todos los campos, y evitamos la clave 'personalization' anidada aquí.
-      // Esto resuelve la duplicación en la colección brandProfiles.
+      // 5. ESCRITURA 2: Actualizar el Documento del Perfil Público
       try {
-        // Añadimos la plantilla y el providerId al mapa antes de enviarlo
         updatedPersonalization['publicProfileTemplate'] = _selectedFormat;
         updatedPersonalization['providerId'] = userModel.uid;
         
         await firestoreService.setBrandProfile(
             userModel.uid, updatedPersonalization);
       } catch (e) {
-        debugPrint("Error al actualizar brandProfiles (puede ser un problema de permisos en Cloud Functions o Services, revisar): $e");
+        debugPrint("Error al actualizar brandProfiles: $e");
       }
 
       if (!mounted) return;
@@ -397,9 +460,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       }
     }
   }
-  // ===================================================================================
-  // RESTO DEL CÓDIGO PERMANECE IGUAL
-  // ===================================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -414,7 +474,12 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       scaffoldBackgroundColor: publicTheme.background,
     );
 
+    // --- ENVOLTURA SHOWCASE CON LISTENERS DE VOZ ---
     return ShowCaseWidget(
+      onStart: (index, key) => _onShowcaseStepStart(index, key),
+      onComplete: (index, key) {
+        if (index == 4) _speak("¡Todo listo! Tienes una marca increíble.");
+      },
       builder: (context) {
         _showCaseContext = context;
         
@@ -425,10 +490,16 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
             foregroundColor: appTheme.colorScheme.onSurface,
             elevation: 0,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.help_outline_rounded),
-                tooltip: 'Ayuda',
-                onPressed: _startTour,
+              // --- REEMPLAZO: SERVI AVATAR ---
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Center(
+                  child: ServiAvatar(
+                    isSpeaking: _isSpeaking,
+                    size: 35,
+                    onTap: _giveContextualHelp,
+                  ),
+                ),
               )
             ],
           ),
@@ -477,7 +548,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                               Showcase(
                                 key: _keyIdentitySection,
                                 title: 'Tu Marca',
-                                description: 'Sube tu logo y define el nombre de tu negocio. ¡Es lo primero que verán!',
+                                description: 'Sube tu logo y define el nombre de tu negocio.',
                                 child: _LogoAndNameCard(
                                   imageFile: _selectedImageFile,
                                   existingLogoUrl: _existingLogoUrl,
@@ -492,7 +563,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                               Showcase(
                                 key: _keyColorSection,
                                 title: 'Color de Acento',
-                                description: 'Elige un color que represente tu marca. Se usará en botones y precios.',
+                                description: 'Elige un color que represente tu marca.',
                                 child: _ColorSelectorCard(
                                   title: 'Color de Acento (Público)',
                                   predefinedColors: _predefinedBrandColors,
@@ -508,7 +579,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                               Showcase(
                                 key: _keyThemeSection,
                                 title: 'Atmósfera (Skin)',
-                                description: 'Selecciona el estilo de fondo para tu página. Prueba cómo se ve en tiempo real.',
+                                description: 'Selecciona el estilo de fondo para tu página.',
                                 child: _PublicThemeSelector(
                                   selectedThemeId: _selectedPublicTheme,
                                   onThemeSelected: (themeId) {
@@ -531,7 +602,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                                 Showcase(
                                   key: _keyFormatSection,
                                   title: 'Diseño de Página',
-                                  description: '¿Vendes productos o servicios? Elige "Tienda" o "Catálogo" según necesites.',
+                                  description: '¿Vendes productos o servicios?',
                                   child: _TemplateSelector(
                                     selectedFormat: _selectedFormat,
                                     onFormatSelected: (format) {
@@ -559,7 +630,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 
-                                // --- CAMPO DIRECCIÓN (IMPORTANTE PARA GEO) ---
+                                // --- CAMPO DIRECCIÓN ---
                                 TextFormField(
                                   controller: _addressController,
                                   style: TextStyle(color: colors.onSurface),
@@ -608,7 +679,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                           Showcase(
                             key: _keySaveButton,
                             title: 'Publicar',
-                            description: 'No olvides guardar para que tus clientes vean los cambios.',
+                            description: 'Guarda para que tus clientes vean los cambios.',
                             child: SizedBox(
                               height: 50,
                               child: FilledButton(

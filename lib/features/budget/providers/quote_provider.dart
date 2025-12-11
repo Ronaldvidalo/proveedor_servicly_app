@@ -1,7 +1,11 @@
 // --- UX/UI Enhancement Comment ---
 // Provider: QuoteProvider
-// Responsabilidad: Gestionar el estado de las cotizaciones y la lógica de negocio del editor.
+// Responsabilidad: Gestionar el estado de las cotizaciones.
 // Ubicación: lib/features/budget/providers/quote_provider.dart
+// Actualización: 
+// 1. Soporte para 'validUntil' y 'notes'.
+// 2. Métodos para actualizar fecha y notas desde el editor.
+// ---------------------------------
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -35,11 +39,16 @@ class QuoteProvider extends ChangeNotifier {
     _initStream();
   }
 
-  // 1. INICIALIZAR STREAM (Escucha tiempo real)
+  // 1. INICIALIZAR STREAM
   void _initStream() {
-    _isLoading = true;
-    notifyListeners();
+    if (_userId.isEmpty) {
+      _isLoading = false;
+      _quotes = []; 
+      return; 
+    }
 
+    _isLoading = true;
+    
     _quotesSubscription = _repository.getQuotesStream(_userId).listen(
       (quotesData) {
         _quotes = quotesData;
@@ -58,19 +67,22 @@ class QuoteProvider extends ChangeNotifier {
   
   // Iniciar una nueva cotización limpia
   void startNewQuote(UserModel? currentUser) {
-    // Generamos un folio temporal (luego se puede mejorar con lógica de secuencias)
     final tempNumber = 'COT-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    final now = DateTime.now();
     
     _currentQuote = Quote(
-      id: '', // Vacío indica que es nueva
+      id: '', 
       number: tempNumber,
       clientId: '', 
       clientName: '',
-      createdAt: DateTime.now(),
+      createdAt: now,
+      // Default: Validez de 30 días
+      validUntil: now.add(const Duration(days: 30)),
       status: 'draft',
       items: [],
-      currency: 'USD', // Configurable según perfil
-      taxRate: 0.0,    // Configurable
+      currency: 'USD',
+      taxRate: 0.0,
+      notes: '', // Notas vacías al inicio
     );
     notifyListeners();
   }
@@ -81,7 +93,7 @@ class QuoteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Agregar un ítem al editor (Desde el Selector de Inventario)
+  // Agregar un ítem
   void addItemToCurrent(QuoteItem item) {
     if (_currentQuote == null) return;
     
@@ -117,9 +129,24 @@ class QuoteProvider extends ChangeNotifier {
   // Actualizar datos del cliente
   void updateClientInfo(String name, String email) {
     if (_currentQuote == null) return;
-    // Nota: Podrías agregar email al modelo Quote si lo necesitas
     _currentQuote = _currentQuote!.copyWith(clientName: name);
+    // notifyListeners(); // Opcional: si el input es controlado, a veces no es necesario notificar a cada tecla
+  }
+
+  // --- NUEVO: Actualizar Fecha de Vencimiento ---
+  void updateExpirationDate(DateTime date) {
+    if (_currentQuote == null) return;
+    _currentQuote = _currentQuote!.copyWith(validUntil: date);
     notifyListeners();
+  }
+
+  // --- NUEVO: Actualizar Notas ---
+  // Este método debe llamarse antes de guardar o al cambiar el texto
+  void updateNotes(String content) {
+    if (_currentQuote == null) return;
+    _currentQuote = _currentQuote!.copyWith(notes: content);
+    // No notificamos listeners a cada caracter para evitar reconstruir toda la UI,
+    // pero actualizamos el modelo interno para el guardado.
   }
 
   // Recálculo interno de totales
@@ -128,13 +155,11 @@ class QuoteProvider extends ChangeNotifier {
     
     final finalItems = items ?? _currentQuote!.items;
     
-    // Suma de subtotales
     double subtotal = 0.0;
     for (var item in finalItems) {
       subtotal += item.total;
     }
 
-    // Cálculo de impuestos
     double taxAmount = subtotal * (_currentQuote!.taxRate / 100);
     double total = subtotal + taxAmount;
 
@@ -150,8 +175,8 @@ class QuoteProvider extends ChangeNotifier {
     if (_currentQuote == null) return;
     
     try {
+      // Nos aseguramos de que todos los datos estén sincronizados
       await _repository.saveQuote(_userId, _currentQuote!);
-      // Opcional: Limpiar currentQuote o navegar atrás
     } catch (e) {
       print("Error guardando cotización: $e");
       rethrow;
@@ -167,19 +192,25 @@ class QuoteProvider extends ChangeNotifier {
     }
   }
 
-  @override
-  void dispose() {
-    _quotesSubscription?.cancel();
-    super.dispose();
-  }
+  // 5. ACTUALIZAR ESTADO
   Future<void> updateQuoteStatus(String quoteId, String newStatus) async {
     try {
       await _repository.updateStatus(_userId, quoteId, newStatus);
-      // No necesitamos recargar manualmente, el Stream escuchará el cambio
-      // y actualizará la UI automáticamente.
+      
+      // Si estamos editando la misma que cambiamos de estado, actualizamos la local
+      if (_currentQuote != null && _currentQuote!.id == quoteId) {
+        _currentQuote = _currentQuote!.copyWith(status: newStatus);
+        notifyListeners();
+      }
     } catch (e) {
       print("Error actualizando estado: $e");
       rethrow;
     }
+  }
+
+  @override
+  void dispose() {
+    _quotesSubscription?.cancel();
+    super.dispose();
   }
 }

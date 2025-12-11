@@ -1,9 +1,7 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 20/10/2025
 // Style: Cyber Glow (Adaptive Light/Dark)
-// QA FIX 26/11/2025:
-// 1. Eliminados colores hardcoded. Ahora usa ThemeService para modo claro/oscuro.
-// 2. Validaciones y lógica de negocio FCM preservadas.
+// QA FIX 10/12/2025: Integración IA Servi + Corrección Flujo de Navegación
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -11,13 +9,21 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'; 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:audioplayers/audioplayers.dart'; // Control de audio
 
+// --- Imports de Modelos y Servicios ---
 import '../../../core/models/user_model.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../shared/data/professions.dart';
 
+// --- Imports de Navegación ---
 import '../../home/screens/home_screen.dart'; 
-import '../../dashboard/screens/dashboard_screen.dart'; 
+// IMPORTANTE: Importamos la pantalla de selección de plantilla en lugar del Dashboard directo
+import '../../public_profile/screens/presentation/screens/select_profile_template_screen.dart';
+
+// --- IMPORTS DE LA IA (SERVI) ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final UserModel userModel;
@@ -36,6 +42,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _selectedProfession;
   bool _isLoading = false;
 
+  // --- VARIABLES DE IA (SERVI) ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  bool _isSpeaking = false;
+
   final List<Map<String, String>> _countries = [
     {'code': 'AR', 'name': 'Argentina'}, {'code': 'BO', 'name': 'Bolivia'},
     {'code': 'BR', 'name': 'Brasil'}, {'code': 'CL', 'name': 'Chile'},
@@ -49,25 +59,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void initState() {
     super.initState();
     _nameController.text = widget.userModel.displayName ?? '';
+
+    // 1. Escuchar estado de voz para animar avatar
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isSpeaking = state == PlayerState.playing);
+      }
+    });
+
+    // 2. Bienvenida personalizada
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        String name = widget.userModel.displayName?.split(' ')[0] ?? "colega";
+        if (name.isEmpty) name = "colega";
+        _speak("¡Casi listo $name! Completa estos datos finales para personalizar tu experiencia inteligente.");
+      }
+    });
+  }
+
+  Future<void> _speak(String text) async {
+    await _voiceService.speak(text);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _voiceService.dispose(); // Liberar recursos de voz
     super.dispose();
   }
 
   Future<void> _saveAndFinish() async {
     if (!_isLoading && (_formKey.currentState?.validate() ?? false)) {
+      
+      // --- VALIDACIONES CON VOZ ---
       if (_selectedRole == null) {
+        _speak("Oye, olvidaste seleccionar tu rol. ¿Eres cliente o proveedor?");
         _showSnackbar('Debes seleccionar si eres Cliente o Proveedor.', isError: true);
         return;
       }
       if (_selectedCountry == null) {
+        _speak("Necesito saber tu país para mostrarte precios en tu moneda.");
         _showSnackbar('Debes seleccionar tu país.', isError: true);
         return;
       }
       if (_selectedRole == 'provider' && _selectedProfession == null) {
+         _speak("Si vas a ofrecer servicios, necesito saber tu profesión principal.");
          _showSnackbar('Como proveedor, debes seleccionar tu rubro principal.', isError: true);
         return;
       }
@@ -82,6 +118,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
       
       setState(() => _isLoading = true);
+
+      // Feedback positivo antes de guardar
+      _speak("¡Perfecto! Configurando tu perfil. Iniciando motores.");
 
       final firestoreService = context.read<FirestoreService>();
       final user = context.read<User?>();
@@ -118,10 +157,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         
         if (!mounted) return; 
 
+        // --- CORRECCIÓN DE FLUJO: REDIRECCIÓN CORRECTA ---
         Widget destinationScreen;
         if (_selectedRole == 'provider') {
-          destinationScreen = const DashboardScreen();
+          // Si es proveedor, vamos a la pantalla de Selección de Plantilla (Tienda vs Catálogo)
+          destinationScreen = SelectProfileTemplateScreen(user: widget.userModel);
         } else {
+          // Si es cliente, vamos al Home normal
           destinationScreen = const HomeScreen();
         }
 
@@ -132,6 +174,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       } catch (e) {
         if (mounted) {
+           _speak("Ups, hubo un error al guardar. Inténtalo de nuevo.");
            _showSnackbar('Error al finalizar el perfil: $e', isError: true);
            setState(() => _isLoading = false); 
         }
@@ -179,6 +222,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         backgroundColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         automaticallyImplyLeading: false,
+        // --- SERVI VIGILANDO EN EL APPBAR ---
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: ServiAvatar(
+                isSpeaking: _isSpeaking, 
+                size: 35,
+                onTap: () => _speak("Completa los campos para que pueda personalizar la app para ti."),
+              ),
+            ),
+          )
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -251,14 +307,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Row _buildRoleSelector(ThemeData theme) {
-    final accentColor = theme.primaryColor;
     return Row(
       children: [
         Expanded(child: _RoleSelectionCard(
           title: 'Soy Cliente',
           icon: Icons.shopping_bag_outlined,
           isSelected: _selectedRole == 'client',
-          onTap: () => setState(() => _selectedRole = 'client'),
+          onTap: () {
+             if (_selectedRole != 'client') _speak("Modo Cliente seleccionado.");
+             setState(() => _selectedRole = 'client');
+          },
           theme: theme,
         )),
         const SizedBox(width: 16),
@@ -266,7 +324,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           title: 'Soy Proveedor',
           icon: Icons.store_mall_directory_outlined,
           isSelected: _selectedRole == 'provider',
-          onTap: () => setState(() => _selectedRole = 'provider'),
+          onTap: () {
+             if (_selectedRole != 'provider') _speak("Modo Proveedor seleccionado.");
+             setState(() => _selectedRole = 'provider');
+          },
           theme: theme,
         )),
       ],

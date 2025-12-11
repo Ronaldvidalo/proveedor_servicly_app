@@ -64,8 +64,10 @@ dependencies:
   csv: ^6.0.0
   cloud_functions: ^5.0.0 # Nueva e importante
   google_generative_ai: ^0.1.0 # O la versión más reciente
-  http: ^1.1.0 # Para llamadas HTTPS
+  http: ^1.2.0 # Para llamadas HTTPS
   permission_handler: ^11.3.1
+  audioplayers: ^6.0.0  # Para reproducir la voz
+  crypto: ^3.0.3
 
 
 dev_dependencies:

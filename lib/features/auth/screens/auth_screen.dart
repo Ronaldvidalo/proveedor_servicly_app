@@ -4,13 +4,21 @@
 // QA FIX 26/11/2025:
 // 1. Refactorización completa para soportar Modo Claro/Oscuro usando ThemeService.
 // 2. Lógica de seguridad (Bloqueo, Regex, Validación) preservada.
+// 3. INTEGRACIÓN IA SERVI (10/12/2025): Voz y Avatar añadidos.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
+import 'package:audioplayers/audioplayers.dart'; // Necesario para controlar estados de voz
+
+// --- Imports de Servicios y Modelos ---
 import '../../../core/services/auth_service.dart';
+
+// --- IMPORTS DE LA IA (SERVI) ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 enum AuthMode { login, register, forgotPassword }
 
@@ -42,6 +50,10 @@ class _AuthScreenState extends State<AuthScreen>
   static const int _maxAttempts = 3;
   static const Duration _lockoutDuration = Duration(minutes: 15);
 
+  // --- VARIABLES DE IA (SERVI) ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  bool _isSpeaking = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +62,28 @@ class _AuthScreenState extends State<AuthScreen>
       duration: const Duration(milliseconds: 400),
     );
     _animationController?.forward();
+
+    // --- INICIALIZACIÓN DE VOZ ---
+    _initVoiceListeners();
+    
+    // Mensaje de Bienvenida con pequeño delay para no chocar con la carga UI
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        _speak("Hola. Bienvenido a Servicly. Ingresa tus datos para continuar.");
+      }
+    });
+  }
+
+  void _initVoiceListeners() {
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isSpeaking = state == PlayerState.playing);
+      }
+    });
+  }
+
+  Future<void> _speak(String text) async {
+    await _voiceService.speak(text);
   }
 
   @override
@@ -58,6 +92,7 @@ class _AuthScreenState extends State<AuthScreen>
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _animationController?.dispose();
+    _voiceService.dispose(); // Limpiamos el servicio de voz
     super.dispose();
   }
 
@@ -102,6 +137,15 @@ class _AuthScreenState extends State<AuthScreen>
       _confirmPasswordController.clear();
       _animationController?.forward(from: 0.0);
     });
+
+    // --- INTERACCIÓN DE VOZ AL CAMBIAR MODO ---
+    if (newMode == AuthMode.login) {
+      _speak("Bienvenido de nuevo. Ingresa a tu cuenta.");
+    } else if (newMode == AuthMode.register) {
+      _speak("Excelente decisión. Crea tu cuenta en pocos pasos para empezar.");
+    } else if (newMode == AuthMode.forgotPassword) {
+      _speak("No te preocupes. Escribe tu correo y vamos a recuperar tu acceso.");
+    }
   }
 
   Future<void> _submitForm() async {
@@ -222,6 +266,10 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _showErrorSnackbar(String message) {
     if (!mounted) return;
+    
+    // Opcional: Hacer que Servi comente el error
+    // _speak("Ups, algo salió mal. Revisa el mensaje en pantalla.");
+
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -422,27 +470,44 @@ class _AuthScreenState extends State<AuthScreen>
   Widget _buildHeader(bool isLogin, bool isRegister, bool isForgotPassword, ThemeData theme) {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            // QA FIX: Fondo del logo adaptable (Blanco en light / Azul Oscuro en dark)
-            color: theme.cardTheme.color, 
-            boxShadow: [
-              BoxShadow(
-                color: theme.primaryColor.withValues(alpha: 0.3),
-                blurRadius: 10,
-                spreadRadius: 2,
+        // --- MODIFICACIÓN CLAVE: STACK PARA EL AVATAR DE SERVI ---
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                // QA FIX: Fondo del logo adaptable
+                color: theme.cardTheme.color, 
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.primaryColor.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Image.asset(
-            'assets/images/servicly_logo.png',
-            width: 80,
-            height: 80,
-            fit: BoxFit.contain,
-          ),
+              child: Image.asset(
+                'assets/images/servicly_logo.png',
+                width: 80,
+                height: 80,
+                fit: BoxFit.contain,
+              ),
+            ),
+            
+            // --- SERVI AVATAR FLOTANTE ---
+            Transform.translate(
+              offset: const Offset(12, 12), // Lo posicionamos en la esquina
+              child: ServiAvatar(
+                isSpeaking: _isSpeaking,
+                size: 45, // Tamaño compacto
+                onTap: () => _speak("Estoy aquí para ayudarte a ingresar."),
+              ),
+            ),
+          ],
         ),
+        
         const SizedBox(height: 32),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 400),
@@ -516,8 +581,6 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Widget _buildGoogleSignInButton(ThemeData theme) {
-    final isDark = theme.brightness == Brightness.dark;
-    
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(

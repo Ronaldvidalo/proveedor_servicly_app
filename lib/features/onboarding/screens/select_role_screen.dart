@@ -4,13 +4,20 @@
 // QA FIX 26/11/2025:
 // 1. Refactorización completa para eliminar colores hardcoded.
 // 2. Adaptación a Modo Claro/Oscuro usando ThemeService.
-// 3. Tarjetas de selección ahora usan cardTheme.
+// 3. INTEGRACIÓN IA SERVI (10/12/2025): Voz y Avatar añadidos.
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:audioplayers/audioplayers.dart'; // Control de estado de audio
+
+// --- Imports de Servicios ---
 import '../../../core/services/firestore_service.dart';
+
+// --- IMPORTS DE LA IA (SERVI) ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 /// Pantalla donde el nuevo usuario elige su rol principal en la plataforma.
 class SelectRoleScreen extends StatefulWidget {
@@ -22,6 +29,39 @@ class SelectRoleScreen extends StatefulWidget {
 
 class _SelectRoleScreenState extends State<SelectRoleScreen> {
   String? _loadingRole;
+
+  // --- VARIABLES DE IA (SERVI) ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  bool _isSpeaking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // 1. Escuchar cuando Servi habla para animar el avatar
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isSpeaking = state == PlayerState.playing);
+      }
+    });
+
+    // 2. Bienvenida de la IA (Con delay para que la UI cargue primero)
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) {
+        _speak("¿Cuál es tu misión hoy? Selecciona 'Soy Proveedor' si vas a trabajar, o 'Busco un Servicio' si quieres contratar a un experto.");
+      }
+    });
+  }
+
+  Future<void> _speak(String text) async {
+    await _voiceService.speak(text);
+  }
+
+  @override
+  void dispose() {
+    _voiceService.dispose(); // Importante liberar recursos
+    super.dispose();
+  }
 
   Future<void> _selectRole(String role) async {
     if (_loadingRole != null) return;
@@ -42,10 +82,18 @@ class _SelectRoleScreenState extends State<SelectRoleScreen> {
     }
 
     try {
+      // Feedback auditivo sutil antes de guardar
+      if (role == 'provider') {
+        _speak("Entendido. Vamos a configurar tu negocio.");
+      } else {
+        _speak("Perfecto. Vamos a buscar a los mejores profesionales.");
+      }
+
       await firestoreService.updateUser(user.uid, {'role': role});
-      // AuthWrapper maneja la navegación
+      // AuthWrapper maneja la navegación automáticamente al detectar el cambio en Firestore
     } catch (e) {
       if (mounted) {
+        _speak("Ups, hubo un problema al guardar tu selección.");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al guardar el rol: $e')),
         );
@@ -63,6 +111,27 @@ class _SelectRoleScreenState extends State<SelectRoleScreen> {
     return Scaffold(
       // 1. Fondo dinámico (Gris claro / Azul Oscuro)
       backgroundColor: theme.scaffoldBackgroundColor,
+      
+      // 2. AppBar Transparente para alojar al Avatar
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false, // Sin botón de atrás
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0, top: 8.0),
+            child: Center(
+              // --- AQUÍ ESTÁ SERVI VIGILANDO ---
+              child: ServiAvatar(
+                isSpeaking: _isSpeaking,
+                size: 45,
+                onTap: () => _speak("Toca la tarjeta que mejor describa lo que quieres hacer hoy."),
+              ),
+            ),
+          )
+        ],
+      ),
+
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
