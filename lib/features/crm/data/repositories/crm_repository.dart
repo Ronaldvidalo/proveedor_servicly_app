@@ -28,10 +28,8 @@ class CrmRepository {
   // --- Stream 2: Leads (Pestaña Leads) ---
   Stream<List<Cliente>> getLeadsStream({String? searchTerm, bool isPro = false}) {
     
-    // CORRECCIÓN: 'leadNuevo' debe estar disponible para TODOS los planes.
-    // Es el estado con el que entran los leads automáticos (tienda/perfil).
     List<String> leadStates = [
-      CrmEstado.leadNuevo.name, // <-- ¡IMPORTANTE! Visible para Free y Pro
+      CrmEstado.leadNuevo.name, // Visible para Free y Pro
       CrmEstado.lead.name,      
     ];
 
@@ -42,9 +40,6 @@ class CrmRepository {
         CrmEstado.cotizado.name
       ]);
     }
-
-    // Debug: Confirmación en consola
-    // print("🔍 CRM Query buscando estados: $leadStates");
 
     Query query = _clientesRef.where('estadoCRM', whereIn: leadStates);
     
@@ -58,19 +53,40 @@ class CrmRepository {
     return _userDocRef.snapshots().map((doc) => doc.data() as Map<String, dynamic>? ?? {});
   }
 
+  // ----------------------------------------------------------------------
+  // --- MÉTRICAS DE DASHBOARD (NUEVO MÉTODO) ---
+  // ----------------------------------------------------------------------
+
+  /// Obtiene el conteo en tiempo real de Leads activos en el pipeline.
+  Stream<int> getLeadCountStream() {
+    // Filtramos los estados que consideramos Leads (no Clientes Activos/Inactivos)
+    List<String> leadStates = [
+      CrmEstado.leadNuevo.name,
+      CrmEstado.lead.name,
+      CrmEstado.contactado.name,
+      CrmEstado.cotizado.name,
+    ];
+    
+    return _clientesRef
+        .where('estadoCRM', whereIn: leadStates)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length); 
+  }
+  // ----------------------------------------------------------------------
+
   // --- MÉTODOS DE ACTUALIZACIÓN DEL PIPELINE ---
 
   // Método para convertir un Lead a Cliente
   Future<void> convertLeadToClient(String leadId) async {
     final clientRef = _clientesRef.doc(leadId);
-    return clientRef.update({
+    return clientRef.update({ 
       'estadoCRM': CrmEstado.clienteActivo.name,
     });
   }
   
   // Método para actualizar el estado del Lead en el pipeline
   Future<void> updateLeadStatus(String leadId, CrmEstado newStatus) async {
-    return _clientesRef.doc(leadId).update({
+    return _clientesRef.doc(leadId).update({ 
       'estadoCRM': newStatus.name,
     });
   }
@@ -86,7 +102,6 @@ class CrmRepository {
       'montoTotalFacturado': 0.0,
       'etiquetas': [],
       'notasInternas': '',
-      
     });
   }
   
@@ -104,8 +119,7 @@ class CrmRepository {
     // 1. Determinar el estado inicial del Lead
     final estado = CrmEstado.leadNuevo.name;
     
-    // CORRECCIÓN: Referencia a la colección del PROVEEDOR (dueño de la tienda), 
-    // no del usuario logueado (cliente).
+    // CORRECCIÓN: Referencia a la colección del PROVEEDOR (dueño de la tienda)
     final providerLeadsRef = _firestore
         .collection('users')
         .doc(providerId)

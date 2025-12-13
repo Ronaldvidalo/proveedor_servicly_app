@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:ui'; // Para ImageFilter
-import 'package:audioplayers/audioplayers.dart'; // Para controlar el estado del reproductor
+import 'dart:ui'; 
+import 'package:audioplayers/audioplayers.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt; 
 
 // --- Imports de Utilidades ---
 import 'package:showcaseview/showcaseview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// --- IMPORTACIÓN DEL SERVICIO DE VOZ ---
+// --- IMPORTS DE LA IA (SERVICIOS Y WIDGETS) ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_brain_service.dart'; 
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
+
+// --- IMPORTS PARA LA CONEXIÓN REAL (CEREBRO HÍBRIDO) ---
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
 
 // --- Importaciones de Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
@@ -27,11 +35,7 @@ import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart';
-
-// --- Widget de Métricas Extraído ---
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart';
-
-// --- IMPORTACIÓN CLAVE SERVI (MVP 3.0) ---
 import 'package:proveedor_servicly_app/ai/screens/servi_chat_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
@@ -52,9 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   @override
@@ -67,16 +69,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (constraints.maxWidth < 640) {
           return Scaffold(
             backgroundColor: colors.surface,
-            body: IndexedStack(
-              index: _selectedIndex,
-              children: _widgetOptions,
-            ),
+            body: IndexedStack(index: _selectedIndex, children: _widgetOptions),
             bottomNavigationBar: BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
               backgroundColor: colors.surface,
               selectedItemColor: colors.primary,
               unselectedItemColor: colors.onSurface.withValues(alpha: 0.6),
-              items: const <BottomNavigationBarItem>[
+              items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Inicio'),
                 BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Explorar'),
                 BottomNavigationBarItem(icon: Icon(Icons.lightbulb_outline_rounded), label: 'Oportunidades'),
@@ -96,7 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   selectedIndex: _selectedIndex,
                   onDestinationSelected: _onItemTapped,
                   labelType: NavigationRailLabelType.all,
-                  destinations: const <NavigationRailDestination>[
+                  destinations: const [
                     NavigationRailDestination(icon: Icon(Icons.dashboard_rounded), label: Text('Inicio')),
                     NavigationRailDestination(icon: Icon(Icons.map_outlined), label: Text('Explorar')),
                     NavigationRailDestination(icon: Icon(Icons.lightbulb_outline_rounded), label: Text('Oportunidades')),
@@ -104,12 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
                 VerticalDivider(thickness: 1, width: 1, color: theme.dividerColor),
-                Expanded(
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: _widgetOptions,
-                  ),
-                ),
+                Expanded(child: IndexedStack(index: _selectedIndex, children: _widgetOptions)),
               ],
             ),
           );
@@ -120,7 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // ===================================================================
-// --- PESTAÑA 0: INICIO (CON TOUR COMPLETO) ---
+// --- PESTAÑA 0: INICIO (CON CEREBRO HÍBRIDO + FEEDBACK) ---
 // ===================================================================
 
 class _ProviderHomeTab extends StatefulWidget {
@@ -138,18 +132,46 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   final GlobalKey _keyHeader = GlobalKey();
   final GlobalKey _keyPrompt = GlobalKey();
   final GlobalKey _keyMetrics = GlobalKey();
-  final GlobalKey _keySummaryCards = GlobalKey(); // Key para el resumen
-  final GlobalKey _keyPublicProfile = GlobalKey();
-  final GlobalKey _keyModulesGrid = GlobalKey(); // Key para la grilla de módulos
+  final GlobalKey _keySummaryCards = GlobalKey(); 
+  final GlobalKey _keyPublicProfile = GlobalKey(); 
+  final GlobalKey _keyModulesGrid = GlobalKey(); 
 
-  // --- VARIABLES DE IA (Servi) ---
+  // --- IA SERVICIOS ---
   final ServiVoiceService _voiceService = ServiVoiceService();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  
+  late ServiBrainService _serviBrain; 
+  
+  // Estados de la IA
   bool _isSpeaking = false; 
+  bool _isListening = false;
+  bool _isThinking = false; // ESTADO NUEVO: Pensando
+  
   bool _isTourCheckPending = true;
+
+  // --- MULETILLAS ARGENTINAS (Para llenar silencios) ---
+  final List<String> _fillers = [
+    "A ver, bancame un segundo que reviso...",
+    "Analizando tus datos, dame un toque...",
+    "Procesando la información...",
+    "Ahí me fijo en el sistema...",
+    "Un momento, estoy chequeando eso...",
+  ];
 
   @override
   void initState() {
     super.initState();
+    
+    // --- 🧠 INICIALIZACIÓN DEL CEREBRO HÍBRIDO ---
+    final firestoreService = context.read<FirestoreService>();
+    final geminiService = GeminiService(); 
+    
+    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
+    final conversationalService = ServiConversationalService(apiConnector);
+    
+    _serviBrain = ServiBrainService(advancedBrain: conversationalService);
+
+    // --- Resto de inicializaciones ---
     _modulesFuture = context.read<FirestoreService>().getAvailableModules();
     
     _animationController = AnimationController(
@@ -160,18 +182,14 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     _initVoiceListeners();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _animationController.forward();
-      }
+      if (mounted) _animationController.forward();
     });
   }
 
   void _initVoiceListeners() {
     _voiceService.player.onPlayerStateChanged.listen((state) {
       if (mounted) {
-        setState(() {
-          _isSpeaking = state == PlayerState.playing;
-        });
+        setState(() => _isSpeaking = state == PlayerState.playing);
       }
     });
   }
@@ -180,62 +198,100 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     await _voiceService.speak(text);
   }
 
-  // --- LÓGICA PARA OBTENER EL NOMBRE REAL ---
+  // --- LÓGICA DE ESCUCHA (STT) ---
+  Future<void> _listen() async {
+    if (_isListening || _isThinking) return; // No interrumpir si piensa
+
+    if (_isSpeaking) {
+      await _voiceService.stop();
+    }
+
+    bool available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'notListening') setState(() => _isListening = false);
+      },
+      onError: (error) {
+        setState(() => _isListening = false);
+        _speak("Perdón, no te escuché bien. ¿Podés repetir?");
+      },
+    );
+
+    if (available) {
+      setState(() => _isListening = true);
+      _speech.listen(
+        onResult: (val) {
+          if (val.finalResult) {
+            setState(() => _isListening = false);
+            _processVoiceCommand(val.recognizedWords);
+          }
+        },
+        localeId: 'es_AR', 
+      );
+    } else {
+      _speak("No pude acceder al micrófono. Revisá los permisos.");
+    }
+  }
+
+  // --- CEREBRO: PROCESAMIENTO CON FEEDBACK ---
+  Future<void> _processVoiceCommand(String command) async {
+    if (command.trim().isEmpty) return;
+
+    // 1. Activar Feedback Visual (Avatar girando)
+    setState(() => _isThinking = true);
+
+    // 2. Feedback Auditivo (Muletilla) si la pregunta es compleja (> 2 palabras)
+    // Esto hace que el usuario sienta que la IA "le contestó rápido" aunque tarde en buscar datos.
+    if (command.split(' ').length > 2) {
+       _fillers.shuffle();
+       _speak(_fillers.first); // Habla sin esperar (async)
+    }
+
+    try {
+        final user = context.read<UserModel>();
+        
+        // 3. Procesamiento Real (Puede tardar 2-4 seg)
+        String response = await _serviBrain.processCommand(command, user.uid);
+        
+        // 4. Apagar Feedback Visual
+        if (mounted) setState(() => _isThinking = false);
+        
+        // 5. Respuesta Final
+        _speak(response);
+    } catch (e) {
+        if (mounted) setState(() => _isThinking = false);
+        _speak("Me mareé un poco con los datos. ¿Me preguntás de nuevo?");
+    }
+  }
+
+  // --- UTILIDADES DEL TOUR ---
   String _getUserName(UserModel user) {
-    // 1. Intentar con displayName (Google/Auth)
     if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
       return user.displayName!.trim().split(' ')[0];
     }
-    // 2. Intentar con el nombre del negocio
     if (user.personalization['businessName'] != null) {
-      String businessName = user.personalization['businessName'].toString();
-      if (businessName.trim().isNotEmpty) {
-        return businessName;
-      }
+      return user.personalization['businessName'];
     }
-    // 3. Fallback
     return "Campeón"; 
   }
 
-  // --- EL GUION DEL TOUR MEJORADO ---
   String _getScriptForStep(GlobalKey key, UserModel user) {
     String name = _getUserName(user);
-
-    if (key == _keyHeader) {
-      return "Hola $name. Bienvenido. Aquí arriba verás tus notificaciones importantes.";
-    } else if (key == _keyPrompt) {
-      return "Aquí estoy yo. Tócame para preguntarme dudas o consejos para vender más.";
-    } else if (key == _keyMetrics) {
-      return "Métricas en tiempo real. Controla cuánta gente visita tu perfil hoy.";
-    } else if (key == _keySummaryCards) {
-      // Explicación de las tarjetas de resumen
-      return "Este es el corazón de tu operación. Aquí ves el resumen de tus finanzas, citas pendientes y solicitudes nuevas en un solo vistazo.";
-    } else if (key == _keyPublicProfile) {
-      return "Este botón es clave. Configura tu Negocio Digital y compártelo por WhatsApp.";
-    } else if (key == _keyModulesGrid) {
-      // Explicación detallada de módulos
-      return "Y aquí tu arsenal de herramientas: Usa 'Finanzas' para ver gastos, 'Caja Rápida' para cobrar al instante, y 'Tienda' para subir tus productos. ¡Tú tienes el control!";
-    }
+    if (key == _keyHeader) return "Hola $name. Bienvenido. Aquí arriba verás tus notificaciones.";
+    if (key == _keyPrompt) return "Si no querés escribir, tocá el micrófono acá abajo y hablame. ¡Te escucho!";
+    if (key == _keyMetrics) return "Métricas en tiempo real. Controlá tu tráfico.";
+    if (key == _keySummaryCards) return "Tu resumen financiero y de agenda en un vistazo.";
+    if (key == _keyPublicProfile) return "Tu Negocio Digital. Compartilo por WhatsApp para vender más.";
+    if (key == _keyModulesGrid) return "Y tus herramientas. Acordate: mantené apretado cualquier botón para saber qué hace.";
     return "";
   }
 
-  // --- CALLBACK INTELIGENTE DEL TOUR ---
   void _onShowcaseStepStart(int? index, GlobalKey key) {
     final user = context.read<UserModel>();
     String script = _getScriptForStep(key, user);
-    
-    // SCROLL AUTOMÁTICO para asegurar visibilidad
     if (key.currentContext != null) {
-      Scrollable.ensureVisible(
-        key.currentContext!,
-        duration: const Duration(milliseconds: 600), 
-        curve: Curves.easeInOut,
-        alignment: 0.5, // Centra el widget en la pantalla
-      );
+      Scrollable.ensureVisible(key.currentContext!, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut, alignment: 0.5);
     }
-
     if (script.isNotEmpty) {
-      // Pequeño delay para esperar el scroll
       Future.delayed(const Duration(milliseconds: 400), () {
         if (mounted) _speak(script);
       });
@@ -244,53 +300,36 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
   Future<void> _checkIfFirstTime(BuildContext showcaseContext) async {
     final prefs = await SharedPreferences.getInstance();
-    // V9: Nueva versión para incluir los nuevos pasos
-    final bool hasSeenTour = prefs.getBool('hasSeenDashboardTour_v9') ?? false;
+    final user = context.read<UserModel>();
+    final String tourKey = 'hasSeenDashboardTour_v12_${user.uid}'; 
+    final bool hasSeenTour = prefs.getBool(tourKey) ?? false;
 
     if (!hasSeenTour) {
-      final user = context.read<UserModel>();
       String name = _getUserName(user);
-      
-      await _speak("Hola $name. Soy Servi. Vamos a revisar tu panel de control completo.");
-
+      await _speak("Hola $name. Soy Servi. Ahora tengo oídos. Tocá mi avatar abajo para hablarme.");
       if (mounted) {
-        ShowCaseWidget.of(showcaseContext).startShowCase([
-          _keyHeader,
-          _keyPrompt, 
-          _keyMetrics,
-          _keySummaryCards, // NUEVO PASO
-          _keyPublicProfile,
-          _keyModulesGrid,  // NUEVO PASO
-        ]);
-        prefs.setBool('hasSeenDashboardTour_v9', true);
+        ShowCaseWidget.of(showcaseContext).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
+        prefs.setBool(tourKey, true);
       }
     }
   }
 
   void _manualTourStart(BuildContext showcaseContext) {
-    _speak("Repasemos todas tus herramientas.");
-    ShowCaseWidget.of(showcaseContext).startShowCase([
-      _keyHeader,
-      _keyPrompt,
-      _keyMetrics,
-      _keySummaryCards,
-      _keyPublicProfile,
-      _keyModulesGrid,
-    ]);
+    _speak("Repasemos todo de nuevo.");
+    ShowCaseWidget.of(showcaseContext).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
   }
 
-  void _giveContextualHelp(UserModel user) {
-    if (_isSpeaking) {
-      _voiceService.stop();
-      return;
-    }
+  // --- GESTIÓN DEL BOTÓN FLOTANTE INTELIGENTE ---
+  void _handleAvatarTap(UserModel user) {
+    if (_isThinking) return; // Si piensa, no interrumpir con toques
     
-    if (!user.isProfileComplete) {
-      _speak("Tu perfil está incompleto. Termínalo para generar confianza.");
-    } else if (user.publicProfileCreated == false) {
-      _speak("Tienes todo listo, pero tu negocio está oculto. ¡Publica tu perfil ahora!");
+    if (_isListening) {
+      _listen(); 
+    } else if (_isSpeaking) {
+      _voiceService.stop(); 
     } else {
-      _speak("Todo se ve genial. Si necesitas ayuda con Finanzas o Ventas, pregúntame.");
+      _speak("Te escucho..."); 
+      Future.delayed(const Duration(milliseconds: 800), _listen);
     }
   }
 
@@ -298,6 +337,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   void dispose() {
     _animationController.dispose();
     _voiceService.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -306,16 +346,11 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     final userModel = context.watch<UserModel?>();
     final colors = Theme.of(context).colorScheme;
 
-    if (userModel == null) {
-      return Center(child: CircularProgressIndicator(color: colors.primary));
-    }
+    if (userModel == null) return Center(child: CircularProgressIndicator(color: colors.primary));
 
     return ShowCaseWidget(
       onStart: (index, key) => _onShowcaseStepStart(index, key),
-      onComplete: (index, key) {
-        // Ajustado el índice final
-        if (index == 5) _speak("¡Listo! A trabajar."); 
-      },
+      onComplete: (index, key) { if (index == 5) _speak("¡Listo! Probá hablarme tocando el botón rojo."); },
       blurValue: 1, 
       builder: (context) { 
         if (_isTourCheckPending) {
@@ -324,40 +359,19 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         }
 
         return Scaffold(
-          appBar: AppBar(
-            toolbarHeight: 0,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-          ),
+          appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.transparent, elevation: 0),
           
+          // --- SERVI AVATAR FLOTANTE (BOTÓN DE ESCUCHA) ---
           floatingActionButton: Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
             child: GestureDetector(
-              onTap: () => _giveContextualHelp(userModel),
+              onTap: () => _handleAvatarTap(userModel),
               onLongPress: () => _manualTourStart(context),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                height: _isSpeaking ? 75 : 56,
-                width: _isSpeaking ? 75 : 56,
-                decoration: BoxDecoration(
-                  color: _isSpeaking ? colors.primary : colors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: colors.primary, 
-                    width: _isSpeaking ? 0 : 2
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colors.primary.withValues(alpha: _isSpeaking ? 0.6 : 0.2),
-                      blurRadius: _isSpeaking ? 25 : 8,
-                      spreadRadius: _isSpeaking ? 8 : 0,
-                    )
-                  ],
-                ),
-                child: _isSpeaking 
-                  ? const Icon(Icons.graphic_eq, color: Colors.white, size: 35)
-                  : Icon(Icons.smart_toy_rounded, color: colors.primary, size: 24),
+              child: ServiAvatar(
+                isSpeaking: _isSpeaking,
+                isListening: _isListening, 
+                isThinking: _isThinking, // <--- Estado Conectado
+                size: 65, 
               ),
             ),
           ),
@@ -368,33 +382,21 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
               future: _modulesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _LoadingSkeleton(
-                    userName: userModel.displayName,
-                    businessName: userModel.personalization['businessName'] as String?,
-                  );
+                  return _LoadingSkeleton(userName: userModel.displayName, businessName: userModel.personalization['businessName'] as String?);
                 }
-
-                if (snapshot.hasError || !snapshot.hasData) {
-                  return Center(child: Text('Error al cargar.', style: Theme.of(context).textTheme.bodyMedium));
-                }
+                if (snapshot.hasError || !snapshot.hasData) return Center(child: Text('Error al cargar.', style: Theme.of(context).textTheme.bodyMedium));
 
                 final allModules = snapshot.data!;
-                final activeModules = allModules
-                    .where((module) => userModel.activeModules.contains(module.moduleId))
-                    .toList()
-                  ..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
+                final activeModules = allModules.where((module) => userModel.activeModules.contains(module.moduleId)).toList()..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
 
                 return CustomScrollView(
                   slivers: [
                     SliverToBoxAdapter(
                       child: Showcase(
-                        key: _keyHeader,
-                        title: 'Panel Principal',
-                        description: 'Aquí ves el resumen general.',
+                        key: _keyHeader, title: 'Panel Principal', description: 'Aquí ves el resumen general.',
                         child: DashboardHeader(userModel: userModel),
                       ),
                     ),
-
                     _buildAnimatedContent(context, userModel, activeModules, allModules),
                   ],
                 );
@@ -417,92 +419,55 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
           if (!userModel.isProfileComplete)
             Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
-              child: _ProfileCompletionBanner(
-                onCompleteProfile: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CreateProfileScreen()),
-                ),
-              ),
+              child: _ProfileCompletionBanner(onCompleteProfile: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateProfileScreen()))),
             ),
 
           Padding(
             padding: const EdgeInsets.only(bottom: 12.0),
-            child: Text(
-              "Resumen en Vivo",
-              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
-            ),
+            child: Text("Resumen en Vivo", style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600)),
           ),
           
+          // Barra de Chat
           Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
             child: Showcase(
-              key: _keyPrompt,
-              title: 'Tu Asistente IA',
-              description: 'Habla con Servi para obtener ayuda.',
+              key: _keyPrompt, title: 'Tu Asistente IA', description: 'También puedes escribirme aquí.',
               child: const _ServiPromptBar(),
             ),
           ),
 
           Showcase(
-            key: _keyMetrics,
-            title: 'Métricas',
-            description: 'Visitas y contactos recibidos.',
+            key: _keyMetrics, title: 'Métricas', description: 'Visitas y contactos recibidos.',
             child: DashboardMetricsCard(userModel: userModel),
           ),
-
           const SizedBox(height: 32),
-
-          // --- NUEVO: SHOWCASE PARA LOS SUMMARY CARDS ---
+          
           Showcase(
-            key: _keySummaryCards,
-            title: 'Estado de tu Negocio',
-            description: 'Finanzas, Citas y Solicitudes.',
+            key: _keySummaryCards, title: 'Estado de tu Negocio', description: 'Finanzas, Citas y Solicitudes.',
             child: const DashboardSummaryCards(),
           ),
-
           const SizedBox(height: 32),
-
+          
           Showcase(
-            key: _keyPublicProfile,
-            title: 'Tu Negocio Digital', // Cambio de texto solicitado
+            key: _keyPublicProfile, 
+            title: 'Tu Negocio Digital', 
             description: 'Comparte tu perfil con clientes.',
             child: _PublicProfileButton(userModel: userModel),
           ),
           const SizedBox(height: 32),
 
-          Text(
-            'Mis Módulos',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colors.onSurface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text('Mis Módulos', style: theme.textTheme.titleLarge?.copyWith(color: colors.onSurface, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-
+          
           FadeTransition(
             opacity: CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
             child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.1),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut)),
-              
-              // --- NUEVO: SHOWCASE ENVOLVIENDO LA GRILLA DE MÓDULOS ---
+              position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut)),
               child: Showcase(
-                key: _keyModulesGrid,
-                title: 'Tus Herramientas',
-                description: 'Finanzas, Caja, Tienda y más.',
-                child: ModulesGrid(
-                  activeModules: activeModules,
-                  user: userModel,
-                  onAddModule: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => ModulesScreen(
-                        userModel: userModel,
-                        allModules: allModules,
-                      )),
-                    );
-                  },
-                ),
+                key: _keyModulesGrid, title: 'Tus Herramientas', description: 'Mantené apretado para saber qué hace cada una.',
+                child: ModulesGrid(activeModules: activeModules, user: userModel, onAddModule: () {
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ModulesScreen(userModel: userModel, allModules: allModules)));
+                }),
               ),
             ),
           ),
@@ -519,41 +484,15 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
 class _ServiPromptBar extends StatelessWidget {
     const _ServiPromptBar();
-
     @override
     Widget build(BuildContext context) {
         final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        
         return GestureDetector(
-            onTap: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const ServiChatScreen(),
-                ));
-            },
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ServiChatScreen())),
             child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                    color: theme.cardTheme.color,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.primary.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                    children: [
-                        Icon(Icons.mic_none, color: colorScheme.primary),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Text(
-                                "¿Pregúntale a SERVI: 'Cuál es mi próxima cita?'",
-                                style: TextStyle(
-                                    color: colorScheme.onSurface.withValues(alpha: 0.6),
-                                    fontStyle: FontStyle.italic,
-                                ),
-                            ),
-                        ),
-                        Icon(Icons.assistant_direction, color: colorScheme.onSurface.withValues(alpha: 0.3)),
-                    ],
-                ),
+                decoration: BoxDecoration(color: theme.cardTheme.color, borderRadius: BorderRadius.circular(12), border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.5))),
+                child: Row(children: [Icon(Icons.mic_none, color: theme.colorScheme.primary), const SizedBox(width: 12), Expanded(child: Text("Escribile a SERVI...", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))))]),
             ),
         );
     }
@@ -562,54 +501,19 @@ class _ServiPromptBar extends StatelessWidget {
 class _PlaceholderScreen extends StatelessWidget {
   final String title;
   const _PlaceholderScreen({required this.title});
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return Scaffold(
-      backgroundColor: colors.surface,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              title == 'Oportunidades' ? Icons.lightbulb_outline_rounded : Icons.construction_rounded,
-              color: colors.onSurface.withValues(alpha: 0.2),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Próximamente: $title',
-              style: theme.textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 16),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Text(
-                title == 'Oportunidades'
-                    ? 'Estamos construyendo esta sección para conectarte con nuevas oportunidades de negocio.'
-                    : 'Esta sección está en desarrollo.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(color: colors.onSurface.withValues(alpha: 0.7)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return Scaffold(backgroundColor: Theme.of(context).colorScheme.surface, body: Center(child: Text('Próximamente: $title')));
   }
 }
 
 class _ProfileCompletionBanner extends StatelessWidget {
   final VoidCallback onCompleteProfile;
   const _ProfileCompletionBanner({required this.onCompleteProfile});
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -625,21 +529,9 @@ class _ProfileCompletionBanner extends StatelessWidget {
             children: [
               Icon(Icons.info_outline_rounded, color: colors.primary, size: 32),
               const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Finaliza la configuración', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colors.onSurface)),
-                    const SizedBox(height: 4),
-                    Text('Completa tu perfil para desbloquear todas las funciones.', style: theme.textTheme.bodyMedium),
-                  ],
-                ),
-              ),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Finaliza la configuración', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colors.onSurface)), const SizedBox(height: 4), Text('Completa tu perfil para desbloquear todas las funciones.', style: theme.textTheme.bodyMedium)])),
               const SizedBox(width: 16),
-              FilledButton(
-                onPressed: onCompleteProfile,
-                child: const Text('COMPLETAR'),
-              ),
+              FilledButton(onPressed: onCompleteProfile, child: const Text('COMPLETAR')),
             ],
           ),
         ),
@@ -676,142 +568,18 @@ class _PublicProfileButton extends StatelessWidget {
       label: Text(buttonText),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 50),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-        ),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }
 }
 
-class _LoadingSkeleton extends StatefulWidget {
+class _LoadingSkeleton extends StatelessWidget {
   final String? userName;
   final String? businessName;
   const _LoadingSkeleton({this.userName, this.businessName});
-
-  @override
-  _LoadingSkeletonState createState() => _LoadingSkeletonState();
-}
-
-class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerProviderStateMixin {
-  late AnimationController _shimmerController;
-
-  @override
-  void initState() {
-    super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shimmerController.dispose();
-    super.dispose();
-  }
-
-  LinearGradient get _shimmerGradient {
-    final color = Theme.of(context).colorScheme.surface;
-    final highlightColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12);
-
-    return LinearGradient(
-      colors: [color, highlightColor, color],
-      stops: const [0.1, 0.3, 0.4],
-      begin: const Alignment(-1.0, -0.3),
-      end: const Alignment(1.0, 0.3),
-      tileMode: TileMode.clamp,
-      transform: _SlidingGradientTransform(slidePercent: _shimmerController.value),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-        animation: _shimmerController,
-        builder: (context, child) {
-          return CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                sliver: SliverToBoxAdapter(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _ShimmerObject(width: 150, height: 16, gradient: _shimmerGradient),
-                            const SizedBox(height: 8),
-                            _ShimmerObject(width: 220, height: 28, gradient: _shimmerGradient),
-                          ],
-                        ),
-                      ),
-                      _ShimmerObject(width: 44, height: 44, gradient: _shimmerGradient, isCircle: true),
-                    ],
-                  ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                sliver: SliverToBoxAdapter(child: _ShimmerObject(height: 100, gradient: _shimmerGradient)),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                sliver: SliverToBoxAdapter(child: _ShimmerObject(height: 50, gradient: _shimmerGradient)),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.all(24.0),
-                sliver: SliverGrid.count(
-                  crossAxisCount: (MediaQuery.of(context).size.width / 180).floor().clamp(2, 5),
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  children: List.generate(6, (index) => _ShimmerObject(gradient: _shimmerGradient)),
-                ),
-              ),
-            ],
-          );
-        }
-    );
-  }
-}
-
-class _ShimmerObject extends StatelessWidget {
-  final double? width;
-  final double? height;
-  final bool isCircle;
-  final LinearGradient gradient;
-
-  const _ShimmerObject({
-    required this.gradient,
-    this.width,
-    this.height,
-    this.isCircle = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: isCircle ? null : BorderRadius.circular(16),
-        shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-      ),
-    );
-  }
-}
-
-class _SlidingGradientTransform extends GradientTransform {
-  const _SlidingGradientTransform({required this.slidePercent});
-  final double slidePercent;
-
-  @override
-  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
-    final translationX = bounds.width * slidePercent * 2.0 - bounds.width;
-    return Matrix4.translationValues(translationX, 0.0, 0.0);
+    return const Center(child: CircularProgressIndicator());
   }
 }

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart'; // Para vibración (HapticFeedback)
 import 'dart:ui' as ui;
 import 'package:provider/provider.dart';
+import 'package:audioplayers/audioplayers.dart'; // Para controlar audio
+
+// --- IMPORTACIÓN DEL SERVICIO DE VOZ ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 
 // --- Importaciones de Modelos ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
@@ -34,15 +39,14 @@ const Map<String, IconData> _iconMap = {
   'point_of_sale': Icons.point_of_sale_rounded,
   'fast_sales': Icons.price_check_rounded,
   'extension_outlined': Icons.extension_outlined, 
-  // NUEVO ICONO PARA COTIZACIONES
   'quotes': Icons.description_outlined,
 };
 
 // ----------------------------------------------------------------------
-// WIDGET PRINCIPAL: La Cuadrícula de Módulos
+// WIDGET PRINCIPAL: La Cuadrícula de Módulos (AHORA STATEFUL)
 // ----------------------------------------------------------------------
 
-class ModulesGrid extends StatelessWidget {
+class ModulesGrid extends StatefulWidget {
   final List<ModuleModel> activeModules;
   final VoidCallback onAddModule;
   final UserModel user;
@@ -55,9 +59,71 @@ class ModulesGrid extends StatelessWidget {
   });
 
   @override
+  State<ModulesGrid> createState() => _ModulesGridState();
+}
+
+class _ModulesGridState extends State<ModulesGrid> {
+  // --- IA SERVI ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+
+  @override
+  void dispose() {
+    _voiceService.dispose();
+    super.dispose();
+  }
+
+  /// Función para explicar el módulo (Exploración Activa)
+  void _explainModule(String moduleId) {
+    // Feedback Táctil (Vibración suave)
+    HapticFeedback.mediumImpact();
+
+    String script = "";
+    
+    // --- GUIONES ARGENTINOS DE SERVI ---
+    switch (moduleId) {
+      case 'store_template':
+        script = "Tu Vidriera Digital. Cargá tus productos, poneles precio y vendé las 24 horas, incluso mientras dormís.";
+        break;
+      case 'catalog_template':
+        script = "Tu Portafolio Profesional. Mostrá tus mejores trabajos y dejá que los clientes te pidan presupuesto por WhatsApp.";
+        break;
+      case 'agenda':
+        script = "Tu secretaria personal. Agendá turnos y mandá recordatorios automáticos para que no te dejen plantado.";
+        break;
+      case 'client-management':
+      case 'clients':
+        script = "Tu mina de oro. Guardá los datos de tus clientes y mimalos para que vuelvan siempre.";
+        break;
+      case 'finance':
+      case 'advanced-finance':
+        script = "Cuidá el mango. Anotá lo que entra y lo que sale para saber si el negocio es rentable de verdad.";
+        break;
+      case 'inventory':
+        script = "Controlá tu stock. Que nunca te quedes sin mercadería justo cuando hay venta.";
+        break;
+      case 'pos_system':
+      case 'fast_sales':
+        script = "Tu caja registradora. Cobrá en el mostrador rápido y fácil, y dale el ticket a tu cliente.";
+        break;
+      case 'quotes':
+        script = "Presupuestos que venden. Hacé cotizaciones formales en PDF y mandalas por WhatsApp al toque. Quedás re prolijo.";
+        break;
+      case 'cost_structure':
+        script = "Tus costos fijos. Calculá cuánto te cuesta abrir la persiana cada día para no perder plata.";
+        break;
+      case 'add_module':
+        script = "Más poder para vos. Tocá acá para activar nuevas herramientas y potenciar tu negocio.";
+        break;
+      default:
+        script = "Esta es una herramienta clave para tu operación. Tocá para abrirla.";
+    }
+
+    _voiceService.speak(script);
+  }
+
+  @override
   Widget build(BuildContext context) {
     // AQUÍ CONECTARÍAS TU PROVIDER REAL DE NOTIFICACIONES
-    // Por ahora simulamos que hay 3 cotizaciones nuevas para ver el badge
     final int quoteNotifications = 3; 
 
     return GridView.count(
@@ -68,31 +134,33 @@ class ModulesGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       children: [
         // Botón "Gestionar Tienda"
-        if (user.publicProfileTemplate == 'store') 
+        if (widget.user.publicProfileTemplate == 'store') 
           _ModuleCard(
             title: 'Tienda', 
             icon: _iconMap['storefront_outlined'] ?? Icons.storefront_outlined,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ManageStoreScreen(user: user),
+                builder: (_) => ManageStoreScreen(user: widget.user),
               ));
             },
+            onLongPress: () => _explainModule('store_template'),
           ),
+        
         // Botón "Gestionar Catálogo"
-        if (user.publicProfileTemplate == 'catalog') 
+        if (widget.user.publicProfileTemplate == 'catalog') 
           _ModuleCard(
             title: 'Catálogo', 
             icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => CatalogEditorScreen(user: user),
+                builder: (_) => CatalogEditorScreen(user: widget.user),
               ));
             },
+            onLongPress: () => _explainModule('catalog_template'),
           ),
 
         // Módulos activos mapeados desde Firebase
-        ...activeModules.map((module) {
-          // Lógica para detectar si este módulo lleva Badge
+        ...widget.activeModules.map((module) {
           int badgeCount = 0;
           if (module.moduleId == 'quotes') {
             badgeCount = quoteNotifications;
@@ -101,15 +169,20 @@ class ModulesGrid extends StatelessWidget {
           return _ModuleCard(
             title: module.name,
             icon: _iconMap[module.icon] ?? Icons.extension_outlined,
-            notificationCount: badgeCount, // Pasamos el contador
+            notificationCount: badgeCount,
             onTap: () {
-              _navigateToModule(context, module.moduleId, user);
+              _navigateToModule(context, module.moduleId, widget.user);
             },
+            // AQUÍ LA MAGIA: Mantener presionado para que Servi explique
+            onLongPress: () => _explainModule(module.moduleId),
           );
         }),
 
         // Tarjeta para añadir módulo
-        _AddModuleCard(onTap: onAddModule),
+        _AddModuleCard(
+          onTap: widget.onAddModule,
+          onLongPress: () => _explainModule('add_module'),
+        ),
       ],
     );
   }
@@ -141,7 +214,6 @@ class ModulesGrid extends StatelessWidget {
       case 'pos_system':
         destination = const PosScreen();
         break;
-      // NUEVO CASO DE NAVEGACIÓN
       case 'quotes':
         destination = const QuoteListScreen(); 
         break;
@@ -157,20 +229,22 @@ class ModulesGrid extends StatelessWidget {
 }
 
 // ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta de Módulo Individual (CON BADGE)
+// WIDGET AUXILIAR: Tarjeta de Módulo Individual (CON BADGE Y LONG PRESS)
 // ----------------------------------------------------------------------
 
 class _ModuleCard extends StatefulWidget {
   final String title;
   final IconData icon;
   final VoidCallback onTap;
-  final int notificationCount; // Nuevo parámetro para el Badge
+  final VoidCallback? onLongPress; // Nuevo Callback
+  final int notificationCount; 
 
   const _ModuleCard({
     required this.title, 
     required this.icon, 
     required this.onTap,
-    this.notificationCount = 0, // Por defecto 0 (sin badge)
+    this.onLongPress,
+    this.notificationCount = 0,
   });
 
   @override
@@ -194,7 +268,7 @@ class _ModuleCardState extends State<_ModuleCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: Stack(
-        clipBehavior: Clip.none, // Permite que el badge sobresalga un poco si se desea
+        clipBehavior: Clip.none, 
         children: [
           // --- TARJETA PRINCIPAL ---
           AnimatedContainer(
@@ -223,13 +297,13 @@ class _ModuleCardState extends State<_ModuleCard> {
               color: cardColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                // Borde solo en modo claro para contraste
                 side: !isDark 
                     ? BorderSide(color: theme.dividerColor.withValues(alpha: 0.5))
                     : BorderSide.none,
               ),
               child: InkWell(
                 onTap: widget.onTap,
+                onLongPress: widget.onLongPress, // Conectamos el gesto
                 borderRadius: BorderRadius.circular(12),
                 splashColor: primaryColor.withValues(alpha: 0.3),
                 highlightColor: primaryColor.withValues(alpha: 0.1),
@@ -266,7 +340,7 @@ class _ModuleCardState extends State<_ModuleCard> {
               child: Container(
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: Colors.redAccent, // Color de alerta vibrante
+                  color: Colors.redAccent, 
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -275,7 +349,7 @@ class _ModuleCardState extends State<_ModuleCard> {
                       offset: const Offset(0, 2),
                     ),
                   ],
-                  border: Border.all(color: cardColor ?? Colors.white, width: 1.5), // Borde para separar del fondo
+                  border: Border.all(color: cardColor ?? Colors.white, width: 1.5),
                 ),
                 constraints: const BoxConstraints(
                   minWidth: 20,
@@ -301,12 +375,17 @@ class _ModuleCardState extends State<_ModuleCard> {
 }
 
 // ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta para Añadir Módulo (SIN CAMBIOS)
+// WIDGET AUXILIAR: Tarjeta para Añadir Módulo
 // ----------------------------------------------------------------------
 
 class _AddModuleCard extends StatelessWidget {
   final VoidCallback onTap;
-  const _AddModuleCard({required this.onTap});
+  final VoidCallback? onLongPress;
+
+  const _AddModuleCard({
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +398,7 @@ class _AddModuleCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress, // Conectamos gesto
         borderRadius: BorderRadius.circular(12), 
         splashColor: primaryColor.withValues(alpha: 0.3),
         highlightColor: primaryColor.withValues(alpha: 0.1),

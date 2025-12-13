@@ -3,11 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui'; 
+import 'package:provider/provider.dart'; // NECESARIO PARA ACCEDER AL VIEWMODEL
 
-// Modelos
+// Modelos y ViewModels
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
-import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart';
+import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart'; // Lógica de monetización
+import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; // NUEVO
 
 // Pantallas
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart';
@@ -20,42 +22,29 @@ class SimpleLeadsTab extends StatefulWidget {
 }
 
 class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
-  int _currentLimit = 10;
-  // ignore: unused_field
-  final bool _isLoadingMore = false; 
-
-  void _loadMore() {
-    setState(() {
-      _currentLimit += 10; 
-    });
-  }
+  
+  // Eliminamos la paginación local (_currentLimit) ya que el ViewModel debe manejar la consulta filtrada.
 
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    // QA FIX: Obtener tema
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     
-    // En una implementación real, esto vendría del UserModel o Provider
+    // 1. Obtener el ViewModel para acceder al Stream filtrado
+    final leadViewModel = context.watch<LeadListViewModel>();
+    
+    // Nota: userPlan debe ser leído del ProviderProfileModel o del UserModel del usuario logueado
+    // Por ahora, lo mantenemos como 'free' para simular el candado.
     const String userPlan = 'free'; 
 
     if (userId == null) return const Center(child: Text('Error: No usuario'));
 
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-
     return Scaffold(
-      // QA FIX: Fondo dinámico
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .collection('clientes')
-            .where('fechaAlta', isGreaterThan: Timestamp.fromDate(sevenDaysAgo))
-            .orderBy('fechaAlta', descending: true)
-            .limit(_currentLimit)
-            .snapshots(),
+      // 2. El StreamBuilder consume el Stream pre-filtrado del ViewModel
+      body: StreamBuilder<List<Cliente>>(
+        stream: leadViewModel.filteredLeadsStream, // <- CRÍTICO: Usar el Stream del VM
         builder: (context, snapshot) {
           
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -66,14 +55,16 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
+                // Se usa snapshot.error directamente, ya que el VM lo maneja en el listen
                 child: Text('Error: ${snapshot.error}', style: TextStyle(color: colorScheme.error), textAlign: TextAlign.center),
               ),
             );
           }
 
-          final docs = snapshot.data?.docs ?? [];
+          // Los datos ya están mapeados a List<Cliente>
+          final leads = snapshot.data ?? [];
 
-          if (docs.isEmpty) {
+          if (leads.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -91,24 +82,12 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: docs.length + 1, 
+            // Usamos la longitud de la lista directamente
+            itemCount: leads.length, 
             itemBuilder: (context, index) {
               
-              if (index == docs.length) {
-                if (docs.length >= _currentLimit) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: TextButton(
-                      onPressed: _loadMore,
-                      child: Text("Ver más antiguos...", style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5))),
-                    ),
-                  );
-                } else {
-                  return const SizedBox.shrink(); 
-                }
-              }
-
-              final cliente = Cliente.fromFirestore(docs[index]);
+              final cliente = leads[index];
+              // La lógica de acceso (monetización) se aplica aquí en la UI
               final bool hasAccess = LeadAccessHelper.canAccessLead(userPlan, cliente.source ?? '');
 
               return _LeadCard(
@@ -140,7 +119,7 @@ class _LeadCard extends StatelessWidget {
     final s = source.toLowerCase();
     if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio Producto';
-    if (s.contains('cart')) return 'Carrito Abandonado';
+    if (s.contains('cart')) return 'Carrito Abandonado'; // Fuente de alta intención
     if (s.contains('like')) return 'Le gustó un Producto'; 
     if (s.contains('telefono')) return 'Llamada';
     if (s.contains('email')) return 'Email';
@@ -150,11 +129,11 @@ class _LeadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final surfaceColor = theme.cardTheme.color;
     
+    // Lógica de visualización de monetización:
     final displayName = hasAccess ? lead.nombreCompleto : 'Oportunidad Detectada'; 
     final displaySource = hasAccess ? _getFriendlySource(lead.source) : "Carrito/Interés (Solo PRO)";
 
@@ -172,7 +151,10 @@ class _LeadCard extends StatelessWidget {
       statusText = 'Cliente';
     }
 
-    final dateStr = DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!);
+    // Aseguramos que fechaAlta no sea nulo antes de formatear
+    final dateStr = lead.fechaAlta != null 
+      ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!)
+      : 'Fecha desconocida';
 
     return Card(
       color: surfaceColor,
@@ -206,6 +188,7 @@ class _LeadCard extends StatelessWidget {
                          hasAccess 
                            ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
                            : ImageFiltered(
+                               // Blur intencional para Leads 'Solo PRO'
                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                                child: Text(displayName, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 16)),
                              ),
@@ -243,11 +226,13 @@ class _LeadCard extends StatelessWidget {
               ),
             ),
             
+            // Candado "Solo PRO" para leads sin acceso
             if (!hasAccess)
               Positioned.fill(
                 child: Container(
+                  // Note: El filtro de desenfoque aplicado al texto arriba lo protege
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7), // Siempre oscuro para el efecto blur
+                    color: Colors.black.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(

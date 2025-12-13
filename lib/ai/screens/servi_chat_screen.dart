@@ -1,225 +1,238 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:permission_handler/permission_handler.dart'; 
+import 'package:provider/provider.dart'; // Usamos Provider estándar, no Riverpod, para consistencia con el Dashboard
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
-// --- IMPORTACIONES CLAVE DE PROVIDERS Y FEATURES ---
-import 'package:proveedor_servicly_app/providers/app_providers.dart' hide userIdProvider; 
-import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart'; 
-import 'package:proveedor_servicly_app/features/inventory/providers/inventory_providers.dart'; 
+// --- IMPORTACIONES CLAVE ---
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 
-// Importaciones de Clases REALES
-import 'package:proveedor_servicly_app/ai/model/intention_result_model.dart';
-import 'package:proveedor_servicly_app/ai/services/tts_service.dart'; 
-import 'package:proveedor_servicly_app/ai/services/gemini_service.dart'; 
+// --- NUEVOS SERVICIOS UNIFICADOS ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_brain_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
 
-// 🚨 SOLUCIÓN AL ERROR DE AMBIGÜEDAD (Severity 8):
-// 1. Ocultamos el conector de la importación del servicio conversacional para eliminar la duplicidad.
-import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart' hide ServiApiConnectorService;
+class ServiChatScreen extends StatefulWidget {
+  const ServiChatScreen({super.key});
 
-// 2. Importamos el conector dedicado con un PREFIJO para que el compilador lo distinga.
-import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart' as Connector; 
-
-
-// -----------------------------------------------------------
-// --- DEFINICIÓN DE PROVIDERS ---
-// -----------------------------------------------------------
-
-final ttsServiceProvider = Provider<TtsService>((ref) {
-    return TtsService(); 
-});
-
-final serviConversationalServiceProvider = Provider<ServiConversationalService>((ref) {
-    final geminiService = ref.watch(geminiServiceProvider); 
-    final agendaRepo = ref.watch(agendaRepositoryProvider); 
-    final inventoryRepo = ref.watch(inventoryRepositoryProvider); 
-    final intelligenceService = ref.watch(inventoryIntelligenceServiceProvider); 
-    
-    // 2. CREAR EL CONECTOR DE API (Usando la clase importada del archivo dedicado)
-    final apiConnector = Connector.ServiApiConnectorService( 
-        geminiService, 
-        agendaRepo, 
-        inventoryRepo, 
-        intelligenceService
-    );
-    
-    // 3. CONSTRUIR EL SERVICIO CONVERSACIONAL (Pasando el conector)
-    return ServiConversationalService(apiConnector);
-});
-
-
-class ServiChatScreen extends ConsumerStatefulWidget {
-    const ServiChatScreen({super.key});
-
-    @override
-    ConsumerState<ServiChatScreen> createState() => _ServiChatScreenState();
+  @override
+  State<ServiChatScreen> createState() => _ServiChatScreenState();
 }
 
-class _ServiChatScreenState extends ConsumerState<ServiChatScreen> {
-    final TextEditingController _textController = TextEditingController();
-    final List<Map<String, String>> _messages = [];
-    bool _isListening = false;
-    bool _isTyping = false;
+class _ServiChatScreenState extends State<ServiChatScreen> {
+  final TextEditingController _textController = TextEditingController();
+  final List<Map<String, String>> _messages = [];
+  bool _isListening = false;
+  bool _isTyping = false;
+
+  // --- CEREBRO UNIFICADO ---
+  late ServiBrainService _serviBrain;
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+
+  @override
+  void initState() {
+    super.initState();
     
-    late final TtsService _ttsService;
-
-    @override
-    void initState() {
-        super.initState();
-        // Inicializa el servicio TTS desde el provider
-        _ttsService = ref.read(ttsServiceProvider);
-    }
+    // --- INICIALIZACIÓN DEL CEREBRO (Igual que en Dashboard) ---
+    // Esto garantiza que el Chat y el Dashboard respondan IGUAL.
+    final firestoreService = context.read<FirestoreService>();
+    final geminiService = GeminiService(); // O Provider si lo tienes
+    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
+    final conversationalService = ServiConversationalService(apiConnector);
     
-    void _handleSubmitted(String text) async {
-        if (text.isEmpty || _isTyping) return;
-        _textController.clear();
-        
-        setState(() {
-            _messages.insert(0, {"sender": "user", "text": text});
-            _isTyping = true;
-        });
+    _serviBrain = ServiBrainService(advancedBrain: conversationalService);
 
-        final conversationalService = ref.read(serviConversationalServiceProvider);
-        final userId = ref.read(userIdProvider);
-        
-        try {
-            // Utilizamos el modelo real IntentionResultModel
-            final IntentionResultModel result = await conversationalService.processQueryAndRespond(text, userId);
-            
-            setState(() {
-                _messages.insert(0, {"sender": "servi", "text": result.responseText}); 
-            });
-            
-            // Lanza el texto a voz
-            _ttsService.speak(result.ttsText);
-            
-        } catch (e) {
-            debugPrint('Error en SERVI Chat: $e');
-            setState(() {
-                _messages.insert(0, {"sender": "servi", "text": "¡Ups! Tuvimos un error al consultar la IA. Inténtalo de nuevo."});
-            });
-        } finally {
-            setState(() {
-                _isTyping = false;
-            });
-        }
-    }
+    // Mensaje de bienvenida silencioso (solo texto)
+    _addMessage("servi", "Hola. Soy Servi. Escribime o hablame, estoy lista.");
+  }
 
-    // Método para la funcionalidad de voz (STT) - Con manejo de permisos
-    void _startListening() async {
-        // 1. Verificar y solicitar permiso de Micrófono
-        var status = await Permission.microphone.status;
-        if (status.isDenied) {
-            status = await Permission.microphone.request();
-        }
-        
-        // 2. Si el permiso es concedido, iniciar el STT
-        if (status.isGranted) {
-            setState(() => _isListening = true);
-            
-            // Simulación de respuesta STT después de 3 segundos:
-            Future.delayed(const Duration(seconds: 3), () {
-                setState(() => _isListening = false);
-                // Usamos la prueba de bypass de Rol
-                _handleSubmitted("quien eres?"); 
-            });
-        } else {
-            debugPrint("Permiso de micrófono denegado.");
-        }
-    }
+  @override
+  void dispose() {
+    _voiceService.dispose();
+    _textController.dispose();
+    super.dispose();
+  }
 
-    // Esqueleto de la barra de entrada de texto/voz
-    Widget _buildTextComposer() {
-        final colorScheme = Theme.of(context).colorScheme;
-        return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 8.0),
-            decoration: BoxDecoration(color: Theme.of(context).cardColor),
-            child: Row(
-                children: [
-                    Flexible(
-                        child: TextField(
-                            controller: _textController,
-                            onSubmitted: _handleSubmitted,
-                            decoration: const InputDecoration.collapsed(hintText: "Pregunta a SERVI..."),
-                            enabled: !_isTyping,
-                        ),
-                    ),
-                    Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                        child: IconButton(
-                            icon: Icon(_isListening ? Icons.mic_off : Icons.mic, color: _isListening ? Colors.red : colorScheme.primary),
-                            onPressed: _isTyping ? null : _startListening,
-                            tooltip: 'Hablar con SERVI',
-                        ),
-                    ),
-                    IconButton(
-                        icon: const Icon(Icons.send),
-                        onPressed: _isTyping ? null : () => _handleSubmitted(_textController.text),
-                    ),
-                ],
-            ),
-        );
-    }
+  void _addMessage(String sender, String text) {
+    if (!mounted) return;
+    setState(() {
+      _messages.insert(0, {"sender": sender, "text": text});
+    });
+  }
+
+  void _handleSubmitted(String text) async {
+    if (text.trim().isEmpty || _isTyping) return;
+    _textController.clear();
     
-    // Widget para mostrar un mensaje
-    Widget _buildMessage(Map<String, String> message, Color colorSchemePrimary) {
-        final isUser = message['sender'] == 'user';
-        final color = isUser ? colorSchemePrimary : Colors.grey.shade700;
-        
-        return Container(
-            margin: const EdgeInsets.symmetric(vertical: 10.0),
-            child: Row(
-                mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                    if (!isUser) 
-                        const CircleAvatar(child: Text("S")),
-                    
-                    Flexible(
-                        child: Container(
-                            margin: isUser ? const EdgeInsets.only(left: 80) : const EdgeInsets.only(right: 80),
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                                color: isUser ? colorSchemePrimary.withOpacity(0.1) : Theme.of(context).cardTheme.color,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: color.withOpacity(0.3)),
-                            ),
-                            child: Text(
-                                message['text']!,
-                                style: TextStyle(color: isUser ? colorSchemePrimary : Theme.of(context).colorScheme.onSurface),
-                            ),
-                        ),
-                    ),
-                    if (isUser)
-                        const CircleAvatar(child: Text("Yo")),
-                ],
-            ),
-        );
+    _addMessage("user", text);
+    setState(() => _isTyping = true);
+
+    try {
+      final user = context.read<UserModel>();
+      
+      // --- USAMOS EL MISMO CEREBRO QUE EL DASHBOARD ---
+      String response = await _serviBrain.processCommand(text, user.uid);
+      
+      _addMessage("servi", response);
+      
+      // Opcional: Que lea la respuesta en voz alta también en el chat
+      _voiceService.speak(response);
+
+    } catch (e) {
+      debugPrint("Error en Chat: $e");
+      _addMessage("servi", "Tuve un problema de conexión. ¿Probamos de nuevo?");
+    } finally {
+      if (mounted) setState(() => _isTyping = false);
+    }
+  }
+
+  // --- LÓGICA DE VOZ (STT) REUTILIZADA ---
+  void _startListening() async {
+    if (_isListening) {
+      _speech.stop();
+      setState(() => _isListening = false);
+      return;
     }
 
+    var status = await Permission.microphone.request();
+    if (status.isGranted) {
+      bool available = await _speech.initialize(
+        onStatus: (status) {
+          if (status == 'notListening') setState(() => _isListening = false);
+        },
+        onError: (val) => setState(() => _isListening = false),
+      );
 
-    @override
-    Widget build(BuildContext context) {
-        final colorScheme = Theme.of(context).colorScheme;
-        
-        return Scaffold(
-            appBar: AppBar(title: const Text("SERVI: Asistente Inteligente")),
-            body: Column(
-                children: [
-                    Flexible(
-                        child: ListView.builder(
-                            padding: const EdgeInsets.all(8.0),
-                            reverse: true,
-                            itemBuilder: (_, int index) => _buildMessage(_messages[index], colorScheme.primary),
-                            itemCount: _messages.length,
-                        ),
-                    ),
-                    const Divider(height: 1.0),
-                    Container(
-                        decoration: BoxDecoration(color: Theme.of(context).cardColor),
-                        child: _buildTextComposer(),
-                    ),
-                ],
-            ),
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(
+          onResult: (val) {
+            _textController.text = val.recognizedWords;
+            if (val.finalResult) {
+              setState(() => _isListening = false);
+              _handleSubmitted(val.recognizedWords); // Enviar automático al terminar
+            }
+          },
+          localeId: 'es_AR',
         );
+      }
     }
+  }
+
+  // --- UI DEL CHAT (Mantenemos tu diseño limpio) ---
+  Widget _buildTextComposer() {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(24), // Bordes más redondos estilo chat moderno
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
+            color: _isListening ? Colors.redAccent : theme.colorScheme.primary,
+            onPressed: _startListening,
+          ),
+          Flexible(
+            child: TextField(
+              controller: _textController,
+              onSubmitted: _handleSubmitted,
+              decoration: const InputDecoration.collapsed(hintText: "Escribí tu consulta..."),
+              enabled: !_isTyping,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.send_rounded),
+            color: theme.colorScheme.primary,
+            onPressed: _isTyping ? null : () => _handleSubmitted(_textController.text),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessage(Map<String, String> message) {
+    final isUser = message['sender'] == 'user';
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+      child: Row(
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end, // Alineación abajo para avatares
+        children: [
+          if (!isUser) 
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: CircleAvatar(
+                backgroundColor: colorScheme.primaryContainer,
+                child: Image.asset('assets/images/servicly_logo.png', width: 24), // Logo real
+              ),
+            ),
+          
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isUser ? colorScheme.primary : theme.cardColor,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
+                  bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                ],
+              ),
+              child: Text(
+                message['text']!,
+                style: TextStyle(
+                  color: isUser ? colorScheme.onPrimary : theme.textTheme.bodyLarge?.color,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Chat con Servi"),
+        centerTitle: true,
+        elevation: 0,
+      ),
+      body: Column(
+        children: [
+          Flexible(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(8.0),
+              reverse: true,
+              itemBuilder: (_, int index) => _buildMessage(_messages[index]),
+              itemCount: _messages.length,
+            ),
+          ),
+          if (_isTyping)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: LinearProgressIndicator(minHeight: 2), // Indicador sutil de "pensando"
+            ),
+          const Divider(height: 1.0),
+          SafeArea(child: _buildTextComposer()),
+        ],
+      ),
+    );
+  }
 }

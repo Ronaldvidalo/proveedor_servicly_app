@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-// Asegúrate de que esta ruta sea correcta según tu estructura de carpetas
+import 'package:provider/provider.dart';
+
+// Modelos y ViewModels
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/features/dashboard/models/dashboard_metrics_viewmodel.dart'; // Importación requerida
 
 class DashboardMetricsCard extends StatelessWidget {
   final UserModel userModel;
@@ -15,9 +18,13 @@ class DashboardMetricsCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     
-    // Obtenemos la foto del mapa de personalización o usamos null
     final String? photoURL = userModel.personalization['logoUrl'] as String?;
 
+    // CRÍTICO: Leer el ViewModel aquí para obtener métricas reactivas
+    final metricsModel = context.watch<DashboardMetricsViewModel>();
+    final String leadCount = metricsModel.leadCount.toString();
+    // La métrica de Visitas se mantiene en hardcode hasta que se implemente el Stream en el VM.
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
       decoration: BoxDecoration(
@@ -95,21 +102,23 @@ class DashboardMetricsCard extends StatelessWidget {
           Divider(height: 24, color: colors.onSurface.withOpacity(0.1)),
           
           // --- Fila de Métricas ---
-          // TODO: Conectar estos valores ('128', '12', '4.8') a datos reales del userModel o Firestore cuando estén disponibles.
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _MetricItem(
+              // Métrica 1: Visitas (Hardcodeado)
+              const _MetricItem(
                 icon: Icons.visibility_outlined, 
                 label: 'Visitas', 
-                value: '128' 
+                value: '128' // Placeholder. Reemplazar con metricsModel.visitCount
               ),
+              // Métrica 2: Contactos (Leads) -> Conectado al ViewModel
               _MetricItem(
                 icon: Icons.person_add_alt_1_outlined, 
                 label: 'Contactos', 
-                value: '12' 
+                value: leadCount // <- VALOR REACTIVO DEL CRM
               ),
-              _MetricItem(
+              // Métrica 3: Rating (Hardcodeado)
+              const _MetricItem(
                 icon: Icons.star_border_rounded, 
                 label: 'Rating', 
                 value: '4.8' 

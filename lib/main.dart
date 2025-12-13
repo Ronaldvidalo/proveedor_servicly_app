@@ -39,6 +39,8 @@ import 'package:proveedor_servicly_app/core/services/order_service.dart';
 // --- Modelos y ViewModels ---
 import 'core/models/user_model.dart';
 import 'core/viewmodels/cart_provider.dart';
+// CRÍTICO: Importar el DashboardMetricsViewModel
+import 'package:proveedor_servicly_app/features/dashboard/models/dashboard_metrics_viewmodel.dart';
 
 // --- UI ---
 import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; 
@@ -103,7 +105,6 @@ class MyApp extends StatelessWidget {
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         
         // --- AUTH SERVICE ---
-        // Configurado sin parámetros extra, ya que AuthService maneja sus instancias internamente o vía DI
         Provider<AuthService>(create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
@@ -118,6 +119,13 @@ class MyApp extends StatelessWidget {
         // --- REPOSITORIOS CORE ---
         Provider<CrmRepository>(create: (_) => CrmRepository()),
 
+        // --- CRÍTICO: INYECCIÓN DE DASHBOARD VIEWMODEL ---
+        ChangeNotifierProvider<DashboardMetricsViewModel>(
+            create: (context) => DashboardMetricsViewModel(
+              context.read<CrmRepository>(), // Depende de CrmRepository
+            ),
+        ),
+        
         // --- REPOSITORIO DE INVENTARIO ---
         Provider<InventoryRepository>(
           create: (_) => InventoryRepository(
@@ -137,7 +145,6 @@ class MyApp extends StatelessWidget {
         Provider<QuoteRepository>(create: (_) => QuoteRepository()),
 
         // --- SERVICIO DE INTELIGENCIA DE COTIZACIONES ---
-        // Este servicio alimenta el "Botón Mágico" en el editor
         Provider<QuoteIntelligenceService>(
           create: (context) => QuoteIntelligenceService(
             GeminiService(), 

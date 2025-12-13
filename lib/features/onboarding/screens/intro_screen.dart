@@ -1,24 +1,28 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 19/10/2025
 // Style: Cyber Glow (Adaptive Light/Dark)
-// QA FIX 26/11/2025:
-// 1. Refactorización completa para eliminar colores hardcoded.
-// 2. Adaptación automática a Modo Claro/Oscuro usando Theme.of(context).
-// 3. Actualización de métodos deprecados (.withValues).
+// QA FIX 11/12/2025: Ajuste de Guion (Presentación IA + Tono Argentino)
 // ---------------------------------
 
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart'; // Control de audio
+
+// --- IMPORTS DE LA IA ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 /// Modelo simple para contener los datos de cada página de la introducción.
 class IntroPageModel {
   final IconData icon;
   final String title;
   final String description;
+  final String voiceScript; // Guion de voz para cada página
 
   IntroPageModel({
     required this.icon,
     required this.title,
     required this.description,
+    required this.voiceScript,
   });
 }
 
@@ -37,30 +41,56 @@ class _IntroScreenState extends State<IntroScreen> {
   final PageController _pageController = PageController();
   int _currentPageIndex = 0;
 
+  // --- IA SERVI ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  bool _isSpeaking = false;
+
+  // --- DEFINICIÓN DE PÁGINAS (GUION NATURAL MEJORADO) ---
   final List<IntroPageModel> _pages = [
     IntroPageModel(
       icon: Icons.folder_special_rounded,
-      title: 'Organiza tu Negocio',
-      description:
-          'Centraliza clientes, presupuestos y agenda en un solo lugar. Di adiós al cuaderno y al caos.',
+      title: 'Organizá tu Negocio',
+      description: 'Centralizá clientes, presupuestos y agenda en un solo lugar. Chau al cuaderno y al caos.',
+      // CAMBIO AQUÍ: Presentación clara como IA de Servicly
+      voiceScript: "Hola, soy Servi, la inteligencia artificial de Servicly. Estoy acá para ayudarte a mejorar tu negocio. Vamos a organizar todo para que te olvides del caos y los papeles sueltos.",
     ),
     IntroPageModel(
       icon: Icons.bar_chart_rounded,
-      title: 'Controla tus Finanzas',
-      description:
-          'Registra ingresos y gastos fácilmente. Observa el crecimiento de tu trabajo sin complicaciones.',
+      title: 'Controlá tus Finanzas',
+      description: 'Registrá ingresos y gastos fácilmente. Mirá cómo crece tu trabajo sin complicaciones.',
+      voiceScript: "Tomá el control de tus números. Mirá cómo crecen tus ingresos día a día y decidí mejor.",
     ),
     IntroPageModel(
       icon: Icons.shield_moon_rounded,
-      title: 'Profesionaliza tu Servicio',
-      description:
-          'Genera contratos y recordatorios de pago automáticos para cobrar a tiempo y sin estrés.',
+      title: 'Profesionalizá tu Servicio',
+      description: 'Generá contratos y presupuestos digitales claros. Que tus clientes te tomen en serio.',
+      voiceScript: "Proyectá confianza total. Con presupuestos digitales y contratos claros, vas a quedar como un profesional de primera.",
     ),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    
+    // 1. Escuchar a Servi
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _isSpeaking = state == PlayerState.playing);
+    });
+
+    // 2. Iniciar la narración de la primera página
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) _speak(_pages[0].voiceScript);
+    });
+  }
+
+  Future<void> _speak(String text) async {
+    await _voiceService.speak(text);
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
+    _voiceService.dispose(); // Liberar recursos
     super.dispose();
   }
 
@@ -71,45 +101,61 @@ class _IntroScreenState extends State<IntroScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      widget.onFinished();
+      // Mensaje de despedida antes de salir
+      _speak("¡Dale, arrancamos! Tu éxito empieza ahora.");
+      // Pequeña pausa para el efecto
+      Future.delayed(const Duration(milliseconds: 1500), widget.onFinished);
     }
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentPageIndex = index;
+    });
+    // Narrar la nueva página
+    _speak(_pages[index].voiceScript);
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isLastPage = _currentPageIndex == _pages.length - 1;
-    
-    // QA FIX: Obtenemos el tema del contexto para colores dinámicos
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      // 1. Fondo dinámico (Gris claro / Azul Oscuro)
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: TextButton(
-                onPressed: widget.onFinished,
-                style: TextButton.styleFrom(
-                  // QA FIX: Texto visible en ambos modos (Gris oscuro / Gris claro)
-                  foregroundColor: colorScheme.onSurface.withValues(alpha: 0.6),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
-                ),
-                child: const Text('Saltar'),
+            // --- HEADER CON AVATAR Y BOTÓN SALTAR ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Avatar de Servi narrando
+                  ServiAvatar(
+                    isSpeaking: _isSpeaking,
+                    size: 40,
+                    onTap: () => _speak(_pages[_currentPageIndex].voiceScript), // Repetir al tocar
+                  ),
+                  
+                  TextButton(
+                    onPressed: widget.onFinished,
+                    style: TextButton.styleFrom(
+                      foregroundColor: colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                    child: const Text('Saltar'),
+                  ),
+                ],
               ),
             ),
+
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: _pages.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPageIndex = index;
-                  });
-                },
+                onPageChanged: _onPageChanged,
                 itemBuilder: (context, index) {
                   final page = _pages[index];
                   return _IntroPageWidget(
@@ -120,6 +166,7 @@ class _IntroScreenState extends State<IntroScreen> {
                 },
               ),
             ),
+            
             Padding(
               padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 32.0),
               child: Row(
@@ -132,7 +179,6 @@ class _IntroScreenState extends State<IntroScreen> {
                       (index) => _buildDot(
                         index: index, 
                         activeColor: colorScheme.primary, 
-                        // QA FIX: Color inactivo sutil pero visible
                         inactiveColor: theme.dividerColor
                       ),
                     ),
@@ -143,7 +189,6 @@ class _IntroScreenState extends State<IntroScreen> {
                     elevation: 5,
                     child: Icon(
                       isLastPage ? Icons.check_rounded : Icons.arrow_forward_ios_rounded,
-                      // QA FIX: Texto sobre botón primario (generalmente negro para neón, o blanco)
                       color: colorScheme.onPrimary,
                     ),
                   ),
@@ -185,7 +230,6 @@ class _IntroPageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Accedemos al tema dentro del widget hijo
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -199,11 +243,9 @@ class _IntroPageWidget extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              // QA FIX: Color de superficie dinámico (Blanco / Azul Superficie)
               color: theme.cardTheme.color,
               boxShadow: [
                 BoxShadow(
-                  // QA FIX: Sombra neón dinámica con .withValues
                   color: colorScheme.primary.withValues(alpha: 0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
@@ -213,7 +255,6 @@ class _IntroPageWidget extends StatelessWidget {
             child: Icon(
               icon,
               size: 100,
-              // QA FIX: El icono usa el color primario (Azul Neón / Rosa Neón, etc.)
               color: colorScheme.primary,
             ),
           ),
@@ -222,7 +263,6 @@ class _IntroPageWidget extends StatelessWidget {
             title,
             style: textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              // QA FIX: Color de texto principal dinámico
               color: colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
@@ -231,7 +271,6 @@ class _IntroPageWidget extends StatelessWidget {
           Text(
             description,
             style: textTheme.titleMedium?.copyWith(
-              // QA FIX: Color secundario (grisáceo) dinámico
               color: colorScheme.onSurface.withValues(alpha: 0.7),
               height: 1.5,
             ),
