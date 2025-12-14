@@ -23,7 +23,8 @@ class DashboardMetricsCard extends StatelessWidget {
     // CRÍTICO: Leer el ViewModel aquí para obtener métricas reactivas
     final metricsModel = context.watch<DashboardMetricsViewModel>();
     final String leadCount = metricsModel.leadCount.toString();
-    // La métrica de Visitas se mantiene en hardcode hasta que se implemente el Stream en el VM.
+    // CRÍTICO: Usamos el valor real del ViewModel para Visitas
+    final String visitCount = metricsModel.visitCount.toString();
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
@@ -101,23 +102,23 @@ class DashboardMetricsCard extends StatelessWidget {
           
           Divider(height: 24, color: colors.onSurface.withOpacity(0.1)),
           
-          // --- Fila de Métricas ---
+          // --- Fila de Métricas (AHORA REACTIVA) ---
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Métrica 1: Visitas (Hardcodeado)
-              const _MetricItem(
+              // Métrica 1: Visitas -> Ahora usa el valor del ViewModel
+              _MetricItem(
                 icon: Icons.visibility_outlined, 
                 label: 'Visitas', 
-                value: '128' // Placeholder. Reemplazar con metricsModel.visitCount
+                value: visitCount // <- ¡CORREGIDO! Valor del VM (actualmente '0')
               ),
-              // Métrica 2: Contactos (Leads) -> Conectado al ViewModel
+              // Métrica 2: Contactos (Leads)
               _MetricItem(
                 icon: Icons.person_add_alt_1_outlined, 
                 label: 'Contactos', 
                 value: leadCount // <- VALOR REACTIVO DEL CRM
               ),
-              // Métrica 3: Rating (Hardcodeado)
+              // Métrica 3: Rating 
               const _MetricItem(
                 icon: Icons.star_border_rounded, 
                 label: 'Rating', 

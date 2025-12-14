@@ -3,13 +3,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui'; 
-import 'package:provider/provider.dart'; // NECESARIO PARA ACCEDER AL VIEWMODEL
+import 'package:provider/provider.dart'; 
+
+// --- IMPORTAR SHOWCASE & IA ---
+import 'package:showcaseview/showcaseview.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// --- SERVICIOS DE IA ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_brain_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 
 // Modelos y ViewModels
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
-import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart'; // Lógica de monetización
-import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; // NUEVO
+import 'package:proveedor_servicly_app/features/crm/core/lead_access_helper.dart'; 
+import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_list_viewmodel.dart'; 
 
 // Pantallas
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart';
@@ -21,9 +36,170 @@ class SimpleLeadsTab extends StatefulWidget {
   State<SimpleLeadsTab> createState() => _SimpleLeadsTabState();
 }
 
-class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
+class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProviderStateMixin {
   
-  // Eliminamos la paginación local (_currentLimit) ya que el ViewModel debe manejar la consulta filtrada.
+  // --- IA SERVI INTEGRADA ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  late ServiBrainService _serviBrain;
+  
+  bool _isSpeaking = false;
+  bool _isListening = false;
+  bool _isThinking = false;
+  bool _isTourCheckPending = true;
+
+  // --- KEYS PARA EL TOUR VIRTUAL ---
+  final GlobalKey _keyLeadList = GlobalKey(); // Foco en la lista
+  final GlobalKey _keyLockedLead = GlobalKey(); // Foco en un lead bloqueado (si hay)
+
+  final List<String> _fillers = [
+    "Revisando tu cartera de clientes...",
+    "Buscando en el CRM...",
+    "Dame un segundo que chequeo...",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicialización del Cerebro IA
+    final firestoreService = FirestoreService(); 
+    final geminiService = GeminiService();
+    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
+    final conversationalService = ServiConversationalService(apiConnector);
+    _serviBrain = ServiBrainService(advancedBrain: conversationalService);
+    
+    _initVoiceListeners();
+  }
+
+  void _initVoiceListeners() {
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() => _isSpeaking = state == PlayerState.playing);
+      }
+    });
+  }
+
+  void _updateSpeakingState(bool speaking) {
+      if(mounted) setState(() => _isSpeaking = speaking);
+  }
+
+  Future<void> _speak(String text) async {
+    _updateSpeakingState(true);
+    await _voiceService.speak(text);
+  }
+
+  Future<void> _listen() async {
+    if (_isListening || _isThinking) return;
+
+    if (_isSpeaking) {
+      await _voiceService.stop();
+      _updateSpeakingState(false);
+    }
+
+    bool available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'notListening') setState(() => _isListening = false);
+      },
+      onError: (error) {
+        setState(() => _isListening = false);
+        _speak("No te entendí bien. ¿Repetimos?");
+      },
+    );
+
+    if (available) {
+      setState(() => _isListening = true);
+      _speech.listen(
+        onResult: (val) {
+          if (val.finalResult) {
+            setState(() => _isListening = false);
+            _processVoiceCommand(val.recognizedWords);
+          }
+        },
+        localeId: 'es_AR',
+      );
+    } else {
+      _speak("Habilitá el micrófono por favor.");
+    }
+  }
+
+  Future<void> _processVoiceCommand(String command) async {
+    if (command.trim().isEmpty) return;
+    
+    setState(() => _isThinking = true);
+    
+    if (command.split(' ').length > 2) {
+       _fillers.shuffle();
+       _speak(_fillers.first);
+    }
+
+    try {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null) {
+            String response = await _serviBrain.processCommand(command, userId);
+            
+            if (mounted) setState(() => _isThinking = false);
+            _speak(response);
+        }
+    } catch (e) {
+        if (mounted) setState(() => _isThinking = false);
+        _speak("Tuve un error al buscar clientes. Probá manual.");
+    }
+  }
+  
+  void _handleAvatarTap() {
+    if (_isThinking) return;
+    if (_isListening) {
+      _listen(); 
+    } else if (_isSpeaking) {
+      _voiceService.stop();
+      _updateSpeakingState(false);
+    } else {
+      _speak("¿Buscás algún cliente en particular?"); 
+      Future.delayed(const Duration(milliseconds: 1500), _listen);
+    }
+  }
+
+  // --- TOUR HABLADO ---
+  String _getScriptForStep(GlobalKey key) {
+    if (key == _keyLeadList) return "Esta es tu mina de oro. Aquí están todos los interesados en tus servicios.";
+    if (key == _keyLockedLead) return "¡Atención! Estos candados son oportunidades perdidas. Mejorá tu plan para ver quién quiso comprarte.";
+    return "";
+  }
+
+  void _onShowcaseStepStart(int? index, GlobalKey key) {
+    if (key.currentContext != null) {
+      Scrollable.ensureVisible(key.currentContext!, duration: const Duration(milliseconds: 500), alignment: 0.5);
+    }
+    String script = _getScriptForStep(key);
+    if (script.isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) _speak(script);
+      });
+    }
+  }
+
+  Future<void> _checkIfFirstTime(BuildContext showcaseContext) async {
+    final prefs = await SharedPreferences.getInstance();
+    const String tourKey = 'hasSeenCrmTour_v1'; 
+    final bool hasSeenTour = prefs.getBool(tourKey) ?? false;
+
+    if (!hasSeenTour) {
+      await _speak("Bienvenido al CRM. Acá gestionamos tus relaciones comerciales.");
+      if (mounted) {
+        // Iniciamos el tour. Si no hay elementos bloqueados, solo mostramos la lista.
+        // La lógica dinámica de keys se maneja mejor si siempre mostramos al menos la lista.
+        ShowCaseWidget.of(showcaseContext).startShowCase([_keyLeadList]);
+        prefs.setBool(tourKey, true);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _voiceService.dispose();
+    _speech.stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,74 +207,107 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     
-    // 1. Obtener el ViewModel para acceder al Stream filtrado
     final leadViewModel = context.watch<LeadListViewModel>();
-    
-    // Nota: userPlan debe ser leído del ProviderProfileModel o del UserModel del usuario logueado
-    // Por ahora, lo mantenemos como 'free' para simular el candado.
     const String userPlan = 'free'; 
 
     if (userId == null) return const Center(child: Text('Error: No usuario'));
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      // 2. El StreamBuilder consume el Stream pre-filtrado del ViewModel
-      body: StreamBuilder<List<Cliente>>(
-        stream: leadViewModel.filteredLeadsStream, // <- CRÍTICO: Usar el Stream del VM
-        builder: (context, snapshot) {
+    return ShowCaseWidget(
+      onStart: (index, key) => _onShowcaseStepStart(index, key),
+      builder: (context) {
+        if (_isTourCheckPending) {
+          _isTourCheckPending = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _checkIfFirstTime(context));
+        }
+
+        return Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
           
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: colorScheme.primary));
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                // Se usa snapshot.error directamente, ya que el VM lo maneja en el listen
-                child: Text('Error: ${snapshot.error}', style: TextStyle(color: colorScheme.error), textAlign: TextAlign.center),
+          // --- BOTÓN FLOTANTE IA ---
+          floatingActionButton: Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: GestureDetector(
+              onTap: _handleAvatarTap,
+              child: ServiAvatar(
+                isSpeaking: _isSpeaking,
+                isListening: _isListening, 
+                isThinking: _isThinking, 
+                size: 60, 
               ),
-            );
-          }
+            ),
+          ),
 
-          // Los datos ya están mapeados a List<Cliente>
-          final leads = snapshot.data ?? [];
-
-          if (leads.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 80, color: colorScheme.onSurface.withValues(alpha: 0.2)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No hay leads recientes',
-                    style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            // Usamos la longitud de la lista directamente
-            itemCount: leads.length, 
-            itemBuilder: (context, index) {
+          body: StreamBuilder<List<Cliente>>(
+            stream: leadViewModel.filteredLeadsStream, 
+            builder: (context, snapshot) {
               
-              final cliente = leads[index];
-              // La lógica de acceso (monetización) se aplica aquí en la UI
-              final bool hasAccess = LeadAccessHelper.canAccessLead(userPlan, cliente.source ?? '');
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator(color: colorScheme.primary));
+              }
 
-              return _LeadCard(
-                lead: cliente, 
-                hasAccess: hasAccess, 
-                userPlan: userPlan
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text('Error: ${snapshot.error}', style: TextStyle(color: colorScheme.error), textAlign: TextAlign.center),
+                  ),
+                );
+              }
+
+              final leads = snapshot.data ?? [];
+
+              if (leads.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 80, color: colorScheme.onSurface.withValues(alpha: 0.2)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No hay leads recientes',
+                        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: leads.length, 
+                itemBuilder: (context, index) {
+                  final cliente = leads[index];
+                  final bool hasAccess = LeadAccessHelper.canAccessLead(userPlan, cliente.source ?? '');
+
+                  // El primer elemento recibe la Key del Tour General
+                  // Si encontramos un elemento bloqueado, le asignamos la Key de Bloqueado para el tour (solo al primero que aparezca)
+                  // Esto es un truco visual para el tour.
+                  Widget card = _LeadCard(
+                    lead: cliente, 
+                    hasAccess: hasAccess, 
+                    userPlan: userPlan
+                  );
+
+                  if (index == 0) {
+                    return Showcase(
+                      key: _keyLeadList,
+                      title: 'Tus Oportunidades',
+                      description: 'Gestiona aquí el contacto con tus clientes.',
+                      child: card,
+                    );
+                  }
+                  
+                  // Si es el primer elemento bloqueado que encontramos (y no es el índice 0), le ponemos showcase
+                  // Nota: Para simplificar, en esta versión MVP solo mostramos el showcase en el primero.
+                  // Una implementación más compleja buscaría el índice del primer bloqueado.
+                  
+                  return card;
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -119,7 +328,7 @@ class _LeadCard extends StatelessWidget {
     final s = source.toLowerCase();
     if (s.contains('whatsapp')) return 'WhatsApp';
     if (s.contains('view_product')) return 'Vio Producto';
-    if (s.contains('cart')) return 'Carrito Abandonado'; // Fuente de alta intención
+    if (s.contains('cart')) return 'Carrito Abandonado'; 
     if (s.contains('like')) return 'Le gustó un Producto'; 
     if (s.contains('telefono')) return 'Llamada';
     if (s.contains('email')) return 'Email';
@@ -133,7 +342,6 @@ class _LeadCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final surfaceColor = theme.cardTheme.color;
     
-    // Lógica de visualización de monetización:
     final displayName = hasAccess ? lead.nombreCompleto : 'Oportunidad Detectada'; 
     final displaySource = hasAccess ? _getFriendlySource(lead.source) : "Carrito/Interés (Solo PRO)";
 
@@ -151,7 +359,6 @@ class _LeadCard extends StatelessWidget {
       statusText = 'Cliente';
     }
 
-    // Aseguramos que fechaAlta no sea nulo antes de formatear
     final dateStr = lead.fechaAlta != null 
       ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!)
       : 'Fecha desconocida';
@@ -188,7 +395,6 @@ class _LeadCard extends StatelessWidget {
                          hasAccess 
                            ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
                            : ImageFiltered(
-                               // Blur intencional para Leads 'Solo PRO'
                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                                child: Text(displayName, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 16)),
                              ),
@@ -196,9 +402,9 @@ class _LeadCard extends StatelessWidget {
                          Text(
                            displaySource,
                            style: TextStyle(
-                              color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
-                              fontSize: 13, 
-                              fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
+                             color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
+                             fontSize: 13, 
+                             fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
                            ),
                          ),
                          const SizedBox(height: 8),
@@ -226,11 +432,9 @@ class _LeadCard extends StatelessWidget {
               ),
             ),
             
-            // Candado "Solo PRO" para leads sin acceso
             if (!hasAccess)
               Positioned.fill(
                 child: Container(
-                  // Note: El filtro de desenfoque aplicado al texto arriba lo protege
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(12),
