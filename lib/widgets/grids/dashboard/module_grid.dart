@@ -11,6 +11,10 @@ import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 // --- Importaciones de Modelos ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
+import 'package:proveedor_servicly_app/core/models/order_model.dart'; // Necesario para el Stream
+
+// --- Importaciones de Servicios ---
+import 'package:proveedor_servicly_app/core/services/order_service.dart'; // Necesario para contar pedidos
 
 // --- Importaciones de Pantallas ---
 import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
@@ -22,9 +26,9 @@ import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_reposi
 import 'package:proveedor_servicly_app/features/sales/screens/pos_screen.dart';
 import 'package:proveedor_servicly_app/features/cost_structure/screen/business_config_screen.dart';
 import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
-// IMPORTANTE: Asegúrate de tener creada esta pantalla o comenta la línea si aún no existe
-import 'package:proveedor_servicly_app/features/budget/models/quote_model.dart';
 import 'package:proveedor_servicly_app/features/budget/screens/quote_list_screen.dart';
+// --- NUEVO: PANTALLA DE PEDIDOS ---
+import 'package:proveedor_servicly_app/features/orders/screens/provider_orders_screen.dart';
 
 // --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
@@ -40,6 +44,8 @@ const Map<String, IconData> _iconMap = {
   'fast_sales': Icons.price_check_rounded,
   'extension_outlined': Icons.extension_outlined, 
   'quotes': Icons.description_outlined,
+  // --- NUEVO ICONO DE PEDIDOS ---
+  'receipt_long_outlined': Icons.receipt_long_outlined,
 };
 
 // ----------------------------------------------------------------------
@@ -111,6 +117,10 @@ class _ModulesGridState extends State<ModulesGrid> {
       case 'cost_structure':
         script = "Tus costos fijos. Calculá cuánto te cuesta abrir la persiana cada día para no perder plata.";
         break;
+      // --- NUEVO GUIÓN PEDIDOS ---
+      case 'orders-module':
+        script = "Tus Ventas. Acá te llegan los pedidos de la app. Revisá el pago y aprobá la entrega al toque.";
+        break;
       case 'add_module':
         script = "Más poder para vos. Tocá acá para activar nuevas herramientas y potenciar tu negocio.";
         break;
@@ -123,67 +133,84 @@ class _ModulesGridState extends State<ModulesGrid> {
 
   @override
   Widget build(BuildContext context) {
-    // AQUÍ CONECTARÍAS TU PROVIDER REAL DE NOTIFICACIONES
-    final int quoteNotifications = 3; 
-
-    return GridView.count(
-      crossAxisCount: 4, 
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        // Botón "Gestionar Tienda"
-        if (widget.user.publicProfileTemplate == 'store') 
-          _ModuleCard(
-            title: 'Tienda', 
-            icon: _iconMap['storefront_outlined'] ?? Icons.storefront_outlined,
-            onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ManageStoreScreen(user: widget.user),
-              ));
-            },
-            onLongPress: () => _explainModule('store_template'),
-          ),
+    // --- STREAM BUILDER: Escucha pedidos pendientes en tiempo real ---
+    return StreamBuilder<List<OrderModel>>(
+      // Solo escuchamos si el usuario tiene ID válido
+      stream: widget.user.uid.isNotEmpty 
+          ? context.read<OrderService>().getPendingOrders(widget.user.uid)
+          : const Stream.empty(),
+      builder: (context, snapshot) {
         
-        // Botón "Gestionar Catálogo"
-        if (widget.user.publicProfileTemplate == 'catalog') 
-          _ModuleCard(
-            title: 'Catálogo', 
-            icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined,
-            onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => CatalogEditorScreen(user: widget.user),
-              ));
-            },
-            onLongPress: () => _explainModule('catalog_template'),
-          ),
+        // Calculamos cantidad de pendientes
+        int pendingOrdersCount = 0;
+        if (snapshot.hasData) {
+          pendingOrdersCount = snapshot.data!.length;
+        }
 
-        // Módulos activos mapeados desde Firebase
-        ...widget.activeModules.map((module) {
-          int badgeCount = 0;
-          if (module.moduleId == 'quotes') {
-            badgeCount = quoteNotifications;
-          }
+        return GridView.count(
+          crossAxisCount: 4, 
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            // Botón "Gestionar Tienda"
+            if (widget.user.publicProfileTemplate == 'store') 
+              _ModuleCard(
+                title: 'Tienda', 
+                icon: _iconMap['storefront_outlined'] ?? Icons.storefront_outlined,
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ManageStoreScreen(user: widget.user),
+                  ));
+                },
+                onLongPress: () => _explainModule('store_template'),
+              ),
+            
+            // Botón "Gestionar Catálogo"
+            if (widget.user.publicProfileTemplate == 'catalog') 
+              _ModuleCard(
+                title: 'Catálogo', 
+                icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined,
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => CatalogEditorScreen(user: widget.user),
+                  ));
+                },
+                onLongPress: () => _explainModule('catalog_template'),
+              ),
 
-          return _ModuleCard(
-            title: module.name,
-            icon: _iconMap[module.icon] ?? Icons.extension_outlined,
-            notificationCount: badgeCount,
-            onTap: () {
-              _navigateToModule(context, module.moduleId, widget.user);
-            },
-            // AQUÍ LA MAGIA: Mantener presionado para que Servi explique
-            onLongPress: () => _explainModule(module.moduleId),
-          );
-        }),
+            // Módulos activos mapeados desde Firebase
+            ...widget.activeModules.map((module) {
+              int badgeCount = 0;
+              
+              // --- LÓGICA DE BADGES ---
+              if (module.moduleId == 'orders-module') {
+                badgeCount = pendingOrdersCount; // BADGE REAL
+              } else if (module.moduleId == 'quotes') {
+                badgeCount = 0; // Aquí podrías conectar otro stream
+              }
 
-        // Tarjeta para añadir módulo
-        _AddModuleCard(
-          onTap: widget.onAddModule,
-          onLongPress: () => _explainModule('add_module'),
-        ),
-      ],
+              return _ModuleCard(
+                title: module.name,
+                icon: _iconMap[module.icon] ?? Icons.extension_outlined,
+                notificationCount: badgeCount,
+                onTap: () {
+                  _navigateToModule(context, module.moduleId, widget.user);
+                },
+                // AQUÍ LA MAGIA: Mantener presionado para que Servi explique
+                onLongPress: () => _explainModule(module.moduleId),
+              );
+            }),
+
+            // Tarjeta para añadir módulo
+            _AddModuleCard(
+              onTap: widget.onAddModule,
+              onLongPress: () => _explainModule('add_module'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -216,6 +243,10 @@ class _ModulesGridState extends State<ModulesGrid> {
         break;
       case 'quotes':
         destination = const QuoteListScreen(); 
+        break;
+      // --- NUEVA NAVEGACIÓN ---
+      case 'orders-module':
+        destination = const ProviderOrdersScreen();
         break;
     }
 
@@ -344,7 +375,7 @@ class _ModuleCardState extends State<_ModuleCard> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.4),
+                      color: Colors.redAccent.withValues(alpha: 0.4),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),

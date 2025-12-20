@@ -1,15 +1,12 @@
-// --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 20/10/2025
-// Style: Cyber Glow (Adaptive Light/Dark)
-// QA FIX 10/12/2025: Integración IA Servi + Corrección Flujo de Navegación
-// ---------------------------------
+// Archivo: lib/features/onboarding/screens/onboarding_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'; 
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:audioplayers/audioplayers.dart'; // Control de audio
+import 'package:audioplayers/audioplayers.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 
 // --- Imports de Modelos y Servicios ---
 import '../../../core/models/user_model.dart';
@@ -18,7 +15,6 @@ import '../../../shared/data/professions.dart';
 
 // --- Imports de Navegación ---
 import '../../home/screens/home_screen.dart'; 
-// IMPORTANTE: Importamos la pantalla de selección de plantilla en lugar del Dashboard directo
 import '../../public_profile/screens/presentation/screens/select_profile_template_screen.dart';
 
 // --- IMPORTS DE LA IA (SERVI) ---
@@ -60,14 +56,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.initState();
     _nameController.text = widget.userModel.displayName ?? '';
 
-    // 1. Escuchar estado de voz para animar avatar
+    // 1. Escuchar estado de voz
     _voiceService.player.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() => _isSpeaking = state == PlayerState.playing);
       }
     });
 
-    // 2. Bienvenida personalizada
+    // 2. Bienvenida
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) {
         String name = widget.userModel.displayName?.split(' ')[0] ?? "colega";
@@ -84,14 +80,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _voiceService.dispose(); // Liberar recursos de voz
+    _voiceService.dispose(); 
     super.dispose();
   }
 
   Future<void> _saveAndFinish() async {
     if (!_isLoading && (_formKey.currentState?.validate() ?? false)) {
       
-      // --- VALIDACIONES CON VOZ ---
+      // --- VALIDACIONES ---
       if (_selectedRole == null) {
         _speak("Oye, olvidaste seleccionar tu rol. ¿Eres cliente o proveedor?");
         _showSnackbar('Debes seleccionar si eres Cliente o Proveedor.', isError: true);
@@ -108,22 +104,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
 
-      if (kDebugMode) print("[Onboarding] Solicitando permiso de notificaciones...");
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false, 
-      );
-      
       setState(() => _isLoading = true);
-
-      // Feedback positivo antes de guardar
       _speak("¡Perfecto! Configurando tu perfil. Iniciando motores.");
 
       final firestoreService = context.read<FirestoreService>();
-      final user = context.read<User?>();
+      final user = context.read<User?>(); // Usuario de Auth
 
       if (user == null) {
         _showSnackbar('Error: Sesión de usuario no válida.', isError: true);
@@ -131,6 +116,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
 
+      // Preparar datos de personalización
       final updatedPersonalization = Map<String, dynamic>.from(widget.userModel.personalization);
       updatedPersonalization['businessName'] = _nameController.text.trim();
       updatedPersonalization['country'] = _selectedCountry;
@@ -138,32 +124,55 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         updatedPersonalization['mainCategory'] = _selectedProfession;
       }
 
-      final dataToUpdate = {
+      // --- DATOS MAESTROS A GUARDAR ---
+      final dataToSave = {
+        'uid': user.uid,
+        'email': user.email,
         'displayName': _nameController.text.trim(),
         'personalization': updatedPersonalization,
         'role': _selectedRole,
         'isProfileComplete': true,
+        
+        // --- INICIALIZACIÓN DE SEGURIDAD (CRÍTICO) ---
+        'isVerified': false, 
+        'phoneVerified': false,
+        'emailVerified': user.emailVerified, 
+        'verificationStatus': 'unverified',
+        'createdAt': FieldValue.serverTimestamp(),
       };
 
       try {
-        await firestoreService.updateUser(user.uid, dataToUpdate);
+        // --- 1. GUARDAR EN FIRESTORE (USANDO SET + MERGE) ---
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set(dataToSave, SetOptions(merge: true));
 
-        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-          final fcmToken = await messaging.getToken();
-          if (fcmToken != null) {
-            await firestoreService.saveDeviceToken(uid: user.uid, token: fcmToken);
+        // --- 2. CONFIGURAR FCM (OPCIONAL) ---
+        try {
+          if (kDebugMode) print("[Onboarding] Solicitando permiso notificaciones...");
+          final messaging = FirebaseMessaging.instance;
+          final settings = await messaging.requestPermission(provisional: true);
+          
+          if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+            final fcmToken = await messaging.getToken();
+            if (fcmToken != null) {
+              await firestoreService.saveDeviceToken(uid: user.uid, token: fcmToken);
+            }
           }
+        } catch (e) {
+          debugPrint("Aviso: No se pudo configurar FCM en onboarding (no crítico): $e");
         }
         
         if (!mounted) return; 
 
-        // --- CORRECCIÓN DE FLUJO: REDIRECCIÓN CORRECTA ---
+        // --- 3. REDIRECCIÓN ---
         Widget destinationScreen;
         if (_selectedRole == 'provider') {
-          // Si es proveedor, vamos a la pantalla de Selección de Plantilla (Tienda vs Catálogo)
+          // Si es proveedor -> Selección de Plantilla
           destinationScreen = SelectProfileTemplateScreen(user: widget.userModel);
         } else {
-          // Si es cliente, vamos al Home normal
+          // Si es cliente -> Home
           destinationScreen = const HomeScreen();
         }
 
@@ -186,7 +195,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+      SnackBar(
         content: Text(message),
         backgroundColor: isError ? Colors.redAccent : Colors.green.shade600,
         behavior: SnackBarBehavior.floating,
@@ -196,12 +205,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Usar colores del tema
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    // Decoración base para inputs (extraída del tema)
     final inputDecorationTheme = theme.inputDecorationTheme;
+    
+    // Decoración base para inputs
     final inputDecoration = InputDecoration(
         filled: true,
         fillColor: inputDecorationTheme.fillColor,
@@ -213,16 +221,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
     
     return Scaffold(
-      // QA FIX: Fondo dinámico
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Configuración Inicial'),
         elevation: 0,
-        // AppBar transparente pero adaptable
         backgroundColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         automaticallyImplyLeading: false,
-        // --- SERVI VIGILANDO EN EL APPBAR ---
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -250,7 +255,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     '¡Casi listo!',
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold, 
-                      color: colorScheme.onSurface // Texto dinámico
+                      color: colorScheme.onSurface 
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -341,9 +346,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         labelText: 'País', 
         prefixIcon: Icon(Icons.public, color: theme.inputDecorationTheme.prefixIconColor)
       ),
-      // QA FIX: Dropdown con fondo de tarjeta del tema
       dropdownColor: theme.cardTheme.color,
-      style: TextStyle(color: theme.colorScheme.onSurface), // Texto de items dinámico
+      style: TextStyle(color: theme.colorScheme.onSurface), 
       items: _countries.map((country) {
         return DropdownMenuItem(value: country['code'], child: Text(country['name']!));
       }).toList(),
@@ -356,7 +360,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isProvider = _selectedRole == 'provider';
     return TextFormField(
       controller: _nameController,
-      // QA FIX: Texto de input dinámico
       style: TextStyle(color: theme.colorScheme.onSurface),
       decoration: baseDecoration.copyWith(
         labelText: isProvider ? 'Nombre de tu Negocio o Marca' : 'Tu Nombre y Apellido',
@@ -406,7 +409,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       height: 50,
       child: FilledButton(
         onPressed: _isLoading ? null : _saveAndFinish,
-        // El estilo viene del tema, pero podemos forzar overrides si queremos
         child: _isLoading
             ? SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 3, color: theme.colorScheme.onPrimary))
             : const Text('Guardar y Finalizar'),
@@ -432,7 +434,6 @@ class _RoleSelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Usar colores del tema para la tarjeta
     final cardColor = theme.cardTheme.color;
     final accentColor = theme.primaryColor;
     final textColor = theme.colorScheme.onSurface;

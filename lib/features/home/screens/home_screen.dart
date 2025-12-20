@@ -1,30 +1,31 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 14/10/2025
 // Style: Cyber Glow (Adaptive Light/Dark)
-// QA FIX 26/11/2025:
-// 1. Refactorización completa para eliminar colores hardcoded.
-// 2. Adaptación a Modo Claro/Oscuro usando ThemeService.
-// 3. Widgets de búsqueda y filtros ahora usan el tema global.
+// QA FIX 26/11/2025: Theme Integration
+// UPDATE 19/12/2025: Integración Menú de Usuario y Mis Compras
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart' as provider_pkg; 
 import 'package:flutter_riverpod/flutter_riverpod.dart'; 
 import 'package:geolocator/geolocator.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; // Necesario para obtener datos del user
 
 import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
-// import 'package:proveedor_servicly_app/core/services/video_service.dart'; // No usado directamente
 
 // --- IMPORTACIONES DE UBICACIÓN ---
 import 'package:proveedor_servicly_app/providers/location_provider.dart';
 import 'package:proveedor_servicly_app/core/utils/distance_utils.dart';
 
 // --- IMPORTACIÓN DE WIDGETS REUTILIZABLES ---
-import 'package:proveedor_servicly_app/widgets/cards/provider_card.dart'; // <-- Widget reutilizable de Tienda
-import 'package:proveedor_servicly_app/widgets/video_showcase_section.dart'; // <-- Widget reutilizable de Videos
+import 'package:proveedor_servicly_app/widgets/cards/provider_card.dart'; 
+import 'package:proveedor_servicly_app/widgets/video_showcase_section.dart';
+
+// --- IMPORTACIONES DE NAVEGACIÓN ---
+import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart'; // <--- IMPORTANTE
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -95,30 +96,25 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
-    final authService = context.read<AuthService>();
     final marketplaceService = context.read<MarketplaceService>();
     
     final selectedProfileType = _getSelectedProfileType();
     final locationState = ref.watch(userLocationProvider);
 
-    // QA FIX: Obtener tema del contexto
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      // Fondo dinámico
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Explorar Servicios'),
-        // Colores de AppBar dinámicos (se toman del theme global si no se especifican)
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () => authService.signOut(),
-          ),
+        // --- AQUÍ ESTÁ EL CAMBIO PRINCIPAL: MENÚ DE USUARIO ---
+        actions: const [
+          _UserAvatarMenu(), 
+          SizedBox(width: 8),
         ],
       ),
       body: CustomScrollView(
@@ -128,29 +124,24 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             floating: true,
             backgroundColor: theme.scaffoldBackgroundColor,
             elevation: 2,
-            // Sombra sutil adaptativa
             shadowColor: theme.shadowColor.withValues(alpha: 0.1),
             titleSpacing: 0,
             title: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: TextField(
                 controller: _searchController,
-                // QA FIX: Texto de input dinámico
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Busca nombre, servicio o dirección...',
-                  // Hint text con opacidad
                   hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
                   prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withValues(alpha: 0.6)),
                   filled: true,
-                  // Fondo de input: Tarjeta o SurfaceVariant
                   fillColor: theme.cardTheme.color,
                   contentPadding: EdgeInsets.zero,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide.none,
                   ),
-                  // Borde activo con color primario
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide(color: colorScheme.primary, width: 2),
@@ -163,7 +154,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               isScrollable: true,
               indicatorColor: colorScheme.primary,
               labelColor: colorScheme.primary,
-              // QA FIX: Color inactivo visible en ambos modos
               unselectedLabelColor: colorScheme.onSurface.withValues(alpha: 0.6),
               labelStyle: const TextStyle(fontWeight: FontWeight.bold),
               tabs: _profileTypes.map((type) => Tab(text: type['label'])).toList(),
@@ -172,9 +162,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
           
           _buildSectionTitle(context, 'Destacados', theme),
           
-          // --- USO DEL WIDGET REUTILIZABLE (VIDEOS) ---
-          // Asumimos que VideoShowcaseSection ya maneja sus propios temas internamente
-          // o usa Theme.of(context)
           const SliverToBoxAdapter(
             child: VideoShowcaseSection(),
           ),
@@ -199,11 +186,8 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               }
 
               var providers = snapshot.data!;
-
-              // --- 0. FILTRO DE DISPONIBILIDAD ---
               providers = providers.where((p) => p.isAvailable).toList();
 
-              // --- 1. BÚSQUEDA HÍBRIDA ---
               if (_searchTerm.isNotEmpty) {
                 final term = _searchTerm.toLowerCase();
                 providers = providers.where((p) {
@@ -213,7 +197,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                 }).toList();
               }
 
-              // --- 2. ORDENAMIENTO GEO ---
               Position? userPosition = locationState.value;
               
               if (_isNearbyFilterActive && userPosition != null) {
@@ -259,8 +242,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                         distanceText = "Ver ubicación"; 
                       }
 
-                      // --- USO DEL WIDGET REUTILIZABLE (TIENDA) ---
-                      // ProviderCard debería usar Theme.of(context) internamente
                       return ProviderCard(
                         provider: provider, 
                         distanceText: distanceText,
@@ -285,7 +266,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
           title,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            // QA FIX: Texto dinámico
             color: theme.colorScheme.onSurface
           ),
         ),
@@ -295,7 +275,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
 
   Widget _buildFilterRow(BuildContext context, MarketplaceService service, AsyncValue<Position?> locationState, ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    // QA FIX: Color de superficie para los chips
     final chipBackgroundColor = theme.cardTheme.color;
     
     return SliverToBoxAdapter(
@@ -313,7 +292,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               label: const Text("Cerca de mí"),
               selected: _isNearbyFilterActive,
               onSelected: (bool value) => _toggleNearbyFilter(),
-              // QA FIX: Colores de chip dinámicos
               backgroundColor: chipBackgroundColor,
               selectedColor: colorScheme.primary,
               labelStyle: TextStyle(
@@ -359,7 +337,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                           selectedColor: colorScheme.primary.withValues(alpha: 0.2),
                           backgroundColor: chipBackgroundColor,
                           labelStyle: TextStyle(
-                            // QA FIX: Texto dinámico
                             color: isSelected ? colorScheme.primary : colorScheme.onSurface,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
                           ),
@@ -380,11 +357,101 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   }
 }
 
+// --- WIDGET DE MENÚ DE USUARIO (NUEVO) ---
+class _UserAvatarMenu extends StatelessWidget {
+  const _UserAvatarMenu();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final user = FirebaseAuth.instance.currentUser;
+    final initials = user?.displayName?.isNotEmpty == true ? user!.displayName![0].toUpperCase() : 'U';
+
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 50), // Desplazar el menú hacia abajo
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      icon: CircleAvatar(
+        backgroundColor: colorScheme.primary,
+        child: Text(initials, style: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+      ),
+      onSelected: (value) {
+        switch (value) {
+          case 'orders':
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientOrdersScreen()));
+            break;
+          case 'profile':
+            // TODO: Navegar a pantalla de perfil de cliente
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Próximamente: Perfil de Cliente")));
+            break;
+          case 'favorites':
+            // TODO: Navegar a favoritos
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Próximamente: Favoritos")));
+            break;
+          case 'logout':
+            context.read<AuthService>().signOut();
+            break;
+        }
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        // Encabezado del menú
+        PopupMenuItem<String>(
+          enabled: false, // No seleccionable
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(user?.displayName ?? "Usuario", style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+              Text(user?.email ?? "", style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.6))),
+              const Divider(),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'orders',
+          child: ListTile(
+            leading: Icon(Icons.shopping_bag_outlined),
+            title: Text('Mis Compras'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'favorites',
+          child: ListTile(
+            leading: Icon(Icons.favorite_border),
+            title: Text('Favoritos'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'profile',
+          child: ListTile(
+            leading: Icon(Icons.person_outline),
+            title: Text('Mi Perfil'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'logout',
+          child: ListTile(
+            leading: Icon(Icons.logout, color: Colors.redAccent),
+            title: Text('Cerrar Sesión', style: TextStyle(color: Colors.redAccent)),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Color de carga dinámico
     return SliverToBoxAdapter(child: Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)));
   }
 }
@@ -392,7 +459,6 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Texto dinámico
     return SliverToBoxAdapter(child: Center(child: Text("Sin resultados", style: TextStyle(color: Theme.of(context).colorScheme.onSurface))));
   }
 }

@@ -1,21 +1,25 @@
-import 'dart:io'; // Para File
+import 'dart:io'; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart'; // Para ImagePicker
+import 'package:image_picker/image_picker.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+// --- Imports de Modelos ---
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/models/payment_method_model.dart';
+
+// --- Imports de Servicios ---
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 import 'package:proveedor_servicly_app/core/services/payment_service.dart';
-import 'package:proveedor_servicly_app/core/services/storage_service.dart'; // Para Storage
-import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
+import 'package:proveedor_servicly_app/core/services/storage_service.dart'; 
 
-/// Pantalla donde el cliente selecciona el método de pago del proveedor
-/// y confirma la orden.
+// --- ViewModels y Pantallas ---
+import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
+import 'package:proveedor_servicly_app/features/auth/screens/verification_screen.dart';
+
 class CheckoutScreen extends StatefulWidget {
   final CartProvider cart;
-
   const CheckoutScreen({super.key, required this.cart});
 
   @override
@@ -29,85 +33,179 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   late final AuthService _authService;
   late final StorageService _storageService; 
 
-  // IDs
+  // Datos de la Orden
   late final String? _providerId;
   late final String? _clientId;
   
-  // Estado
+  // Estado del Formulario
   PaymentMethodModel? _selectedMethod;
   bool _isLoading = false;
   XFile? _paymentProofFile; 
   final ImagePicker _picker = ImagePicker(); 
 
+  // Logística y Dirección
+  DeliveryType _deliveryType = DeliveryType.pickup; 
+  final TextEditingController _addressController = TextEditingController();
+  
+  // --- NUEVO: Controlador para DNI ---
+  final TextEditingController _dniController = TextEditingController(); 
+  
+  // Seguridad
+  bool _isVerifiedClient = false; 
+
   @override
   void initState() {
     super.initState();
+    // Inicializar servicios
     _paymentService = context.read<PaymentService>();
     _orderService = context.read<OrderService>();
     _authService = context.read<AuthService>();
     _storageService = context.read<StorageService>(); 
 
-    _providerId = widget.cart.items.isNotEmpty 
-        ? widget.cart.items.first.product.providerId 
-        : null;
-    _clientId = _authService.currentUser?.uid;
+    // Obtener IDs clave
+    _providerId = widget.cart.items.isNotEmpty ? widget.cart.items.first.product.providerId : null;
+    final user = _authService.currentUser;
+    _clientId = user?.uid;
+
+    // Cargar datos del usuario si existe
+    if (user != null) {
+      _loadUserData(user.uid);
+    }
   }
 
-  Future<void> _pickPaymentProof() async {
+  /// 🧠 CEREBRO: Carga datos guardados del usuario (Memoria)
+  Future<void> _loadUserData(String uid) async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-      if (image != null) {
-        setState(() {
-          _paymentProofFile = image;
-        });
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        
+        // 1. Verificar Estado de Verificación
+        final bool isVerified = data?['isVerified'] == true;
+        
+        // 2. Recuperar Datos de Envío Guardados
+        String? savedAddress = data?['shippingAddress'];
+        String? savedDni = data?['dni']; 
+
+        if (mounted) {
+          setState(() {
+            _isVerifiedClient = isVerified;
+            
+            // Auto-completar dirección si está guardada
+            if (_addressController.text.isEmpty && savedAddress != null) {
+              _addressController.text = savedAddress;
+            }
+            // Auto-completar DNI si está guardado (NUEVO)
+            if (_dniController.text.isEmpty && savedDni != null) {
+              _dniController.text = savedDni;
+            }
+          });
+        }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al seleccionar imagen: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
+      debugPrint("Error cargando datos de usuario: $e");
     }
   }
 
-  Future<void> _placeOrder() async {
-    if (_selectedMethod == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecciona un método de pago.'), backgroundColor: Colors.redAccent),
+  @override
+  void dispose() {
+    _addressController.dispose();
+    _dniController.dispose();
+    super.dispose();
+  }
+
+  // Selección de Comprobante
+  Future<void> _pickPaymentProof() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery, 
+        imageQuality: 70
       );
-      return;
+      if (image != null) {
+        setState(() => _paymentProofFile = image);
+      }
+    } catch (e) { 
+      if (mounted) _showErrorSnackBar("Error al seleccionar imagen: $e"); 
     }
-    if (_paymentProofFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, adjunta el comprobante de pago.'), backgroundColor: Colors.redAccent),
-      );
-      return;
+  }
+
+  // Proceso Principal de Compra
+  Future<void> _placeOrder() async {
+    // 1. Verificación de Seguridad (Bloqueo si no está verificado)
+    if (!_isVerifiedClient) {
+       showDialog(
+         context: context,
+         builder: (ctx) {
+           final theme = Theme.of(ctx); 
+           return AlertDialog(
+             backgroundColor: theme.cardTheme.color,
+             title: Text(
+               'Verificación Requerida', 
+               style: TextStyle(color: theme.colorScheme.onSurface)
+             ),
+             content: Text(
+               'Para seguridad de todos, verifica tu identidad (Email/Teléfono) antes de comprar.', 
+               style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7))
+             ),
+             actions: [
+               TextButton(
+                 child: const Text('Cancelar'), 
+                 onPressed: () => Navigator.pop(ctx)
+               ),
+               FilledButton(
+                 child: const Text('Verificarme'), 
+                 onPressed: () { 
+                   Navigator.pop(ctx); 
+                   Navigator.push(
+                     context, 
+                     MaterialPageRoute(builder: (_) => const VerificationScreen())
+                   ).then((_) => _loadUserData(_clientId!)); // Recargar al volver
+                 }
+               ),
+             ],
+           );
+         },
+       );
+       return;
     }
     
-    if (_clientId == null || _providerId == null || _providerId!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: No se pudo identificar al cliente o proveedor.'), backgroundColor: Colors.redAccent),
-      );
-      return;
+    // Validaciones básicas del formulario
+    if (_selectedMethod == null) return _showErrorSnackBar('Selecciona un método de pago.');
+    if (_paymentProofFile == null) return _showErrorSnackBar('Adjunta el comprobante de pago.');
+    
+    // 2. Validaciones de Envío y DNI
+    if (_deliveryType == DeliveryType.delivery) {
+      if (_addressController.text.trim().isEmpty) {
+        return _showErrorSnackBar('Ingresa la dirección de envío.');
+      }
+      if (_dniController.text.trim().isEmpty) {
+        return _showErrorSnackBar('Ingresa tu DNI para la etiqueta de envío.');
+      }
     }
 
     setState(() => _isLoading = true);
-
-    final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
     try {
       final clientUser = _authService.currentUser;
-      final clientName = clientUser?.displayName ?? clientUser?.email ?? 'Cliente Anónimo';
+      final clientName = clientUser?.displayName ?? 'Cliente';
       final clientEmail = clientUser?.email ?? '';
 
+      // A. Subir Imagen del Comprobante
       final String storagePath = 'orders/$_providerId/proof_${_clientId}_${Timestamp.now().millisecondsSinceEpoch}.jpg';
       final String paymentProofUrl = await _storageService.uploadFileWithProgress(
-        File(_paymentProofFile!.path),
-        storagePath,
-        (progress) {},
+        File(_paymentProofFile!.path), 
+        storagePath, 
+        (_) {}
       );
 
+      // B. Construir dirección final (Dirección + DNI)
+      String finalShippingAddress = '';
+      if (_deliveryType == DeliveryType.delivery) {
+        finalShippingAddress = "${_addressController.text.trim()} (DNI: ${_dniController.text.trim()})";
+      }
+
+      // C. Crear Objeto Orden
       final newOrder = OrderModel(
         id: '', 
         clientId: _clientId!, 
@@ -127,335 +225,395 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentMethodId: _selectedMethod!.id, 
         paymentProofUrl: paymentProofUrl,
         clientNotes: '', 
+        deliveryType: _deliveryType,
+        shippingAddress: finalShippingAddress, 
+        shippingCost: 0.0, 
       );
 
+      // D. Guardar Orden en Base de Datos
       await _orderService.createOrder(newOrder);
+
+      // E. --- MEMORIA: GUARDAR DATOS DE ENVÍO PARA LA PRÓXIMA ---
+      if (_deliveryType == DeliveryType.delivery) {
+        await FirebaseFirestore.instance.collection('users').doc(_clientId).update({
+          'shippingAddress': _addressController.text.trim(),
+          'dni': _dniController.text.trim(), // Guardamos el DNI
+        });
+      }
+      // ----------------------------------------------------------
+
+      // F. Limpiar Carrito y Salir
       widget.cart.clearCart();
 
       if (mounted) { 
         await _showOrderSuccessDialog(navigator); 
-        navigator.popUntil((route) => route.isFirst);
+        navigator.popUntil((route) => route.isFirst); // Volver al inicio
       }
 
     } catch (e) {
-      if (mounted) {
-        messenger.showSnackBar( 
-          SnackBar(content: Text('Error al crear la orden: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
+      if (mounted) _showErrorSnackBar('Error al procesar el pedido: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showErrorSnackBar(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.redAccent)
+      );
     }
   }
 
   String _getPaymentDetails(PaymentMethodModel method) {
-    final alias = method.alias;
-    if (alias != null && alias.isNotEmpty) return "Alias: $alias";
-
-    final cbu = method.cbu;
-    if (cbu != null && cbu.isNotEmpty) return "CBU: $cbu";
-
-    final cryptoAddress = method.cryptoAddress;
-    if (cryptoAddress != null && cryptoAddress.isNotEmpty) return "Dirección: $cryptoAddress";
-
-    final otherDetails = method.otherDetails;
-    if (otherDetails != null && otherDetails.isNotEmpty) return otherDetails;
-    
-    return "Detalles no especificados";
+    if (method.alias?.isNotEmpty == true) return "Alias: ${method.alias}";
+    if (method.cbu?.isNotEmpty == true) return "CBU: ${method.cbu}";
+    return "Ver detalles";
   }
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema del contexto
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final accentColor = colorScheme.primary;
-
-    final bool canConfirm = _selectedMethod != null && _paymentProofFile != null && !_isLoading;
+    
+    // Validación de botón
+    final bool canConfirm = _selectedMethod != null && 
+                            _paymentProofFile != null && 
+                            !_isLoading &&
+                            (_deliveryType == DeliveryType.pickup || 
+                             (_addressController.text.trim().isNotEmpty && _dniController.text.trim().isNotEmpty));
 
     return Scaffold(
-      // Fondo dinámico
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Confirmar Pedido'),
-        backgroundColor: theme.scaffoldBackgroundColor,
+        title: const Text('Confirmar Pedido'), 
+        backgroundColor: theme.scaffoldBackgroundColor, 
         foregroundColor: colorScheme.onSurface,
-        elevation: 0,
+        elevation: 0
       ),
       body: Stack(
         children: [
           ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
-              // --- 1. Resumen de Compra ---
-              _buildSectionTitle('Resumen de Compra', theme),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  // Fondo tarjeta dinámico
-                  color: theme.cardTheme.color,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-                ),
-                child: Column(
-                  children: [
-                    ...widget.cart.items.map((item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              '${item.quantity}x ${item.product.name}',
-                              style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '\$${item.subtotal.toStringAsFixed(2)}',
-                            style: TextStyle(color: colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    )),
-                    Divider(color: theme.dividerColor, height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'TOTAL',
-                          style: TextStyle(color: accentColor, fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '\$${widget.cart.totalPrice.toStringAsFixed(2)}',
-                          style: TextStyle(color: accentColor, fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // --- 2. Métodos de Pago del Proveedor ---
-              const SizedBox(height: 24),
-              _buildSectionTitle('Seleccionar Método de Pago', theme),
+              // Banner de reputación (Placeholder si lo tenías)
+              if (_providerId != null) 
+                _buildReputationBanner(_providerId!, theme),
               
-              if (_providerId == null || _providerId!.isEmpty) 
-                const Center(child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text(
-                    'Error: No se pudo identificar al proveedor desde el carrito.', 
-                    style: TextStyle(color: Colors.redAccent, fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                ))
-              else
-                StreamBuilder<List<PaymentMethodModel>>(
-                  stream: _paymentService.getPaymentMethodsStream(_providerId!),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator(color: accentColor));
-                    }
-                    if (snapshot.hasError) {
-                      return const Center(child: Text('Error al cargar métodos de pago.', style: TextStyle(color: Colors.redAccent)));
-                    }
-                    final methods = snapshot.data ?? [];
-                    if (methods.isEmpty) {
-                      return Center(child: Text('Este proveedor no ha configurado métodos de pago.', style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7))));
-                    }
-
-                    return Container(
-                      decoration: BoxDecoration(
-                        // QA FIX: Fondo tarjeta dinámico
-                        color: theme.cardTheme.color,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-                      ),
-                      child: Column(
-                        children: methods.map((method) {
-                          return _buildPaymentMethodTile(method, accentColor, theme);
-                        }).toList(),
-                      ),
-                    );
-                  },
-                ),
-
-              // --- 3. Widget para subir Comprobante ---
+              // 1. Resumen
+              _buildSectionTitle('Resumen de Compra', theme),
+              _buildOrderSummary(theme, accentColor, theme.colorScheme),
+              const SizedBox(height: 24),
+              
+              // 2. Método de Entrega
+              _buildSectionTitle('Método de Entrega', theme),
+              _buildDeliveryOptions(theme, accentColor), 
+              const SizedBox(height: 24),
+              
+              // 3. Método de Pago
+              _buildSectionTitle('Método de Pago', theme),
+              if (_providerId == null) 
+                const Text("Error: Proveedor no encontrado") 
+              else 
+                _buildPaymentMethodsList(theme, accentColor),
+              
+              // 4. Comprobante (Visible solo si seleccionó pago)
               if (_selectedMethod != null) ...[
                 const SizedBox(height: 24),
-                _buildSectionTitle('Adjuntar Comprobante de Pago', theme),
+                _buildSectionTitle('Comprobante de Transferencia', theme),
                 _buildPaymentProofUploader(theme.cardTheme.color!, accentColor, theme),
               ],
-
-              const SizedBox(height: 100), 
+              
+              const SizedBox(height: 100), // Espacio para el botón flotante
             ],
           ),
-          // --- Overlay de Carga ---
-          if (_isLoading)
+          
+          // Loader superpuesto
+          if (_isLoading) 
             Container(
-              color: Colors.black54,
-              child: Center(
-                child: CircularProgressIndicator(color: accentColor),
-              ),
+              color: Colors.black54, 
+              child: Center(child: CircularProgressIndicator(color: accentColor))
             ),
         ],
       ),
-      // --- 4. Botón de Confirmación Flotante (Actualizado) ---
       bottomNavigationBar: _buildConfirmButton(accentColor, canConfirm, theme),
     );
   }
 
-  Widget _buildSectionTitle(String title, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          // Texto secundario adaptable
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
+  // --- WIDGETS AUXILIARES ---
 
-  Widget _buildPaymentMethodTile(PaymentMethodModel method, Color accentColor, ThemeData theme) {
-    IconData icon;
-    switch (method.type) {
-      case PaymentMethodType.bank: icon = Icons.account_balance_outlined; break;
-      case PaymentMethodType.wallet: icon = Icons.account_balance_wallet_outlined; break;
-      case PaymentMethodType.crypto: icon = Icons.currency_bitcoin_outlined; break;
-      case PaymentMethodType.other: icon = Icons.money_off; break;
-    }
-    
-    return RadioListTile<PaymentMethodModel>(
-      value: method,
-      groupValue: _selectedMethod,
-      onChanged: (value) {
-        setState(() {
-          _selectedMethod = value;
-        });
-      },
-      activeColor: accentColor,
-      title: Text(method.name, style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
-      subtitle: Text(
-        _getPaymentDetails(method), 
-        style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+  Widget _buildDeliveryOptions(ThemeData theme, Color accentColor) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color, 
+        borderRadius: BorderRadius.circular(12), 
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5))
       ),
-      secondary: Icon(icon, color: accentColor),
-    );
-  }
-
-  Widget _buildPaymentProofUploader(Color surfaceColor, Color accentColor, ThemeData theme) {
-    return GestureDetector(
-      onTap: _pickPaymentProof,
-      child: Container(
-        height: 150,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _paymentProofFile == null ? theme.dividerColor : accentColor,
-            width: _paymentProofFile == null ? 1 : 2,
-          ),
-        ),
-        child: _paymentProofFile == null
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
+        children: [
+          Row(children: [
+            Expanded(child: _buildRadioOption(DeliveryType.pickup, "Retiro en Tienda", Icons.storefront, accentColor, theme)),
+            Expanded(child: _buildRadioOption(DeliveryType.delivery, "Envío a Domicilio", Icons.local_shipping, accentColor, theme)),
+          ]),
+          
+          // Campos visibles solo en Delivery con animación
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 300),
+            crossFadeState: _deliveryType == DeliveryType.delivery ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            firstChild: const SizedBox(width: double.infinity), 
+            secondChild: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
                 children: [
-                  Icon(Icons.upload_file_outlined, color: accentColor, size: 40),
+                  const Divider(),
                   const SizedBox(height: 8),
-                  Text('Tocar para adjuntar imagen', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
-                ],
-              )
-            : Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(11),
-                    child: Image.file(
-                      File(_paymentProofFile!.path),
-                      fit: BoxFit.cover,
+                  TextField(
+                    controller: _addressController,
+                    style: TextStyle(color: theme.colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      labelText: 'Dirección completa',
+                      hintText: 'Calle, Altura, Piso, Ciudad',
+                      prefixIcon: Icon(Icons.location_on_outlined, color: accentColor),
+                      filled: true, 
+                      fillColor: theme.scaffoldBackgroundColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     ),
+                    onChanged: (_) => setState((){}), 
                   ),
-                  // Velo oscuro para legibilidad
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(11),
+                  const SizedBox(height: 12),
+                  // --- CAMPO DNI NUEVO ---
+                  TextField(
+                    controller: _dniController,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: theme.colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      labelText: 'DNI / CUIT',
+                      hintText: 'Requerido para el envío y facturación',
+                      prefixIcon: Icon(Icons.badge_outlined, color: accentColor),
+                      filled: true, 
+                      fillColor: theme.scaffoldBackgroundColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                  ),
-                  const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 40),
-                        SizedBox(height: 8),
-                        Text('Imagen cargada', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text('Toca para cambiar', style: TextStyle(color: Colors.white70)),
-                      ],
-                    ),
+                    onChanged: (_) => setState((){}), 
                   ),
                 ],
               ),
-      ),
-    );
-  }
-
-  Widget _buildConfirmButton(Color accentColor, bool canConfirm, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      // QA FIX: Color de fondo de barra inferior
-      color: theme.bottomNavigationBarTheme.backgroundColor,
-      child: SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: accentColor,
-            // QA FIX: Texto botón siempre legible
-            foregroundColor: theme.colorScheme.onPrimary,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.5),
-          ),
-          onPressed: canConfirm ? _placeOrder : null,
-          child: _isLoading 
-              ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: theme.colorScheme.onPrimary, strokeWidth: 3))
-              : const Text('Confirmar Pedido'),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showOrderSuccessDialog(NavigatorState navigator) {
-    // QA FIX: Obtener tema desde el contexto del navigator
-    final theme = Theme.of(navigator.context);
-    
-    return showDialog(
-      context: navigator.context, 
-      builder: (ctx) => AlertDialog(
-        // QA FIX: Fondo alerta dinámico
-        backgroundColor: theme.cardTheme.color,
-        title: Text('¡Pedido Enviado!', style: TextStyle(color: theme.colorScheme.onSurface)),
-        content: Text(
-          'Tu pedido ha sido enviado al proveedor. Recibirás una notificación cuando sea aceptado.',
-          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
-        ),
-        actions: [
-          TextButton(
-            child: Text('Genial', style: TextStyle(color: theme.primaryColor)),
-            onPressed: () => navigator.pop(), 
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildRadioOption(DeliveryType value, String label, IconData icon, Color accentColor, ThemeData theme) {
+    final isSelected = _deliveryType == value;
+    return GestureDetector(
+      onTap: () => setState(() => _deliveryType = value),
+      child: Container(
+        margin: const EdgeInsets.all(4), 
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? accentColor.withValues(alpha: 0.1) : Colors.transparent, 
+          borderRadius: BorderRadius.circular(8), 
+          border: Border.all(color: isSelected ? accentColor : theme.dividerColor.withValues(alpha: 0.3))
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: isSelected ? accentColor : theme.colorScheme.onSurface.withValues(alpha: 0.5)), 
+            const SizedBox(height: 4), 
+            Text(
+              label, 
+              style: TextStyle(
+                color: isSelected ? accentColor : theme.colorScheme.onSurface, 
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, 
+                fontSize: 12
+              )
+            )
+          ]
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, ThemeData theme) => Padding(
+    padding: const EdgeInsets.only(bottom: 12), 
+    child: Text(
+      title.toUpperCase(), 
+      style: TextStyle(
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.7), 
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.0
+      )
+    )
+  );
+  
+  Widget _buildOrderSummary(ThemeData theme, Color accentColor, ColorScheme colorScheme) {
+     return Container(
+       padding: const EdgeInsets.all(16), 
+       decoration: BoxDecoration(
+         color: theme.cardTheme.color, 
+         borderRadius: BorderRadius.circular(12), 
+         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5))
+       ), 
+       child: Column(
+         children: [
+           ...widget.cart.items.map((item) => Padding(
+             padding: const EdgeInsets.only(bottom: 8.0), 
+             child: Row(
+               mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+               children: [
+                 Flexible(
+                   child: Text(
+                     '${item.quantity}x ${item.product.name}', 
+                     style: TextStyle(color: colorScheme.onSurface, fontSize: 16), 
+                     overflow: TextOverflow.ellipsis
+                   )
+                 ), 
+                 Text(
+                   '\$${item.subtotal.toStringAsFixed(2)}', 
+                   style: TextStyle(color: colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.w500)
+                 )
+               ]
+             )
+           )), 
+           Divider(color: theme.dividerColor, height: 24), 
+           Row(
+             mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+             children: [
+               Text('TOTAL', style: TextStyle(color: accentColor, fontSize: 20, fontWeight: FontWeight.bold)), 
+               Text('\$${widget.cart.totalPrice.toStringAsFixed(2)}', style: TextStyle(color: accentColor, fontSize: 20, fontWeight: FontWeight.bold))
+             ]
+           )
+         ]
+       )
+     );
+  }
+
+  Widget _buildPaymentMethodsList(ThemeData theme, Color accentColor) {
+    return StreamBuilder<List<PaymentMethodModel>>(
+      stream: _paymentService.getPaymentMethodsStream(_providerId!), 
+      builder: (context, snapshot) { 
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator()); 
+        if (snapshot.data!.isEmpty) return const Text("Este proveedor no tiene métodos de pago configurados.");
+        
+        return Column(
+          children: snapshot.data!.map((m) => RadioListTile<PaymentMethodModel>(
+            value: m, 
+            groupValue: _selectedMethod, 
+            onChanged: (v) => setState(() => _selectedMethod = v), 
+            activeColor: accentColor, 
+            title: Text(m.name, style: TextStyle(color: theme.colorScheme.onSurface)), 
+            subtitle: Text(_getPaymentDetails(m), style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)))
+          )).toList()
+        ); 
+      }
+    );
+  }
+
+  Widget _buildPaymentProofUploader(Color surfaceColor, Color accentColor, ThemeData theme) {
+     return GestureDetector(
+       onTap: _pickPaymentProof, 
+       child: Container(
+         height: 150, 
+         decoration: BoxDecoration(
+           color: surfaceColor, 
+           borderRadius: BorderRadius.circular(12), 
+           border: Border.all(color: _paymentProofFile == null ? theme.dividerColor : accentColor, width: 2)
+         ), 
+         child: _paymentProofFile == null 
+           ? Column(
+               mainAxisAlignment: MainAxisAlignment.center, 
+               children: [
+                 Icon(Icons.upload_file, color: accentColor, size: 40), 
+                 const SizedBox(height: 8),
+                 Text('Toca para adjuntar foto', style: TextStyle(color: theme.colorScheme.onSurface))
+               ]
+             ) 
+           : ClipRRect(
+               borderRadius: BorderRadius.circular(10),
+               child: Image.file(File(_paymentProofFile!.path), fit: BoxFit.cover, width: double.infinity)
+             )
+       )
+     );
+  }
+
+  Widget _buildConfirmButton(Color accentColor, bool canConfirm, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), 
+      color: theme.bottomNavigationBarTheme.backgroundColor, 
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: accentColor, 
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          // SOLUCIÓN ERROR DEPRECATED
+          disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
+        ), 
+        onPressed: canConfirm ? _placeOrder : null, 
+        child: _isLoading 
+          ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) 
+          : const Text('CONFIRMAR PEDIDO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18))
+      )
+    );
+  }
+
+  Future<void> _showOrderSuccessDialog(NavigatorState navigator) {
+    return showDialog(
+      context: navigator.context, 
+      builder: (ctx) => AlertDialog(
+        title: const Text('¡Pedido Enviado!'), 
+        content: const Text('Tu pedido ha sido enviado al proveedor. Te notificaremos cuando lo acepte.'), 
+        actions: [
+          TextButton(
+            child: const Text('Entendido'), 
+            onPressed: () => navigator.pop()
+          )
+        ]
+      )
+    );
+  }
+
+  // --- BANNER DE REPUTACIÓN (RESTORED) ---
+  Widget _buildReputationBanner(String providerId, ThemeData theme) {
+      return StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(providerId).snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox();
+          
+          final data = snapshot.data!.data() as Map<String, dynamic>?;
+          double rating = 0.0;
+          int count = 0;
+
+          if (data != null) {
+             rating = (data['ratingAvg'] ?? 0.0).toDouble();
+             count = (data['ratingCount'] ?? 0) as int;
+          }
+
+          if (count == 0) return const SizedBox();
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 24),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              // SOLUCIÓN ERROR DEPRECATED
+              color: Colors.amber.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.verified_user_outlined, color: Colors.amber, size: 20),
+                const SizedBox(width: 8),
+                Text("Proveedor Destacado: ", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.9))),
+                const Icon(Icons.star, color: Colors.amber, size: 16),
+                Text(" $rating ($count)", style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          );
+        },
+      );
   }
 }

@@ -1,306 +1,408 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; 
-// Asumiendo que esta es la ruta a la pantalla de detalle de la orden del cliente
-import 'client_order_detail_screen.dart'; 
-
-// --- MODELOS Y SERVICIOS ---
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
-import 'package:proveedor_servicly_app/core/services/auth_service.dart';
-import 'package:proveedor_servicly_app/core/services/order_service.dart';
+import 'package:proveedor_servicly_app/features/orders/screens/rate_provider_screen.dart'; 
 
+class OrderDetailScreen extends StatefulWidget {
+  final OrderModel order;
 
-/// Pantalla donde el CLIENTE ve su historial de compras.
-class MyOrdersScreen extends StatefulWidget {
-  const MyOrdersScreen({super.key});
+  const OrderDetailScreen({super.key, required this.order});
 
   @override
-  State<MyOrdersScreen> createState() => _MyOrdersScreenState();
+  State<OrderDetailScreen> createState() => _OrderDetailScreenState();
 }
 
-class _MyOrdersScreenState extends State<MyOrdersScreen> {
-  late final String? _clientId;
-  late final OrderService _orderService;
-
-  // --- CONSTANTES DE ESTILO ---
-  static const Color backgroundColor = Color(0xFF1A1A2E);
-  static const Color accentColor = Color(0xFF00BFFF);
+class _OrderDetailScreenState extends State<OrderDetailScreen> {
+  bool _isUpdating = false;
+  late OrderModel _currentOrder; 
 
   @override
   void initState() {
     super.initState();
-    // Obtenemos los servicios y el ID del cliente
-    _orderService = context.read<OrderService>();
-    final authService = context.read<AuthService>();
-    _clientId = authService.currentUser?.uid;
+    _currentOrder = widget.order;
+  }
+
+  // Actualizar estado (Proveedor)
+  Future<void> _updateStatus(OrderStatus newStatus) async {
+    setState(() => _isUpdating = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('orders') 
+          .doc(_currentOrder.id)
+          .update({
+        'status': newStatus.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Orden actualizada a: ${newStatus.name}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context); 
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
+  }
+
+  // Recargar orden tras calificar (Cliente)
+  Future<void> _refreshOrder() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('orders').doc(_currentOrder.id).get();
+      if (doc.exists) {
+        setState(() {
+          _currentOrder = OrderModel.fromFirestore(doc);
+        });
+      }
+    } catch (e) {
+      debugPrint("Error recargando orden: $e");
+    }
+  }
+
+  void _showFullImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: InteractiveViewer(
+          child: Image.network(imageUrl, fit: BoxFit.contain),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
+    final isPending = _currentOrder.status == OrderStatus.pending_verification;
+    final isCompleted = _currentOrder.status == OrderStatus.completed;
+    final isClient = currentUser?.uid == _currentOrder.clientId;
+
     return Scaffold(
-      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text('Mis Compras'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        title: const Text('Detalle del Pedido'),
+        actions: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: _StatusChip(status: _currentOrder.status),
+            ),
+          )
+        ],
       ),
-      body: _clientId == null
-          ? const _ErrorState(message: 'Debes iniciar sesión para ver tus compras.')
-          : StreamBuilder<List<OrderModel>>(
-              stream: _orderService.getMyOrders(_clientId!),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    // Utilizamos la constante definida
-                    child: CircularProgressIndicator(color: accentColor),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return _ErrorState(message: 'Error al cargar tus órdenes: ${snapshot.error}');
-                }
-                final orders = snapshot.data ?? [];
+      body: _isUpdating 
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                
+                // --- 1. DATOS ---
+                _SectionTitle(title: isClient ? 'PROVEEDOR' : 'CLIENTE', icon: Icons.person_outline),
+                Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: colorScheme.primary.withValues(alpha: 0.1), // CORREGIDO
+                      child: Text(
+                        _currentOrder.clientName.isNotEmpty ? _currentOrder.clientName[0].toUpperCase() : '?',
+                        style: TextStyle(color: colorScheme.primary),
+                      ),
+                    ),
+                    title: Text(_currentOrder.clientName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(_currentOrder.clientEmail),
+                  ),
+                ),
+                const SizedBox(height: 20),
 
-                if (orders.isEmpty) {
-                  return const _EmptyState();
-                }
+                // --- 2. LOGÍSTICA ---
+                _SectionTitle(title: 'MÉTODO DE ENTREGA', icon: Icons.local_shipping_outlined),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _currentOrder.deliveryType == DeliveryType.delivery 
+                        ? Colors.orange.withValues(alpha: 0.1) // CORREGIDO
+                        : Colors.blue.withValues(alpha: 0.1),  // CORREGIDO
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _currentOrder.deliveryType == DeliveryType.delivery 
+                          ? Colors.orange.withValues(alpha: 0.5) // CORREGIDO
+                          : Colors.blue.withValues(alpha: 0.5),  // CORREGIDO
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _currentOrder.deliveryType == DeliveryType.delivery ? Icons.delivery_dining : Icons.storefront,
+                            size: 28,
+                            color: _currentOrder.deliveryType == DeliveryType.delivery ? Colors.orange : Colors.blue,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _currentOrder.deliveryType == DeliveryType.delivery ? "ENVÍO A DOMICILIO" : "RETIRO EN TIENDA",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: _currentOrder.deliveryType == DeliveryType.delivery ? Colors.orange : Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_currentOrder.deliveryType == DeliveryType.delivery) ...[
+                        const Divider(height: 24),
+                        const Text("Dirección de entrega:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          _currentOrder.shippingAddress,
+                          style: TextStyle(fontSize: 16, color: colorScheme.onSurface),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: orders.length,
-                  itemBuilder: (context, index) {
-                    final order = orders[index];
-                    // Pasamos el color de acento al widget de la tarjeta
-                    return _MyOrderItemCard(order: order, accentColor: accentColor);
-                  },
-                );
-              },
+                // --- 3. ITEMS ---
+                _SectionTitle(title: 'PRODUCTOS', icon: Icons.shopping_bag_outlined),
+                Card(
+                  child: Column(
+                    children: [
+                      ..._currentOrder.items.map((item) => ListTile(
+                        leading: Container(
+                          width: 40, height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                            image: item['imageUrl'] != null 
+                                ? DecorationImage(image: NetworkImage(item['imageUrl']), fit: BoxFit.cover)
+                                : null,
+                          ),
+                        ),
+                        title: Text(item['name']),
+                        subtitle: Text('${item['quantity']} x \$${item['price']}'),
+                        trailing: Text(
+                          '\$${(item['price'] * item['quantity']).toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      )),
+                      const Divider(),
+                      ListTile(
+                        title: const Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold)),
+                        trailing: Text(
+                          '\$${_currentOrder.total.toStringAsFixed(2)}',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // --- 4. COMPROBANTE ---
+                _SectionTitle(title: 'COMPROBANTE DE PAGO', icon: Icons.receipt),
+                if (_currentOrder.paymentProofUrl.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _showFullImage(_currentOrder.paymentProofUrl),
+                    child: Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)), // CORREGIDO
+                        image: DecorationImage(
+                          image: NetworkImage(_currentOrder.paymentProofUrl),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                              SizedBox(width: 4),
+                              Text("Ver Comprobante", style: TextStyle(color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  const Text("No hay comprobante disponible."),
+                const SizedBox(height: 40),
+
+                // --- 5. ACCIONES ---
+                
+                // PENDIENTE
+                if (isPending) ...[
+                  if (!isClient) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _updateStatus(OrderStatus.completed),
+                        icon: const Icon(Icons.check_circle),
+                        label: const Text("APROBAR Y FINALIZAR"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _updateStatus(OrderStatus.cancelled),
+                        icon: const Icon(Icons.cancel),
+                        label: const Text("RECHAZAR PEDIDO"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    const Center(child: Text("Esperando confirmación del proveedor...", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))),
+                  ]
+                ] 
+                
+                // COMPLETADO
+                else if (isCompleted) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1), // CORREGIDO
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text("Orden Completada Exitosamente", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+
+                  // BOTÓN DE CALIFICAR (Solo Cliente)
+                  if (isClient && !_currentOrder.isRated) ...[
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => RateProviderScreen(order: _currentOrder)),
+                          );
+                          if (result == true) {
+                             _refreshOrder();
+                          }
+                        },
+                        icon: const Icon(Icons.star, color: Colors.white),
+                        label: const Text("CALIFICAR EXPERIENCIA", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber[700],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 4,
+                        ),
+                      ),
+                    ),
+                  ] else if (isClient && _currentOrder.isRated) ...[
+                    const SizedBox(height: 20),
+                    const Center(child: Text("⭐ ¡Gracias por tu calificación!", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))),
+                  ],
+                ],
+                const SizedBox(height: 40),
+              ],
             ),
     );
   }
 }
 
-// --- WIDGET PARA CADA ITEM DE ORDEN ---
-class _MyOrderItemCard extends StatelessWidget {
-  final OrderModel order;
-  final Color accentColor;
-  
-  const _MyOrderItemCard({required this.order, required this.accentColor});
+// --- WIDGETS AUXILIARES ---
 
-  // Constantes de estilo local
-  static const Color surfaceColor = Color(0xFF2D2D5A);
-  
-  // Helper para formatear la fecha
-  String _formatDate(DateTime date) {
-    return DateFormat('dd/MM/yyyy \'a las\' hh:mm a').format(date);
-  }
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  const _SectionTitle({required this.title, required this.icon});
 
   @override
   Widget build(BuildContext context) {
-    // Tomamos el primer ítem para el título de la tarjeta
-    final item = order.items.isNotEmpty ? order.items.first : null;
-
-    return Card(
-      color: surfaceColor,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          // Navegación al detalle de la orden
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ClientOrderDetailScreen(order: order),
-          ));
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Título principal (primer item)
-                  Expanded(
-                    child: Text(
-                      item != null ? '${item['quantity']}x ${item['name']}' : 'Orden Vacía',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  _StatusBadge(status: order.status), // El badge de estado
-                ],
-              ),
-              if (order.items.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    '+ ${order.items.length - 1} ${order.items.length - 1 == 1 ? 'item' : 'items'} más',
-                    style: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic, fontSize: 12),
-                  ),
-                ),
-              
-              const Divider(color: Colors.white24, height: 24),
-
-              // Fila de Fecha y Total
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Fecha
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Fecha',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatDate(order.createdAt.toDate()),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                  // Total
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text(
-                        'Total',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '\$${order.total.toStringAsFixed(2)}',
-                        // Usamos la propiedad accentColor
-                        style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// --- WIDGET PARA EL BADGE DE ESTADO ---
-class _StatusBadge extends StatelessWidget {
-  final OrderStatus status;
-  
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    String text;
-    Color color;
-    IconData icon;
-
-    switch (status) {
-      case OrderStatus.pending_verification:
-        text = 'Pendiente';
-        color = Colors.orangeAccent;
-        icon = Icons.hourglass_top_rounded;
-        break;
-      case OrderStatus.completed:
-        text = 'Completado';
-        color = Colors.greenAccent;
-        icon = Icons.check_circle_rounded;
-        break;
-      case OrderStatus.cancelled:
-        text = 'Cancelado';
-        color = Colors.redAccent;
-        icon = Icons.cancel_rounded;
-        break;
-      // Añadimos el nuevo estado introducido en el archivo anterior para evitar errores
-      case OrderStatus.pending_payment:
-        text = 'Pago Pendiente';
-        color = Colors.yellow;
-        icon = Icons.payment_outlined;
-        break;
-      default:
-        text = 'Desconocido';
-        color = Colors.grey;
-        icon = Icons.question_mark_rounded;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        // Utilizamos withAlpha para hacer el color de fondo más sutil
-        color: color.withAlpha(51), // Aproximadamente 20% de opacidad
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color, width: 0.5)
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 14),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
-          ),
+          Icon(icon, size: 18, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text(title, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
         ],
       ),
     );
   }
 }
 
-// --- WIDGETS DE ESTADO (VACÍO Y ERROR) ---
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.receipt_long_outlined, size: 80, color: Colors.white24),
-            SizedBox(height: 24),
-            Text(
-              'Aún no has realizado compras',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Los pedidos que realices aparecerán aquí.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.white60),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+class _StatusChip extends StatelessWidget {
+  final OrderStatus status;
+  const _StatusChip({required this.status});
 
-class _ErrorState extends StatelessWidget {
-  final String message;
-  const _ErrorState({required this.message});
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 60),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 16),
-            ),
-          ],
-        ),
+    Color color;
+    String text;
+    switch (status) {
+      case OrderStatus.pending_verification:
+      case OrderStatus.pending_payment:
+        color = Colors.orange;
+        text = "PENDIENTE";
+        break;
+      case OrderStatus.completed:
+        color = Colors.green;
+        text = "COMPLETADA";
+        break;
+      case OrderStatus.cancelled:
+        color = Colors.red;
+        text = "CANCELADA";
+        break;
+      default:
+        color = Colors.grey;
+        text = status.name.toUpperCase();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2), // CORREGIDO
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color),
       ),
+      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 }

@@ -1,166 +1,188 @@
 import 'dart:convert';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter/foundation.dart'; 
-import 'package:http/http.dart' as http; 
-import 'package:flutter/services.dart'; 
-import 'dart:async'; 
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
-// --- DEFINICIONES GLOBALES ---
-const String GEMINI_API_KEY_DIRECT = "AIzaSyAE0EYo632PQ6hxscpFsSqBrTn_O_y19T8"; 
-
-// 🔴 USAMOS TU MODELO DISPONIBLE Y POTENTE
-const String MODEL_TO_CALL = 'gemini-2.5-flash'; 
-// -----------------------------
-
+// --- CONFIGURACIÓN ---
+// Mantenemos tu API Key y tu modelo preferido
+const String _kApiKey = "AIzaSyAE0EYo632PQ6hxscpFsSqBrTn_O_y19T8"; 
+const String _kModelName = 'gemini-2.5-flash'; 
 
 class GeminiService {
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  late final GenerativeModel _model;
+  late final GenerativeModel _jsonModel;
 
+  GeminiService() {
+    // 1. Modelo Estándar (Texto general)
+    _model = GenerativeModel(
+      model: _kModelName,
+      apiKey: _kApiKey,
+    );
 
-  // --- MÉTODOS EXISTENTES ---
-
-  Future<Invoice> extractDataFromImage(String base64Image) async {
-      throw UnimplementedError('extractDataFromImage not fully implemented in example');
+    // 2. Modelo Configurado para JSON (Para el asistente contextual y OCR)
+    // Esto asegura que la IA responda siempre con JSON válido.
+    _jsonModel = GenerativeModel(
+      model: _kModelName,
+      apiKey: _kApiKey,
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json', 
+        temperature: 0.4,
+      ),
+    );
   }
 
-  Future<String> suggestCategory(String productName) async {
-      return 'General';
-  }
-  
-  Future<String> classifyTransaction(String description, List<String> categories) async {
-      return 'Gasto General';
-  }
-
-  Future<List<String>> predictClientRecommendations(String clientId, List<String> productNamesList, List<String> clientHistory) async {
-      return ['Error: No se pudieron obtener las sugerencias.'];
-  }
-  
-  // --- FUNCIÓN HELPER: LECTURA DEL PROMPT ---
-  Future<String> _readSystemPromptFromFile() async {
+  // --- MVP 1.0: EXTRACT DATA FROM IMAGE (OCR INTELIGENTE) ---
+  Future<Invoice?> extractDataFromImage(String base64Image) async {
     try {
-      const String promptPath = 'assets/prompts/servi_system_prompt.txt'; 
-      return await rootBundle.loadString(promptPath);
+      // Decodificamos la imagen
+      final Uint8List imageBytes = base64Decode(base64Image);
+
+      final prompt = TextPart(
+        "Eres un experto en digitalización. Extrae los siguientes datos de esta factura: "
+        "'vendorName', 'invoiceNumber', 'totalAmount' (número), y 'lineItems' (lista). "
+        "Responde solo con JSON."
+      );
+
+      final imagePart = DataPart('image/jpeg', imageBytes);
+
+      // Usamos el modelo JSON para asegurar parseo fácil
+      final response = await _jsonModel.generateContent([
+        Content.multi([prompt, imagePart])
+      ]);
+
+      if (response.text == null) return null;
+
+      final jsonMap = jsonDecode(response.text!) as Map<String, dynamic>;
+      return Invoice.fromJson(jsonMap);
+
     } catch (e) {
-      debugPrint('Error al leer el prompt del sistema: $e');
-      return "ROL: Eres SERVI, un asistente experto. Sé conciso y profesional. Devuelve solo JSON estricto: { \"TEXTO_ESCRITO\": \"...\", \"TEXTO_VOZ\": \"...\" }";
+      debugPrint('Error en OCR Gemini: $e');
+      return null;
     }
   }
 
-  String _cleanAndIsolateJson(String rawText) {
-      final regex = RegExp(r'\{.*\}', dotAll: true);
-      final match = regex.firstMatch(rawText);
-      if (match != null) return match.group(0)!.trim();
-      return '{}';
-  }
-
-
   // --- MVP 3.0: ASISTENTE CONVERSACIONAL CONTEXTUAL ---
-  
   Future<Map<String, dynamic>> callContextualLLM(
       String query, 
       Map<String, dynamic> context
   ) async {
     try {
-      
       final String systemPrompt = await _readSystemPromptFromFile();
       
-      // 🔴 CAMBIO 1: API V1 (ESTABLE)
-      final String apiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/$MODEL_TO_CALL:generateContent?key=$GEMINI_API_KEY_DIRECT';
-      
-      debugPrint("📡 Conectando a Gemini ($MODEL_TO_CALL) en v1");
+      // Construimos el prompt enriquecido
+      final fullPrompt = """
+      INSTRUCCIONES DEL SISTEMA:
+      $systemPrompt
 
-      final String contextJsonString = json.encode(context);
-      final String userContent = (
-        "--- CONTEXTO DINÁMICO DE LA EMPRESA ---\n\n"
-        "${contextJsonString}\n\n"
-        "--- PREGUNTA DEL USUARIO ---\n\n"
-        "${query}"
-      );
-      
-      final Map<String, dynamic> requestBody = {
-        "contents": [
-          // 🔴 CAMBIO 2: Roles separados (System / User)
-          // Nota: En la API REST v1, a veces 'system' no se soporta como rol en 'contents'.
-          // Si esto falla con 400, volveremos a fusionarlos, pero probemos la estructura ideal primero.
-          // Para máxima seguridad en v1 REST, usaré la estructura de fusionado que NUNCA falla:
-          {
-            "role": "user",
-            "parts": [{"text": "INSTRUCCIONES DEL SISTEMA:\n$systemPrompt\n\nDATOS DEL USUARIO:\n$userContent"}]
-          }
-        ],
-        // 🔴 CAMBIO 3: Configuración limpia + Safety Settings
-        "generationConfig": { 
-            "temperature": 0.4
-        },
-        "safetySettings": [
-          {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-          {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-          {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-          {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
-      };
-      
-      final response = await http.post(
-          Uri.parse(apiEndpoint),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(requestBody),
-      );
-      
-      if (response.statusCode == 200) {
-          final jsonResponse = json.decode(response.body);
-          
-          if (jsonResponse['candidates'] == null || jsonResponse['candidates'].isEmpty) {
-             throw Exception('Gemini devolvió una respuesta vacía.');
-          }
+      CONTEXTO DEL NEGOCIO (JSON):
+      ${jsonEncode(context)}
 
-          final rawText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-          final cleanedJsonText = _cleanAndIsolateJson(rawText);
-          
-          return json.decode(cleanedJsonText) as Map<String, dynamic>;
-      } else {
-          debugPrint('Error LLM (código ${response.statusCode}): ${response.body}');
-          throw Exception('SERVI falló en la llamada a la IA: Código ${response.statusCode} - ${response.body}');
-      }
+      PREGUNTA DEL USUARIO:
+      $query
+      """;
+
+      // Llamamos al modelo JSON. Ya no necesitamos expresiones regulares complejas.
+      final response = await _jsonModel.generateContent([
+        Content.text(fullPrompt)
+      ]);
+
+      if (response.text == null) throw Exception("Respuesta vacía de Gemini");
+
+      return jsonDecode(response.text!) as Map<String, dynamic>;
+
     } catch (e) {
       debugPrint('Error CRÍTICO en callContextualLLM: $e');
+      // Respuesta de fallback segura
       return {
-          "TEXTO_ESCRITO": "¡Error crítico! El servicio SERVI falló al procesar su solicitud. Intente de nuevo.",
-          "TEXTO_VOZ": "Hubo un error crítico en el sistema de SERVI.",
+        "TEXTO_ESCRITO": "Lo siento, hubo un error técnico al procesar tu solicitud.",
+        "TEXTO_VOZ": "Ocurrió un error en el sistema.",
       };
     }
   }
 
-  // --- NUEVO MÉTODO: GENERACIÓN DE TEXTO SIMPLE ---
+  // --- GENERACIÓN DE TEXTO SIMPLE ---
   Future<String?> generateText(String prompt) async {
     try {
-      final String apiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/$MODEL_TO_CALL:generateContent?key=$GEMINI_API_KEY_DIRECT';
-      
-      final Map<String, dynamic> requestBody = {
-        "contents": [
-          { "parts": [{"text": prompt}] }
-        ],
-        "generationConfig": { "temperature": 0.7 }
-      };
-
-      final response = await http.post(
-          Uri.parse(apiEndpoint),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(requestBody),
-      );
-
-      if (response.statusCode == 200) {
-          final jsonResponse = json.decode(response.body);
-          final text = jsonResponse['candidates']?[0]['content']?['parts']?[0]['text'];
-          return text?.toString().trim();
-      } else {
-          return null;
-      }
+      final response = await _model.generateContent([Content.text(prompt)]);
+      return response.text;
     } catch (e) {
+      debugPrint("Error generando texto: $e");
       return null;
     }
   }
+
+  // --- HELPER: CLASIFICACIÓN ---
+  Future<String> classifyTransaction(String description, List<String> categories) async {
+    try {
+      final prompt = "Clasifica la transacción '$description' en una de estas categorías: ${categories.join(', ')}. Responde SOLO con el nombre de la categoría.";
+      final response = await _model.generateContent([Content.text(prompt)]);
+      // Limpieza básica por si la IA pone punto final o comillas
+      return response.text?.trim().replaceAll(RegExp(r"['\.]"), "") ?? 'Gasto General';
+    } catch (e) {
+      return 'Gasto General';
+    }
+  }
+
+  // --- HELPER: RECOMENDACIONES ---
+  Future<List<String>> predictClientRecommendations(String clientId, List<String> productNamesList, List<String> clientHistory) async {
+    try {
+      final prompt = """
+      Historial Cliente: ${clientHistory.join(', ')}.
+      Productos Disponibles: ${productNamesList.join(', ')}.
+      Sugiere 3 productos para venta cruzada.
+      Responde SOLO con un Array JSON de Strings.
+      """;
+      
+      final response = await _jsonModel.generateContent([Content.text(prompt)]);
+      
+      if (response.text == null) return [];
+      
+      final List<dynamic> jsonList = jsonDecode(response.text!);
+      return jsonList.map((e) => e.toString()).toList();
+    } catch (e) {
+      debugPrint("Error recomendaciones: $e");
+      return [];
+    }
+  }
+
+  // --- HELPER: LECTURA DE ASSETS ---
+  Future<String> _readSystemPromptFromFile() async {
+    try {
+      return await rootBundle.loadString('assets/prompts/servi_system_prompt.txt');
+    } catch (e) {
+      // Fallback si falla la lectura del archivo
+      return "Responde siempre en formato JSON: { \"TEXTO_ESCRITO\": \"...\", \"TEXTO_VOZ\": \"...\" }";
+    }
+  }
+
+  // --- HELPER: SUGERENCIA DE CATEGORÍA SIMPLE ---
+  Future<String> suggestCategory(String productName) async {
+     try {
+       final response = await _model.generateContent([
+         Content.text("Categoría general para el producto: $productName. Solo una palabra.")
+       ]);
+       return response.text?.trim() ?? 'General';
+     } catch (e) {
+       return 'General';
+     }
+  }
 }
 
+// --- CLASE DTO (Data Transfer Object) ---
 class Invoice {
-  Invoice.fromJson(Map<String, dynamic> json);
+  final String? vendorName;
+  final String? invoiceNumber;
+  final double? totalAmount;
+  
+  Invoice({this.vendorName, this.invoiceNumber, this.totalAmount});
+
+  factory Invoice.fromJson(Map<String, dynamic> json) {
+    return Invoice(
+      vendorName: json['vendorName'],
+      invoiceNumber: json['invoiceNumber'],
+      // Manejo seguro de números que pueden venir como String o Double
+      totalAmount: double.tryParse(json['totalAmount']?.toString() ?? '0'),
+    );
+  }
 }

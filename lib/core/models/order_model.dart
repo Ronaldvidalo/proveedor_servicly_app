@@ -1,59 +1,53 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- NUEVO ENUM CON 'pending_payment' AÑADIDO ---
-// Usar un Enum para los estados de la orden es una práctica mucho
-// más limpia y segura que usar Strings sueltos.
+// --- ENUMS ---
+
+// 1. Estados de la Orden (Flujo P2P)
 enum OrderStatus {
-  pending_payment,      // <--- ¡NUEVO! El cliente NO ha subido el comprobante (ej. acaba de crear la orden)
-  pending_verification, // El cliente subió el comprobante, el proveedor debe revisar
-  completed,            // El proveedor confirmó el pago
-  cancelled,            // El proveedor o cliente canceló la orden
-  disputed              // (Futuro) El cliente o proveedor inició una disputa
+  pending_payment,      // El cliente creó la orden pero no ha subido comprobante
+  pending_verification, // El cliente subió comprobante, proveedor revisa
+  completed,            // Proveedor confirmó pago y entregó producto
+  cancelled,            // Cancelada por cualquiera de las partes
+  disputed              // En disputa (futuro)
 }
-// --- FIN NUEVO ENUM ---
+
+// 2. Tipos de Entrega (Logística)
+enum DeliveryType { 
+  pickup,   // Retiro en tienda
+  delivery  // Envío a domicilio
+}
 
 /// Modelo que representa una orden de compra/servicio.
-/// Creado para el flujo de pago P2P (verificación manual).
 class OrderModel {
   final String id;
-  final String providerId; // A quién se le compró
-  final String clientId;   // Quién compró
+  final String providerId; 
+  final String clientId;   
 
-  // --- Detalles del Cliente (Copia) ---
-  // Guardamos una copia por si el cliente borra su cuenta,
-  // la orden mantiene su información.
+  // --- Detalles del Cliente ---
   final String clientName;
   final String clientEmail;
   
-  // --- Detalles del Producto/Servicio ---
-  // Guardamos los items como una lista de mapas.
-  // Esto permite carritos de compra (múltiples productos).
+  // --- Detalles del Producto ---
   final List<Map<String, dynamic>> items;
-  // Ejemplo de un item:
-  // {
-  // 	'productId': 'xyz123',
-  // 	'name': 'Servicio de Plomería',
-  // 	'price': 50.00,
-  // 	'quantity': 1,
-  // }
-
   final double total;
-  final OrderStatus status; // <-- ¡Usamos el Enum!
+  
+  // --- Estados y Fechas ---
+  final OrderStatus status; 
   final Timestamp createdAt;
-  Timestamp? updatedAt; // Para saber cuándo se completó o canceló
+  Timestamp? updatedAt; 
 
-  // --- ¡Datos Clave para P2P! ---
-  
-  /// La URL (en Firebase Storage) de la foto del comprobante de pago
-  /// que subió el cliente.
+  // --- Datos de Pago (P2P) ---
   final String paymentProofUrl; 
-  
-  /// El ID del método de pago que usó el cliente (para referencia).
-  /// Ej: 'method_abc123' (que apunta a la cuenta de Banco Galicia del proveedor).
   final String paymentMethodId; 
-  
-  /// Notas opcionales que el cliente puede añadir al pagar.
   final String? clientNotes;
+
+  // --- Datos de Logística ---
+  final DeliveryType deliveryType; 
+  final String shippingAddress;    
+  final double shippingCost;       
+
+  // --- Sistema de Reputación (NUEVO) ---
+  final bool isRated; // Indica si el cliente ya calificó esta orden
 
   OrderModel({
     required this.id,
@@ -69,27 +63,33 @@ class OrderModel {
     required this.paymentProofUrl,
     required this.paymentMethodId,
     this.clientNotes,
+    this.deliveryType = DeliveryType.pickup, 
+    this.shippingAddress = '',
+    this.shippingCost = 0.0,
+    this.isRated = false, // Por defecto no está calificada
   });
 
-  /// Convierte un documento de Firestore a una instancia de [OrderModel].
+  /// Factory: Desde Firestore -> Modelo Dart
   factory OrderModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
-    // Conversión segura de Lista de Items
+    // Conversión segura de Items
     final List<Map<String, dynamic>> itemsList = (data['items'] as List<dynamic>?)
         ?.map((item) => Map<String, dynamic>.from(item as Map))
-        .toList() ??
-        [];
+        .toList() ?? [];
     
-    // Conversión segura del String del 'status' al Enum 'OrderStatus'
-    final String statusString = data['status'] as String? ?? 'pending_verification';
+    // Conversión de Status (String -> Enum)
+    final String statusString = data['status'] as String? ?? 'pending_payment';
     final OrderStatus status = OrderStatus.values.firstWhere(
       (e) => e.name == statusString,
-      // Si el estado no se encuentra, usamos 'pending_payment' como un default seguro
-      // en lugar de 'pending_verification' si la orden es nueva, aunque 'pending_verification'
-      // también es una opción válida si prefieres ese default. 
-      // Mantenemos 'pending_verification' como lo tenías.
-      orElse: () => OrderStatus.pending_verification,
+      orElse: () => OrderStatus.pending_payment,
+    );
+
+    // Conversión de DeliveryType (String -> Enum)
+    final String deliveryString = data['deliveryType'] as String? ?? 'pickup';
+    final DeliveryType deliveryType = DeliveryType.values.firstWhere(
+      (e) => e.name == deliveryString,
+      orElse: () => DeliveryType.pickup,
     );
 
     return OrderModel(
@@ -106,10 +106,18 @@ class OrderModel {
       paymentProofUrl: data['paymentProofUrl'] as String? ?? '',
       paymentMethodId: data['paymentMethodId'] as String? ?? '',
       clientNotes: data['clientNotes'] as String?,
+      
+      // Campos logísticos
+      deliveryType: deliveryType,
+      shippingAddress: data['shippingAddress'] as String? ?? '',
+      shippingCost: (data['shippingCost'] as num?)?.toDouble() ?? 0.0,
+
+      // Campo de reputación (NUEVO)
+      isRated: data['isRated'] as bool? ?? false, 
     );
   }
 
-  /// Convierte la instancia del modelo a un mapa para guardarlo en Firestore.
+  /// Método: Modelo Dart -> Mapa JSON (Firestore)
   Map<String, dynamic> toJson() {
     return {
       'providerId': providerId,
@@ -118,12 +126,20 @@ class OrderModel {
       'clientEmail': clientEmail,
       'items': items,
       'total': total,
-      'status': status.name, // <-- Guardamos el Enum como String
+      'status': status.name,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'paymentProofUrl': paymentProofUrl,
       'paymentMethodId': paymentMethodId,
       'clientNotes': clientNotes,
+      
+      // Campos logísticos
+      'deliveryType': deliveryType.name,
+      'shippingAddress': shippingAddress,
+      'shippingCost': shippingCost,
+
+      // Campo de reputación (NUEVO)
+      'isRated': isRated,
     };
   }
 }
