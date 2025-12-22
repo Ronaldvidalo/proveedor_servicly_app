@@ -116,39 +116,77 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
 
-      // Preparar datos de personalización
-      final updatedPersonalization = Map<String, dynamic>.from(widget.userModel.personalization);
-      updatedPersonalization['businessName'] = _nameController.text.trim();
-      updatedPersonalization['country'] = _selectedCountry;
-      if (_selectedRole == 'provider') {
-        updatedPersonalization['mainCategory'] = _selectedProfession;
-      }
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
 
-      // --- DATOS MAESTROS A GUARDAR ---
-      final dataToSave = {
+      // Referencias
+      final userRef = firestore.collection('users').doc(user.uid);
+      final brandRef = firestore.collection('brandProfiles').doc(user.uid);
+
+      // --- 1. DATOS MAESTROS PARA 'USERS' (Cuenta y Seguridad) ---
+      // Aquí NO va información pública de la tienda.
+      batch.set(userRef, {
         'uid': user.uid,
         'email': user.email,
-        'displayName': _nameController.text.trim(),
-        'personalization': updatedPersonalization,
+        'displayName': _nameController.text.trim(), // Nombre real de la persona
         'role': _selectedRole,
+        'planType': 'free', // Plan por defecto
         'isProfileComplete': true,
         
-        // --- INICIALIZACIÓN DE SEGURIDAD (CRÍTICO) ---
+        // Configuración por defecto
+        'activeModules': _selectedRole == 'provider' 
+            ? ['agenda', 'clients', 'orders-module'] // Módulos básicos + Pedidos
+            : [],
+
+        // Seguridad
         'isVerified': false, 
         'phoneVerified': false,
         'emailVerified': user.emailVerified, 
         'verificationStatus': 'unverified',
         'createdAt': FieldValue.serverTimestamp(),
-      };
+        
+        // Limpieza: Eliminamos campos legacy si existen (opcional)
+        'personalization': FieldValue.delete(),
+        'logoUrl': FieldValue.delete(),
+        'businessName': FieldValue.delete(),
+      }, SetOptions(merge: true));
+
+
+      // --- 2. DATOS PARA 'BRANDPROFILES' (Solo si es PROVEEDOR) ---
+      if (_selectedRole == 'provider') {
+        batch.set(brandRef, {
+          'providerId': user.uid,
+          
+          // Identidad Pública
+          'businessName': _nameController.text.trim(), // Por defecto usa el nombre personal, luego pueden cambiarlo a marca
+          'mainCategory': _selectedProfession,
+          'country': _selectedCountry,
+          
+          // Estilo Visual (Valores por defecto Cyber Glow)
+          'primaryColor': '#00BFFF', 
+          'publicProfileTemplate': 'store',
+          'publicProfileTheme': 'cyber_glow',
+          'logoUrl': '',
+          'slogan': '',
+          
+          // Datos de Contacto Públicos (Inicializados vacíos o con email de registro)
+          'contactEmail': user.email, 
+          'whatsapp': '',
+          'instagram': '',
+          'facebook': '',
+          'address': '',
+          'website': '',
+          'welcomeMessage': '¡Bienvenidos a mi perfil profesional!',
+          
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
 
       try {
-        // --- 1. GUARDAR EN FIRESTORE (USANDO SET + MERGE) ---
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set(dataToSave, SetOptions(merge: true));
+        // --- EJECUTAR ESCRITURA EN BATCH ---
+        await batch.commit();
 
-        // --- 2. CONFIGURAR FCM (OPCIONAL) ---
+        // --- 3. CONFIGURAR FCM (OPCIONAL) ---
         try {
           if (kDebugMode) print("[Onboarding] Solicitando permiso notificaciones...");
           final messaging = FirebaseMessaging.instance;
@@ -166,7 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         
         if (!mounted) return; 
 
-        // --- 3. REDIRECCIÓN ---
+        // --- 4. REDIRECCIÓN ---
         Widget destinationScreen;
         if (_selectedRole == 'provider') {
           // Si es proveedor -> Selección de Plantilla
@@ -262,7 +300,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text(
                     'Completa estos datos para personalizar tu experiencia.',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.7)
+                      color: colorScheme.onSurface.withValues(alpha: 0.7) // CORREGIDO
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -392,7 +430,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           value: profession['label'] as String,
           child: Row(
             children: [
-              Icon(profession['icon'] as IconData?, size: 20, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+              Icon(profession['icon'] as IconData?, size: 20, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)), // CORREGIDO
               const SizedBox(width: 12),
               Text(profession['label'] as String),
             ],
@@ -444,7 +482,7 @@ class _RoleSelectionCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isSelected ? accentColor.withValues(alpha: 0.15) : cardColor,
+          color: isSelected ? accentColor.withValues(alpha: 0.15) : cardColor, // CORREGIDO
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? accentColor : theme.dividerColor,
@@ -456,13 +494,13 @@ class _RoleSelectionCard extends StatelessWidget {
             Icon(
               icon, 
               size: 32, 
-              color: isSelected ? accentColor : textColor.withValues(alpha: 0.7)
+              color: isSelected ? accentColor : textColor.withValues(alpha: 0.7) // CORREGIDO
             ),
             const SizedBox(height: 8),
             Text(
               title,
               style: TextStyle(
-                color: isSelected ? theme.colorScheme.onSurface : textColor.withValues(alpha: 0.7),
+                color: isSelected ? theme.colorScheme.onSurface : textColor.withValues(alpha: 0.7), // CORREGIDO
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),

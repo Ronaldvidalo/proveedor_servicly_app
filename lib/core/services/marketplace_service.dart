@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart'; // Para debugPrint
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/country_model.dart';
@@ -10,19 +11,15 @@ class MarketplaceService {
   MarketplaceService({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
-  // --- CORRECCIÓN 1 ---
-  // Apunta a 'catalogs' para los perfiles de proveedores
-  CollectionReference<Map<String, dynamic>> get _publicProfilesCollection => _db.collection('catalogs');
+  // --- CORRECCIÓN 1: Apuntar a la colección NUEVA y CORRECTA ---
+  CollectionReference<Map<String, dynamic>> get _publicProfilesCollection => _db.collection('brandProfiles');
   
-  // --- CORRECCIÓN 2 ---
-  // Apunta a 'main_categories' para los filtros de rubro
   CollectionReference<Map<String, dynamic>> get _mainCategoriesCollection => _db.collection('main_categories');
   
   CollectionReference<Map<String, dynamic>> get _countriesCollection => _db.collection('countries');
 
   /// Obtiene la lista de categorías principales para los filtros del marketplace.
   Stream<List<CategoryModel>> getMainCategories() {
-    // Esto ahora leerá de 'main_categories'
     return _mainCategoriesCollection.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => CategoryModel.fromFirestore(doc)).toList();
     });
@@ -39,29 +36,45 @@ class MarketplaceService {
   Stream<List<ProviderProfileModel>> getProviders({
     String? categoryName, 
     String? countryCode,
-    String? profileType,
+    String? profileType, // Esto trae 'store', 'catalog', etc.
   }) {
-    // Esto ahora leerá de 'catalogs'
     Query<Map<String, dynamic>> query = _publicProfilesCollection;
 
-    // NOTA: Para que estos filtros funcionen, el documento en 'catalogs'
-    // debe tener los campos 'country', 'mainCategory' y 'profileType'.
+    debugPrint("🛒 Marketplace: Iniciando consulta a 'brandProfiles'...");
 
+    // 1. Filtro por País
     if (countryCode != null && countryCode.isNotEmpty) {
       query = query.where('country', isEqualTo: countryCode);
     }
+
+    // 2. Filtro por Categoría
     if (categoryName != null && categoryName.isNotEmpty) {
-      // Asegúrate de que tus perfiles en 'catalogs' tengan este campo
+      // En tu captura de pantalla veo que el campo se llama 'mainCategory'
       query = query.where('mainCategory', isEqualTo: categoryName);
     }
     
-    if (profileType != null && profileType.isNotEmpty) {
-      // Asegúrate de que tus perfiles en 'catalogs' tengan este campo
-      query = query.where('profileType', isEqualTo: profileType);
+    // 3. Filtro por Tipo de Perfil (CORREGIDO)
+    if (profileType != null && profileType.isNotEmpty && profileType != 'all') {
+      // En tu captura el campo es 'publicProfileTemplate', NO 'profileType'
+      debugPrint("🛒 Filtrando por template: $profileType");
+      query = query.where('publicProfileTemplate', isEqualTo: profileType);
     }
     
     return query.snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => ProviderProfileModel.fromFirestore(doc)).toList();
+      debugPrint("✅ Marketplace: Se encontraron ${snapshot.docs.length} perfiles.");
+      
+      return snapshot.docs.map((doc) {
+        try {
+          // Intentamos convertir el documento al modelo
+          return ProviderProfileModel.fromFirestore(doc);
+        } catch (e) {
+          debugPrint("❌ Error al leer perfil ${doc.id}: $e");
+          return null;
+        }
+      })
+      .where((p) => p != null) // Filtramos los que fallaron
+      .cast<ProviderProfileModel>() // Aseguramos el tipo
+      .toList();
     });
   }
 }

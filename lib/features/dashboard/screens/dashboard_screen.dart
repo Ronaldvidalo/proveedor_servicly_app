@@ -22,6 +22,7 @@ import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:proveedor_servicly_app/core/services/notification_service.dart'; // Importar servicio de notificaciones
 
 // --- Importaciones de Módulos ---
 import 'package:proveedor_servicly_app/features/catalogo/modules/modules_screen.dart';
@@ -184,6 +185,13 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _animationController.forward();
     });
+
+    // --- SOLICITUD DE NOTIFICACIONES (PROVEEDOR) ---
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+       await context.read<NotificationService>().init();
+       await context.read<NotificationService>().saveTokenToDatabase();
+       debugPrint("🔔 Notificaciones configuradas para el Dashboard de Proveedor");
+    });
   }
 
   void _initVoiceListeners() {
@@ -240,7 +248,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     setState(() => _isThinking = true);
 
     // 2. Feedback Auditivo (Muletilla) si la pregunta es compleja (> 2 palabras)
-    // Esto hace que el usuario sienta que la IA "le contestó rápido" aunque tarde en buscar datos.
     if (command.split(' ').length > 2) {
        _fillers.shuffle();
        _speak(_fillers.first); // Habla sin esperar (async)
@@ -268,9 +275,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
       return user.displayName!.trim().split(' ')[0];
     }
-    if (user.personalization['businessName'] != null) {
-      return user.personalization['businessName'];
-    }
+    // NOTA: Como borramos personalization, esto podría ser null, aseguramos fallback
     return "Campeón"; 
   }
 
@@ -382,7 +387,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
               future: _modulesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _LoadingSkeleton(userName: userModel.displayName, businessName: userModel.personalization['businessName'] as String?);
+                  return _LoadingSkeleton(userName: userModel.displayName);
                 }
                 if (snapshot.hasError || !snapshot.hasData) return Center(child: Text('Error al cargar.', style: Theme.of(context).textTheme.bodyMedium));
 
@@ -466,7 +471,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
               child: Showcase(
                 key: _keyModulesGrid, title: 'Tus Herramientas', description: 'Mantené apretado para saber qué hace cada una.',
                 child: ModulesGrid(activeModules: activeModules, user: userModel, onAddModule: () {
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ModulesScreen(userModel: userModel, allModules: allModules)));
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => ModulesScreen(userModel: userModel, allModules: allModules)));
                 }),
               ),
             ),
@@ -551,11 +556,14 @@ class _PublicProfileButton extends StatelessWidget {
     final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
 
     void onPressedAction() {
+      // CORRECCIÓN: Si el perfil está creado, intentamos ver el PublicProfile.
+      // El PublicProfileScreen deberá buscar en 'brandProfiles' usando el UID.
       if (isProfileCreated) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PublicProfileScreen(providerId: userModel.uid),
         ));
       } else {
+        // Si no está creado, vamos a seleccionar plantilla (que llevará a BrandSettings)
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => SelectProfileTemplateScreen(user: userModel),
         ));

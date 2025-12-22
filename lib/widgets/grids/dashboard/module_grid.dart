@@ -27,8 +27,9 @@ import 'package:proveedor_servicly_app/features/sales/screens/pos_screen.dart';
 import 'package:proveedor_servicly_app/features/cost_structure/screen/business_config_screen.dart';
 import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
 import 'package:proveedor_servicly_app/features/budget/screens/quote_list_screen.dart';
-// --- NUEVO: PANTALLA DE PEDIDOS ---
 import 'package:proveedor_servicly_app/features/orders/screens/provider_orders_screen.dart';
+// --- NUEVO: PANTALLA DE MIS COMPRAS (CLIENTE) ---
+import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart';
 
 // --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
@@ -44,8 +45,9 @@ const Map<String, IconData> _iconMap = {
   'fast_sales': Icons.price_check_rounded,
   'extension_outlined': Icons.extension_outlined, 
   'quotes': Icons.description_outlined,
-  // --- NUEVO ICONO DE PEDIDOS ---
   'receipt_long_outlined': Icons.receipt_long_outlined,
+  // --- NUEVO ICONO PARA MIS COMPRAS ---
+  'shopping_bag_outlined': Icons.shopping_bag_outlined,
 };
 
 // ----------------------------------------------------------------------
@@ -117,9 +119,12 @@ class _ModulesGridState extends State<ModulesGrid> {
       case 'cost_structure':
         script = "Tus costos fijos. Calculá cuánto te cuesta abrir la persiana cada día para no perder plata.";
         break;
-      // --- NUEVO GUIÓN PEDIDOS ---
       case 'orders-module':
         script = "Tus Ventas. Acá te llegan los pedidos de la app. Revisá el pago y aprobá la entrega al toque.";
+        break;
+      // --- GUIÓN PARA MIS COMPRAS ---
+      case 'module_client_orders':
+        script = "Tus Compras. Acá podés ver el estado de los pedidos que le hiciste a otros proveedores.";
         break;
       case 'add_module':
         script = "Más poder para vos. Tocá acá para activar nuevas herramientas y potenciar tu negocio.";
@@ -196,6 +201,7 @@ class _ModulesGridState extends State<ModulesGrid> {
                 icon: _iconMap[module.icon] ?? Icons.extension_outlined,
                 notificationCount: badgeCount,
                 onTap: () {
+                  // Centralizamos la navegación en la función dedicada
                   _navigateToModule(context, module.moduleId, widget.user);
                 },
                 // AQUÍ LA MAGIA: Mantener presionado para que Servi explique
@@ -216,6 +222,16 @@ class _ModulesGridState extends State<ModulesGrid> {
 
   /// Lógica de navegación
   void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
+    
+    // --- LÓGICA ESPECIAL PARA MÓDULOS NATIVOS ---
+    if (moduleId == 'module_client_orders') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ClientOrdersScreen()),
+      );
+      return; 
+    }
+
     Widget? destination;
     
     switch (moduleId) {
@@ -244,15 +260,16 @@ class _ModulesGridState extends State<ModulesGrid> {
       case 'quotes':
         destination = const QuoteListScreen(); 
         break;
-      // --- NUEVA NAVEGACIÓN ---
       case 'orders-module':
         destination = const ProviderOrdersScreen();
         break;
+      // No necesitamos default aquí para 'module_client_orders' porque lo manejamos con el if arriba
     }
 
     if (destination != null) {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
     } else {
+      // Si no es ninguno de los anteriores y no es el de compras
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Navegación para "$moduleId" no implementada.')));
     }

@@ -5,6 +5,7 @@ import 'package:proveedor_servicly_app/core/models/payment_method_model.dart';
 import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/core/services/payment_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:proveedor_servicly_app/features/orders/screens/rate_provider_screen.dart';
 
 // Import del sistema de Reviews
 import 'package:proveedor_servicly_app/features/reviews/index.dart';
@@ -82,18 +83,30 @@ class ClientOrderDetailScreen extends StatelessWidget {
                     child: Text("¿Qué te pareció el servicio? Tu opinión ayuda a otros.", style: TextStyle(color: Colors.white70, fontSize: 13)),
                   ),
                   trailing: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
-                    onPressed: () {
-                      RatingModal.show(
-                        context,
-                        serviceId: order.id,
-                        authorId: order.clientId,
-                        targetId: order.providerId,
-                        role: 'PROVIDER',
-                      );
-                    },
-                    child: const Text("CALIFICAR", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
+  style: ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFF00E5FF), 
+    foregroundColor: Colors.black
+  ),
+  
+  // --- REEMPLAZA EL ONPRESSED POR ESTO: ---
+  onPressed: () async {
+    // Importante: Asegúrate de importar rate_provider_screen.dart arriba
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RateProviderScreen(order: order),
+      ),
+    );
+
+    // Si calificó exitosamente (devuelve true), podemos mostrar confirmación
+    if (result == true) {
+      // Opcional: Aquí podrías forzar una recarga si fuera necesario, 
+      // pero StreamBuilder suele encargarse de actualizar la UI automáticamente.
+    }
+  },
+  
+  child: const Text("CALIFICAR", style: TextStyle(fontWeight: FontWeight.bold)),
+),
                 ),
               ),
             ),

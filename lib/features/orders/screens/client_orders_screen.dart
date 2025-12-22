@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ IMPORTANTE: Soluci
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/order_detail_screen.dart';
+import 'package:proveedor_servicly_app/features/orders/screens/client_order_detail_screen.dart';
 
 class ClientOrdersScreen extends StatelessWidget {
   const ClientOrdersScreen({super.key});
@@ -148,7 +149,8 @@ class _OrderTile extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)),
+            // Cambiamos OrderDetailScreen por ClientOrderDetailScreen
+            MaterialPageRoute(builder: (_) => ClientOrderDetailScreen(order: order)),
           );
         },
         child: Padding(

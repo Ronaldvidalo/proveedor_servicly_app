@@ -2,19 +2,27 @@
 // UX/UI Redesigned: 14/10/2025
 // Style: Cyber Glow (Adaptive Light/Dark)
 // QA FIX 26/11/2025: Theme Integration
-// UPDATE 19/12/2025: Integración Menú de Usuario y Mis Compras
+// UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
+// UPDATE: Integración Notificaciones Push (Cliente)
 // ---------------------------------
 
 import 'package:flutter/material.dart';
+
+// --- MANEJO DE CONFLICTOS DE IMPORTS (Provider vs Riverpod) ---
+// Importamos provider con alias para el Widget wrapper
 import 'package:provider/provider.dart' as provider_pkg; 
+// Importamos provider normal (ocultando conflictos) para usar context.read()
+import 'package:provider/provider.dart' hide Provider, Consumer, StreamProvider, ChangeNotifierProvider, FutureProvider; 
 import 'package:flutter_riverpod/flutter_riverpod.dart'; 
+
 import 'package:geolocator/geolocator.dart'; 
-import 'package:firebase_auth/firebase_auth.dart'; // Necesario para obtener datos del user
+import 'package:firebase_auth/firebase_auth.dart'; 
 
 import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
+import 'package:proveedor_servicly_app/core/services/notification_service.dart'; // <--- NUEVO IMPORT
 
 // --- IMPORTACIONES DE UBICACIÓN ---
 import 'package:proveedor_servicly_app/providers/location_provider.dart';
@@ -25,7 +33,7 @@ import 'package:proveedor_servicly_app/widgets/cards/provider_card.dart';
 import 'package:proveedor_servicly_app/widgets/video_showcase_section.dart';
 
 // --- IMPORTACIONES DE NAVEGACIÓN ---
-import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart'; // <--- IMPORTANTE
+import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart'; 
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -53,11 +61,14 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   String _searchTerm = '';
   bool _isNearbyFilterActive = false;
 
+  // DEFINICIÓN DE PESTAÑAS (Coinciden con publicProfileTemplate en BD)
+  // IMPORTANTE: Estos IDs deben ser iguales a los que guardamos en BrandSettings
   final List<Map<String, String>> _profileTypes = [
     {'id': 'all', 'label': 'Descubrir'},
     {'id': 'store', 'label': 'Tiendas'},
+    {'id': 'catalog', 'label': 'Catálogos'},
     {'id': 'booking', 'label': 'Reservas'},
-    {'id': 'social', 'label': 'Perfiles'},
+    {'id': 'cv', 'label': 'Profesionales'}, 
   ];
 
   @override
@@ -66,11 +77,20 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     _tabController = TabController(length: _profileTypes.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        setState(() {});
+        setState(() {}); // Reconstruir al cambiar tab
       }
     });
     _searchController.addListener(() {
       setState(() => _searchTerm = _searchController.text);
+    });
+
+    // --- SOLICITUD DE NOTIFICACIONES (CLIENTE) ---
+    // Esto asegura que el cliente reciba alertas de sus pedidos
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+       // Usamos context.read del paquete Provider (gracias al import oculto arriba)
+       await context.read<NotificationService>().init();
+       await context.read<NotificationService>().saveTokenToDatabase();
+       debugPrint("🔔 Notificaciones configuradas para el Home de Cliente");
     });
   }
 
@@ -111,7 +131,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
-        // --- AQUÍ ESTÁ EL CAMBIO PRINCIPAL: MENÚ DE USUARIO ---
         actions: const [
           _UserAvatarMenu(), 
           SizedBox(width: 8),
@@ -170,8 +189,9 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
           _buildFilterRow(context, marketplaceService, locationState, theme),
           
           StreamBuilder<List<ProviderProfileModel>>(
+            // Solicitamos TODOS y filtramos localmente para mayor control en debug
             stream: marketplaceService.getProviders(
-              profileType: selectedProfileType == 'all' ? null : selectedProfileType,
+              profileType: null, // Traemos todo para filtrar en cliente y ver qué pasa
               categoryName: _selectedCategory,
             ),
             builder: (context, snapshot) {
@@ -182,12 +202,26 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                 return _ErrorState(error: snapshot.error.toString());
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                // debugPrint("Marketplace: La base de datos 'brandProfiles' parece vacía o sin permisos.");
                 return const _EmptyState();
               }
 
               var providers = snapshot.data!;
-              providers = providers.where((p) => p.isAvailable).toList();
+              
+              // --- FILTRO MANUAL (DEBUGGEABLE) ---
+              final int totalCount = providers.length;
+              
+              // 1. Filtro por Pestaña (Store, Catalog, etc.)
+              if (selectedProfileType != 'all') {
+                providers = providers.where((p) {
+                  // Comparamos contra publicProfileTemplate O profileType para asegurar compatibilidad
+                  // Si es nulo, asumimos 'cv'
+                  final template = p.publicProfileTemplate?.toLowerCase() ?? p.profileType.toLowerCase();
+                  return template == selectedProfileType.toLowerCase();
+                }).toList();
+              }
 
+              // 2. Filtro de Búsqueda
               if (_searchTerm.isNotEmpty) {
                 final term = _searchTerm.toLowerCase();
                 providers = providers.where((p) {
@@ -197,8 +231,8 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                 }).toList();
               }
 
+              // 3. Ordenamiento por Distancia
               Position? userPosition = locationState.value;
-              
               if (_isNearbyFilterActive && userPosition != null) {
                 providers.sort((a, b) {
                   double latA = a.latitude ?? -999;
@@ -211,13 +245,31 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                     double distB = DistanceUtils.getDistanceInMeters(userPosition.latitude, userPosition.longitude, latB, lngB);
                     return distA.compareTo(distB);
                   }
-                  if (latA != -999 && latB == -999) return -1;
-                  if (latA == -999 && latB != -999) return 1;
-                  return 0;
+                  return 0; // Sin cambios si no tienen ubicación
                 });
               }
 
-              if (providers.isEmpty) return const _EmptyState();
+              // debugPrint("Marketplace: Total en BD: $totalCount | Mostrando: ${providers.length} (Filtro: $selectedProfileType)");
+
+              if (providers.isEmpty) {
+                return SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.search_off, size: 48, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
+                          const SizedBox(height: 16),
+                          Text(
+                            "No hay resultados para '$selectedProfileType'",
+                            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
 
               return SliverPadding(
                 padding: const EdgeInsets.all(16.0),
@@ -242,6 +294,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                         distanceText = "Ver ubicación"; 
                       }
 
+                      // Usamos tu tarjeta ProviderCard que ya tiene la navegación integrada
                       return ProviderCard(
                         provider: provider, 
                         distanceText: distanceText,
@@ -357,7 +410,10 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   }
 }
 
-// --- WIDGET DE MENÚ DE USUARIO (NUEVO) ---
+// ===================================================================
+// --- WIDGETS AUXILIARES ---
+// ===================================================================
+
 class _UserAvatarMenu extends StatelessWidget {
   const _UserAvatarMenu();
 
@@ -377,6 +433,7 @@ class _UserAvatarMenu extends StatelessWidget {
       ),
       onSelected: (value) {
         switch (value) {
+          // --- AQUÍ ESTÁ LA NAVEGACIÓN A MIS COMPRAS ---
           case 'orders':
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientOrdersScreen()));
             break;

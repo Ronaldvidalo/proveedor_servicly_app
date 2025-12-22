@@ -14,12 +14,15 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        // --- CORRECCIÓN KOTLIN: Se usa 'is...' y '=' ---
+        isCoreLibraryDesugaringEnabled = true
+        
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+       jvmTarget = "17"
     }
 
     defaultConfig {
@@ -31,6 +34,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // --- CORRECCIÓN KOTLIN: Se usa '=' ---
+        multiDexEnabled = true 
     }
 
     buildTypes {
@@ -44,4 +50,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // --- CORRECCIÓN KOTLIN: Paréntesis y Comillas Dobles ---
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

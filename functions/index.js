@@ -1,4 +1,4 @@
-// functions/index.js (CORREGIDO - ERROR DE REDECLARACIÓN ELIMINADO)
+// functions/index.js (ACTUALIZADO PARA FLUTTER SUBCOLLECTION TOKENS)
 
 // 1. Importaciones V2 (Triggers Modernos)
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from 'firebase-functions/v2/firestore';
@@ -16,7 +16,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 // 4. Importar funciones de IA
 import * as serviAi from './servi_ai.js';
 
-// Configuración Global (Opcional)
+// Configuración Global
 setGlobalOptions({ maxInstances: 10 });
 
 // Inicialización
@@ -37,6 +37,19 @@ const updateClienteCount = async(providerId) => {
         });
     } catch (e) {
         logger.error("Error updating client count", e);
+    }
+};
+
+// --- HELPER: OBTENER TOKENS DE SUBCOLECCIÓN ---
+// (Necesario porque Flutter guarda los tokens en users/{uid}/tokens/{token})
+const getUserTokens = async(userId) => {
+    try {
+        const tokensSnapshot = await db.collection('users').doc(userId).collection('tokens').get();
+        // Mapeamos los IDs de los documentos, ya que en Flutter usamos doc(token).set(...)
+        return tokensSnapshot.docs.map(doc => doc.id);
+    } catch (error) {
+        logger.error(`Error obteniendo tokens para ${userId}:`, error);
+        return [];
     }
 };
 
@@ -92,7 +105,6 @@ export const onCobroPagado = onDocumentUpdated('users/{providerId}/cobros/{cobro
 
 // --- RANKING SYSTEM (V2 - NUEVO) ---
 
-// Al usar 'export const' aquí, YA SE ESTÁ EXPORTANDO. No hace falta repetirlo al final.
 export const notifyOnNewReview = onDocumentCreated('artifacts/{appId}/public/reviews/items/{reviewId}', async(event) => {
     const reviewData = event.data.data();
 
@@ -103,20 +115,17 @@ export const notifyOnNewReview = onDocumentCreated('artifacts/{appId}/public/rev
     if (!targetId || !newRating) return null;
 
     try {
-        // Obtener nombre autor
         const authorDoc = await db.collection('users').doc(authorId).get();
         const authorName = (authorDoc.exists && authorDoc.data().display_name) ? authorDoc.data().display_name : "Un usuario";
 
         const targetUserRef = db.collection('users').doc(targetId);
-        let tokens = [];
 
+        // 1. Calcular nuevo promedio
         await db.runTransaction(async(transaction) => {
             const userDoc = await transaction.get(targetUserRef);
             if (!userDoc.exists) throw new Error("Usuario no existe");
 
             const userData = userDoc.data();
-            tokens = userData.fcmTokens || [];
-
             const currentCount = userData.ratingCount || 0;
             const currentAvg = userData.ratingAvg || 0.0;
             const newCount = currentCount + 1;
@@ -128,6 +137,9 @@ export const notifyOnNewReview = onDocumentCreated('artifacts/{appId}/public/rev
                 lastReviewDate: FieldValue.serverTimestamp()
             });
         });
+
+        // 2. Obtener Tokens (CORREGIDO: Busca en subcolección)
+        const tokens = await getUserTokens(targetId);
 
         if (tokens.length > 0) {
             const emoji = newRating >= 4 ? "🌟" : "👍";
@@ -152,9 +164,9 @@ export const notifyOnNewReview = onDocumentCreated('artifacts/{appId}/public/rev
     }
 });
 
-// --- NUEVO TRIGGER: NOTIFICACIÓN DE NUEVA VENTA ---
+// --- MARKETPLACE & PEDIDOS (V2) ---
 
-// Al usar 'export const' aquí, YA SE ESTÁ EXPORTANDO.
+// 1. NOTIFICAR AL PROVEEDOR (Nueva Venta)
 export const notifyOnNewOrder = onDocumentCreated('orders/{orderId}', async(event) => {
     const orderData = event.data.data();
     if (!orderData) return;
@@ -163,33 +175,21 @@ export const notifyOnNewOrder = onDocumentCreated('orders/{orderId}', async(even
     const clientName = orderData.clientName || "Un cliente";
     const totalAmount = orderData.total || 0;
 
-    if (!providerId) {
-        logger.error("La orden no tiene providerId");
-        return;
-    }
+    if (!providerId) return;
 
     try {
-        // 1. Buscar al proveedor para obtener sus Tokens FCM
-        const providerDoc = await db.collection('users').doc(providerId).get();
-
-        if (!providerDoc.exists) {
-            logger.warn(`Proveedor ${providerId} no encontrado.`);
-            return;
-        }
-
-        const providerData = providerDoc.data();
-        const tokens = providerData.fcmTokens || [];
+        // CORREGIDO: Busca en subcolección 'tokens'
+        const tokens = await getUserTokens(providerId);
 
         if (tokens.length === 0) {
-            logger.info(`El proveedor ${providerId} no tiene tokens FCM registrados.`);
+            logger.info(`El proveedor ${providerId} no tiene tokens registrados.`);
             return;
         }
 
-        // 2. Crear el mensaje Push
         const message = {
             notification: {
                 title: "¡Nueva Venta! 💰",
-                body: `${clientName} te compró por $${totalAmount}. Revisa el comprobante.`
+                body: `${clientName} te compró por $${totalAmount}. Revisa el pedido.`
             },
             data: {
                 type: "new_order",
@@ -199,12 +199,66 @@ export const notifyOnNewOrder = onDocumentCreated('orders/{orderId}', async(even
             tokens: tokens,
         };
 
-        // 3. Enviar
         const response = await messaging.sendEachForMulticast(message);
-        logger.info(`Notificación enviada: ${response.successCount} éxitos, ${response.failureCount} fallos.`);
+        logger.info(`Notificación Venta enviada: ${response.successCount} éxitos.`);
 
     } catch (error) {
         logger.error("Error en notifyOnNewOrder:", error);
+    }
+});
+
+// 2. NOTIFICAR AL CLIENTE (Cambio de Estado) - ¡NUEVO!
+export const notifyOrderStatus = onDocumentUpdated('orders/{orderId}', async(event) => {
+    const newData = event.data.after.data();
+    const oldData = event.data.before.data();
+
+    // Si el estado no cambió, no hacemos nada
+    if (newData.status === oldData.status) return null;
+
+    const clientId = newData.clientId;
+    const newStatus = newData.status; // 'confirmed', 'ready', 'completed'
+    const logisticMessage = newData.logisticMessage || "";
+
+    if (!clientId) return;
+
+    try {
+        // CORREGIDO: Busca tokens del cliente en subcolección
+        const tokens = await getUserTokens(clientId);
+
+        if (tokens.length === 0) return;
+
+        let title = "Actualización de tu pedido";
+        let body = `Tu orden está ahora: ${newStatus}`;
+
+        if (newStatus === 'confirmed') {
+            title = "¡Pedido Confirmado! ✅";
+            body = logisticMessage || "El proveedor ha aceptado tu pedido.";
+        } else if (newStatus === 'ready') {
+            title = "¡Listo para retirar! 📦";
+            body = logisticMessage || "Tu paquete te está esperando.";
+        } else if (newStatus === 'completed') {
+            title = "Pedido Entregado 🎉";
+            body = "Gracias por tu compra. ¡No olvides calificar!";
+        } else if (newStatus === 'cancelled') {
+            title = "Pedido Cancelado ❌";
+            body = "El proveedor ha cancelado la orden.";
+        }
+
+        const message = {
+            notification: { title, body },
+            data: {
+                type: "order_update",
+                orderId: event.params.orderId,
+                click_action: "FLUTTER_NOTIFICATION_CLICK"
+            },
+            tokens: tokens,
+        };
+
+        await messaging.sendEachForMulticast(message);
+        logger.info(`Notificación Cliente enviada: ${title}`);
+
+    } catch (error) {
+        logger.error("Error en notifyOrderStatus:", error);
     }
 });
 
@@ -245,10 +299,8 @@ export const recalculateRankingV1 = v1.firestore.document('ratings/{ratingId}')
         return null;
     });
 
-// Exports de Servi AI (Estos SÍ se quedan porque vienen importados de otro archivo como 'serviAi')
+// Exports de Servi AI
 export const extractInvoiceData = serviAi.extractInvoiceData;
 export const classifyTransaction = serviAi.classifyTransaction;
 export const predictClientRecommendations = serviAi.predictClientRecommendations;
 export const handleUserQuery = serviAi.handleUserQuery;
-
-// --- YA NO PONEMOS LAS OTRAS EXPORTACIONES AQUÍ PORQUE YA ESTÁN ARRIBA ---

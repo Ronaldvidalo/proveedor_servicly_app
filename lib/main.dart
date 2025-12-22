@@ -2,6 +2,7 @@
 // UX/UI Redesigned: 26/11/2025
 // Style: Cyber Glow Integration
 // Update: Integración completa de Módulos Presupuesto (Quotes), Inventario e IA
+// Update: Integración de Notificaciones Push (Firebase Messaging) + Navegación Global
 // ---------------------------------
 
 // Ocultamos conflictos de nombres entre Riverpod y Provider
@@ -13,10 +14,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import explícito para instancias
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 
 // --- Importaciones de Firebase ---
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'firebase_options.dart';
 
 // --- SERVICIOS DE TEMA ---
@@ -35,18 +36,21 @@ import 'package:proveedor_servicly_app/core/services/video_service.dart';
 import 'package:proveedor_servicly_app/core/services/follow_service.dart';
 import 'package:proveedor_servicly_app/core/services/payment_service.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
+import 'package:proveedor_servicly_app/core/services/notification_service.dart'; 
+
+// --- UTILIDADES ---
+import 'package:proveedor_servicly_app/core/utils/global_navigation.dart'; // <--- IMPORTANTE: Llave de Navegación
 
 // --- Modelos y ViewModels ---
 import 'core/models/user_model.dart';
 import 'core/viewmodels/cart_provider.dart';
-// CRÍTICO: Importar el DashboardMetricsViewModel
 import 'package:proveedor_servicly_app/features/dashboard/models/dashboard_metrics_viewmodel.dart';
 
 // --- UI ---
 import 'package:proveedor_servicly_app/features/splash/screens/splash_screen.dart'; 
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart'; 
 
-// --- MÓDULO DE INVENTARIO (Dependencias) ---
+// --- MÓDULO DE INVENTARIO ---
 import 'package:proveedor_servicly_app/features/inventory/data/inventory_repository.dart';
 import 'package:proveedor_servicly_app/features/inventory/services/inventory_intelligence_service.dart';
 import 'package:proveedor_servicly_app/features/agenda/data/repositories/agenda_repository.dart';
@@ -54,8 +58,21 @@ import 'package:proveedor_servicly_app/features/agenda/data/repositories/agenda_
 // --- MÓDULO DE PRESUPUESTOS (QUOTES) & IA ---
 import 'package:proveedor_servicly_app/features/budget/repositories/quote_repository.dart';
 import 'package:proveedor_servicly_app/features/budget/providers/quote_provider.dart';
-import 'package:proveedor_servicly_app/features/budget/services/quote_intelligence_service.dart'; // Import añadido
-import 'package:proveedor_servicly_app/ai/services/gemini_service.dart'; // Import añadido
+import 'package:proveedor_servicly_app/features/budget/services/quote_intelligence_service.dart'; 
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart'; 
+
+// ---------------------------------------------------------------------------
+// --- MANEJADOR DE FONDO (BACKGROUND HANDLER) ---
+// Debe estar FUERA de cualquier clase y ser una función top-level
+// ---------------------------------------------------------------------------
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Aseguramos inicialización para que Firebase funcione en segundo plano
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  print("🌙 Mensaje recibido en segundo plano: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,12 +82,15 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // --- 1. Registrar manejador de notificaciones en segundo plano ---
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   // --- INICIALIZAR APP CHECK ---
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.debug,
   );
 
-  // --- 1. Cargar el NUEVO servicio de tema ---
+  // --- Cargar el servicio de tema ---
   final themeService = ThemeService();
   await themeService.loadTheme(); 
 
@@ -90,7 +110,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // --- 2. Inyectamos el ThemeService actualizado ---
+        // --- ThemeService ---
         ChangeNotifierProvider.value(value: themeService),
 
         // --- PROVEEDORES DE SERVICIOS (Singletons) ---
@@ -104,6 +124,10 @@ class MyApp extends StatelessWidget {
         Provider<PaymentService>(create: (_) => PaymentService()),
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         
+        // --- Inyectamos NotificationService ---
+        // Lo usamos en Home y Dashboard para inicializar
+        Provider<NotificationService>(create: (_) => NotificationService()),
+
         // --- AUTH SERVICE ---
         Provider<AuthService>(create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
@@ -119,10 +143,10 @@ class MyApp extends StatelessWidget {
         // --- REPOSITORIOS CORE ---
         Provider<CrmRepository>(create: (_) => CrmRepository()),
 
-        // --- CRÍTICO: INYECCIÓN DE DASHBOARD VIEWMODEL ---
+        // --- DASHBOARD VIEWMODEL ---
         ChangeNotifierProvider<DashboardMetricsViewModel>(
             create: (context) => DashboardMetricsViewModel(
-              context.read<CrmRepository>(), // Depende de CrmRepository
+              context.read<CrmRepository>(), 
             ),
         ),
         
@@ -151,7 +175,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        // --- PROVIDERS DE ESTADO (Streams Globales) ---
+        // --- PROVIDERS DE ESTADO ---
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
@@ -184,7 +208,7 @@ class MyApp extends StatelessWidget {
           create: (_) => CartProvider(),
         ),
 
-        // --- PROVIDER DE PRESUPUESTOS (QUOTES) ---
+        // --- PROVIDER DE PRESUPUESTOS ---
         ChangeNotifierProxyProvider<UserModel?, QuoteProvider>(
           create: (context) => QuoteProvider(
             repository: context.read<QuoteRepository>(),
@@ -197,10 +221,13 @@ class MyApp extends StatelessWidget {
         ),
       ],
       
-      // --- 3. Consumimos el ThemeService ---
+      // --- Consumimos ThemeService ---
       child: Consumer<ThemeService>(
         builder: (context, themeService, child) {
           return MaterialApp(
+            // --- AQUÍ CONECTAMOS LA NAVEGACIÓN GLOBAL ---
+            navigatorKey: navigatorKey, 
+            
             title: 'Servicly',
             debugShowCheckedModeBanner: false,
             theme: themeService.lightTheme, 

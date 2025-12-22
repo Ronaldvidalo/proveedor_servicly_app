@@ -25,35 +25,41 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   // Actualizar estado (Proveedor)
   Future<void> _updateStatus(OrderStatus newStatus) async {
-    setState(() => _isUpdating = true);
-    try {
-      await FirebaseFirestore.instance
-          .collection('orders') 
-          .doc(_currentOrder.id)
-          .update({
-        'status': newStatus.name,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+  setState(() => _isUpdating = true);
+  try {
+    // 1. Actualizar en Firebase
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(_currentOrder.id)
+        .update({
+      'status': newStatus.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Orden actualizada a: ${newStatus.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context); 
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isUpdating = false);
+    // --- CORRECCIÓN AQUÍ ---
+    // En lugar de usar copyWith, recargamos los datos desde la BD
+    await _refreshOrder(); 
+    // -----------------------
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Orden actualizada a: ${newStatus.name}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // Nota: No hacemos pop() para que veas el cambio en pantalla
     }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isUpdating = false);
   }
+}
 
   // Recargar orden tras calificar (Cliente)
   Future<void> _refreshOrder() async {

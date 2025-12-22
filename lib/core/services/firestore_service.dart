@@ -7,7 +7,7 @@ import '../models/module_model.dart';
 import '../models/category_model.dart'; // Para categorías de PRODUCTOS
 import '../models/portfolio_category_model.dart'; // Para categorías de PORTAFOLIO
 import '../models/portfolio_item_model.dart'; // Para ítems de PORTAFOLIO
-import '../models/provider_profile_model.dart'; // ¡NECESARIO PARA getCatalogData!
+import '../models/provider_profile_model.dart'; // NECESARIO PARA getCatalogData
 
 /// Servicio central para manejar Firestore (CRUD, streams, etc.)
 class FirestoreService {
@@ -32,7 +32,7 @@ class FirestoreService {
   }
 
   // ------------------------------
-  // MÉTODOS USUARIOS (Sin cambios)
+  // MÉTODOS USUARIOS
   // ------------------------------
 
   /// Crea un nuevo documento de usuario en Firestore.
@@ -129,17 +129,16 @@ class FirestoreService {
   }
 
   // ------------------------------
-  // MÉTODOS MÓDULOS (Sin cambios)
+  // MÉTODOS MÓDULOS
   // ------------------------------
 
   Future<List<ModuleModel>> getAvailableModules() async {
-    // ... (código sin cambios) ...
     if (kDebugMode) {
       debugPrint("[FirestoreService] Solicitando getAvailableModules (Future)");
     }
     try {
       final snapshot =
-          await _modulesCollection.orderBy('defaultOrder').get(); // Asumimos orden
+          await _modulesCollection.orderBy('defaultOrder').get(); 
 
       if (snapshot.docs.isEmpty) {
         if (kDebugMode) {
@@ -165,7 +164,6 @@ class FirestoreService {
     required String userId,
     required String templateId,
   }) async {
-    // ... (código sin cambios) ...
     if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Solicitando setPublicProfileTemplate para UID: $userId con templateId: $templateId");
@@ -189,7 +187,7 @@ class FirestoreService {
   }
 
   // ------------------------------
-  // CATEGORÍAS DE PRODUCTOS (Sin cambios)
+  // CATEGORÍAS DE PRODUCTOS
   // ------------------------------
 
   Stream<List<CategoryModel>> getCategoriesStream(String uid) {
@@ -209,7 +207,7 @@ class FirestoreService {
             debugPrint(
                 "[FirestoreService] getCategoriesStream (PRODUCTOS): No se encontraron categorías para UID: $uid.");
           }
-          return <CategoryModel>[]; // Devolver lista vacía tipada
+          return <CategoryModel>[]; 
         }
         if (kDebugMode) {
           debugPrint(
@@ -341,7 +339,7 @@ class FirestoreService {
   }
 
   // ------------------------------
-  // TOKEN FCM (CORREGIDO PARA WEB)
+  // TOKEN FCM
   // ------------------------------
   Future<void> saveDeviceToken(
       {required String uid, required String token}) async {
@@ -352,11 +350,9 @@ class FirestoreService {
       final tokensCollection = _usersCollection.doc(uid).collection('tokens');
       String platformIdentifier = 'unknown';
 
-      // --- CAMBIO APLICADO: Uso de kIsWeb y defaultTargetPlatform ---
       if (kIsWeb) {
         platformIdentifier = 'web';
       } else {
-        // defaultTargetPlatform es seguro para todas las plataformas
         platformIdentifier = defaultTargetPlatform.name;
       }
 
@@ -376,18 +372,14 @@ class FirestoreService {
   }
 
   // ================================================================
-  // === ¡NUEVA SECCIÓN DE MÉTODOS PARA LA COLECCIÓN 'catalogs'! ===
+  // === SECCIÓN DE MÉTODOS PARA LA COLECCIÓN 'catalogs' ===
   // ================================================================
 
-  /// Escribe/sobrescribe el documento de catálogo de un proveedor.
-  /// (Responde a 'setCatalogData')
   Future<void> setCatalogData(String userId, Map<String, dynamic> data) async {
     if (kDebugMode) {
       debugPrint("[FirestoreService] Guardando datos de catálogo para UID: $userId");
     }
     try {
-      // Usamos SET (merge: true) para crear o sobrescribir
-      // el documento de catálogo principal.
       await _catalogsCollection
           .doc(userId)
           .set(data, SetOptions(merge: true));
@@ -397,8 +389,6 @@ class FirestoreService {
     }
   }
 
-  /// Obtiene el documento de catálogo de un proveedor.
-  /// (Usado por 'catalog_editor_screen' para cargar el perfil)
   Future<ProviderProfileModel?> getCatalogData(String userId) async {
     if (kDebugMode) {
       debugPrint(
@@ -409,7 +399,7 @@ class FirestoreService {
       if (doc.exists) {
         return ProviderProfileModel.fromFirestore(doc);
       }
-      return null; // No existe catálogo
+      return null;
     } catch (e) {
       debugPrint('[FirestoreService] !! ERROR al obtener catálogo: $e');
       return null;
@@ -418,14 +408,13 @@ class FirestoreService {
 
   // --- MÉTODOS DE PORTAFOLIO (Apuntando a 'catalogs') ---
 
-  /// (Responde a 'getCatalogPortfolioCategoriesStream')
   Stream<List<PortfolioCategoryModel>> getCatalogPortfolioCategoriesStream(
       String userId) {
     if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Solicitando getCatalogPortfolioCategoriesStream para UID: $userId");
     }
-    return _catalogsCollection // <-- ¡CAMBIO!
+    return _catalogsCollection
         .doc(userId)
         .collection(_portfolioCategoriesCollection)
         .orderBy('order')
@@ -440,14 +429,13 @@ class FirestoreService {
     });
   }
 
-  /// (Responde a 'addCatalogPortfolioCategory')
   Future<void> addCatalogPortfolioCategory(String userId, String name) async {
     if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Añadiendo categoría de PORTAFOLIO (catálogos) '$name' para UID: $userId");
     }
     try {
-      final categoriesRef = _catalogsCollection // <-- ¡CAMBIO!
+      final categoriesRef = _catalogsCollection
           .doc(userId)
           .collection(_portfolioCategoriesCollection);
       final querySnapshot =
@@ -469,7 +457,6 @@ class FirestoreService {
     }
   }
 
-  /// (Responde a 'updateCatalogPortfolioCategory')
   Future<void> updateCatalogPortfolioCategory(
       String userId, String categoryId, String newName) async {
     if (kDebugMode) {
@@ -477,7 +464,7 @@ class FirestoreService {
           "[FirestoreService] Actualizando categoría de PORTAFOLIO (catálogos) $categoryId a '$newName'");
     }
     try {
-      await _catalogsCollection // <-- ¡CAMBIO!
+      await _catalogsCollection
           .doc(userId)
           .collection(_portfolioCategoriesCollection)
           .doc(categoryId)
@@ -489,7 +476,6 @@ class FirestoreService {
     }
   }
 
-  /// (Responde a 'deleteCatalogPortfolioCategory')
   Future<void> deleteCatalogPortfolioCategory(
       String userId, String categoryId) async {
     if (kDebugMode) {
@@ -497,7 +483,7 @@ class FirestoreService {
           "[FirestoreService] Eliminando categoría de PORTAFOLIO (catálogos) $categoryId");
     }
     try {
-      await _catalogsCollection // <-- ¡CAMBIO!
+      await _catalogsCollection
           .doc(userId)
           .collection(_portfolioCategoriesCollection)
           .doc(categoryId)
@@ -509,7 +495,6 @@ class FirestoreService {
     }
   }
 
-  /// (Responde a 'updateCatalogPortfolioCategoriesOrder')
   Future<void> updateCatalogPortfolioCategoriesOrder(
       String userId, Map<String, int> newOrderMap) async {
     if (kDebugMode) {
@@ -518,7 +503,7 @@ class FirestoreService {
     }
     try {
       final batch = _db.batch();
-      final categoriesRef = _catalogsCollection // <-- ¡CAMBIO!
+      final categoriesRef = _catalogsCollection
           .doc(userId)
           .collection(_portfolioCategoriesCollection);
 
@@ -535,14 +520,13 @@ class FirestoreService {
 
   // --- MÉTODOS DE ÍTEMS DE PORTAFOLIO (Apuntando a 'catalogs') ---
 
-  /// (Responde a 'getCatalogPortfolioItemsStream')
   Stream<List<PortfolioItemModel>> getCatalogPortfolioItemsStream(
       String userId, String categoryId) {
     if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Solicitando getCatalogPortfolioItemsStream UID: $userId CatID: $categoryId");
     }
-    return _catalogsCollection // <-- ¡CAMBIO!
+    return _catalogsCollection
         .doc(userId)
         .collection(_portfolioItemsCollection)
         .where('categoryId', isEqualTo: categoryId)
@@ -561,7 +545,6 @@ class FirestoreService {
     });
   }
 
-  /// (Responde a 'addCatalogPortfolioItem')
   Future<void> addCatalogPortfolioItem({
     required String userId,
     required String categoryId,
@@ -573,7 +556,7 @@ class FirestoreService {
       debugPrint(
           "[FirestoreService] addCatalogPortfolioItem UID: $userId CatID: $categoryId Type: $type");
     }
-    final itemsRef = _catalogsCollection // <-- ¡CAMBIO!
+    final itemsRef = _catalogsCollection
         .doc(userId)
         .collection(_portfolioItemsCollection);
 
@@ -606,14 +589,13 @@ class FirestoreService {
     }
   }
 
-  /// (Responde a 'deleteCatalogPortfolioItem')
   Future<void> deleteCatalogPortfolioItem(String userId, String itemId) async {
     if (kDebugMode) {
       debugPrint(
           "[FirestoreService] deleteCatalogPortfolioItem ItemID: $itemId UID: $userId");
     }
     try {
-      await _catalogsCollection // <-- ¡CAMBIO!
+      await _catalogsCollection
           .doc(userId)
           .collection(_portfolioItemsCollection)
           .doc(itemId)
@@ -628,9 +610,8 @@ class FirestoreService {
   }
 
   // --- MÉTODOS OBSOLETOS ---
-  // (Estos apuntan a 'users' y ahora están deprecados)
 
-  @deprecated
+  @Deprecated('Use getCatalogPortfolioCategoriesStream instead')
   Stream<List<PortfolioCategoryModel>> getPortfolioCategoriesStream(
       String userId) {
     debugPrint(
@@ -650,7 +631,7 @@ class FirestoreService {
     });
   }
 
-  @deprecated
+  @Deprecated('Use getCatalogPortfolioItemsStream instead')
   Stream<List<PortfolioItemModel>> getPortfolioItemsStream(
       String userId, String categoryId) {
     debugPrint(
@@ -683,26 +664,22 @@ class FirestoreService {
   }
 
   /// Obtiene un Stream del perfil de marca de un proveedor.
-  /// Devuelve 'null' si el documento aún no existe.
   Stream<ProviderProfileModel?> getBrandProfile(String providerId) {
     return _db
         .collection('brandProfiles')
         .doc(providerId)
-        .snapshots() // Escucha cambios en tiempo real
+        .snapshots() 
         .map((doc) {
       if (doc.exists && doc.data() != null) {
-        // Asumimos que tienes un factory 'fromFirestore' o 'fromMap'
-        // Ajusta esto si tu factory se llama diferente (ej: ProviderProfileModel.fromMap(doc.data()!, doc.id))
         return ProviderProfileModel.fromFirestore(doc);
       } else {
-        // Devuelve null si el perfil de marca aún no se ha creado
         return null;
       }
     });
   }
 
   // --- ¡MÉTODO NUEVO: ACTUALIZAR DISPONIBILIDAD! ---
-  /// Actualiza la disponibilidad del proveedor para recibir trabajos (Switch "Disponible").
+  /// Actualiza la disponibilidad del proveedor para recibir trabajos.
   Future<void> updateProviderAvailability(String uid, bool isAvailable) async {
     if (kDebugMode) {
       debugPrint(
@@ -719,4 +696,46 @@ class FirestoreService {
       debugPrint('[FirestoreService] Error al actualizar disponibilidad: $e');
     }
   }
-} // Fin de la clase FirestoreService
+
+  // Obtener el perfil público (brandProfiles)
+  Future<ProviderProfileModel?> getProviderPublicProfile(String providerId) async {
+    try {
+      // 1. Buscamos en la colección correcta: brandProfiles
+      // CORREGIDO: Uso de _db en lugar de _firestore
+      final doc = await _db.collection('brandProfiles').doc(providerId).get();
+      
+      if (doc.exists) {
+        return ProviderProfileModel.fromFirestore(doc);
+      } 
+      
+      // 2. Fallback (Opcional): Si no existe, intentar leer de users
+      // CORREGIDO: Uso de _db en lugar de _firestore
+      final userDoc = await _db.collection('users').doc(providerId).get();
+      if (userDoc.exists) {
+         return ProviderProfileModel.fromFirestore(userDoc);
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint("Error obteniendo perfil público: $e");
+      return null;
+    }
+  }
+
+  Future<void> updateOrderStatus({
+    required String orderId,
+    required String newStatus, // 'confirmed', 'preparing', 'ready', 'shipping', 'completed'
+    String? logisticMessage,   // Ej: "Retira de 10 a 18hs" o "Llega el Martes"
+  }) async {
+    final Map<String, dynamic> updates = {
+      'status': newStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (logisticMessage != null) {
+      updates['logisticMessage'] = logisticMessage;
+    }
+
+    await _db.collection('orders').doc(orderId).update(updates);
+  }
+}

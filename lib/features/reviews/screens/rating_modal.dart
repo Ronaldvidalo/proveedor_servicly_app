@@ -12,12 +12,12 @@ class RatingModal extends StatefulWidget {
   final String role; // 'PROVIDER' o 'CLIENT'
 
   const RatingModal({
-    Key? key,
+    super.key,
     required this.serviceId,
     required this.authorId,
     required this.targetId,
     required this.role,
-  }) : super(key: key);
+  });
 
   // Método estático helper para mostrar el modal fácilmente desde cualquier lado
   static void show(BuildContext context, {
@@ -43,7 +43,7 @@ class RatingModal extends StatefulWidget {
   }
 
   @override
-  _RatingModalState createState() => _RatingModalState();
+  State<RatingModal> createState() => _RatingModalState();
 }
 
 class _RatingModalState extends State<RatingModal> {
@@ -51,14 +51,16 @@ class _RatingModalState extends State<RatingModal> {
   final TextEditingController _commentController = TextEditingController();
   
   int _rating = 0;
-  List<String> _selectedTags = [];
+  final List<String> _selectedTags = [];
   bool _isSubmitting = false;
 
   final List<String> _providerTags = ["Puntual", "Limpio", "Precio Justo", "Experto", "Amable"];
   final List<String> _clientTags = ["Amable", "Pago Rápido", "Comunicación Clara", "Hospitalario"];
 
   void _submit() async {
-    if (_rating == 0) return;
+    if (_rating == 0) {
+      return;
+    }
     setState(() => _isSubmitting = true);
 
     final review = ReviewModel(
@@ -97,7 +99,7 @@ class _RatingModalState extends State<RatingModal> {
       decoration: BoxDecoration(
         color: CyberColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        border: Border(top: BorderSide(color: activeColor.withOpacity(0.5))),
+        border: Border(top: BorderSide(color: activeColor.withValues(alpha: 0.5))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -124,7 +126,7 @@ class _RatingModalState extends State<RatingModal> {
                   val ? _selectedTags.add(tag) : _selectedTags.remove(tag);
                 }),
                 backgroundColor: CyberColors.background,
-                selectedColor: activeColor.withOpacity(0.2),
+                selectedColor: activeColor.withValues(alpha: 0.2),
                 labelStyle: TextStyle(color: isSelected ? activeColor : Colors.white70),
                 side: BorderSide(color: isSelected ? activeColor : Colors.white12),
               );

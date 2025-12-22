@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:audioplayers/audioplayers.dart'; // Control de audio
+import 'package:audioplayers/audioplayers.dart'; // Audio control
 
-// --- Modelos y Servicios ---
+// --- Models and Services ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; // Import ProviderProfileModel
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 
-// --- Navegación ---
+// --- Navigation ---
 import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
 
 // --- IA Servi ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
-/// Una pantalla donde los usuarios eligen una plantilla para su perfil público.
+/// A screen where users choose a template for their public profile.
 class SelectProfileTemplateScreen extends StatefulWidget {
-  /// El modelo del usuario actual.
+  /// The current user model.
   final UserModel user;
 
   const SelectProfileTemplateScreen({super.key, required this.user});
@@ -26,24 +27,24 @@ class SelectProfileTemplateScreen extends StatefulWidget {
 }
 
 class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScreen> {
-  // --- VARIABLES DE IA Y ESTADO ---
+  // --- AI AND STATE VARIABLES ---
   final ServiVoiceService _voiceService = ServiVoiceService();
   bool _isSpeaking = false;
-  String? _selectedTemplateId; // Para saber cuál está seleccionada
+  String? _selectedTemplateId; // To know which one is selected
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     
-    // 1. Listener para animar al avatar cuando habla
+    // 1. Listener to animate avatar when speaking
     _voiceService.player.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() => _isSpeaking = state == PlayerState.playing);
       }
     });
 
-    // 2. EXPLICACIÓN INICIAL DE LA IA (La diferencia clave)
+    // 2. INITIAL EXPLANATION BY AI
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) {
         _speak("Último paso. ¿Qué formato prefieres? Elige 'Tienda' si vendes productos con carrito de compras, o 'Catálogo' si ofreces servicios y prefieres cotizaciones por WhatsApp.");
@@ -61,7 +62,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
     super.dispose();
   }
 
-  /// Guarda la selección y navega a la configuración de marca
+  /// Saves the selection and navigates to brand settings
   Future<void> _confirmAndNavigate() async {
     if (_selectedTemplateId == null) {
       _speak("Por favor, selecciona una opción para continuar.");
@@ -70,39 +71,67 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
 
     setState(() => _isLoading = true);
     
-    // Opcional: Guardar la selección en Firestore antes de avanzar
     final firestore = context.read<FirestoreService>();
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     if (uid != null) {
       try {
+        // 1. We update the User in Firestore just in case
         await firestore.updateUser(uid, {
-          'profileTemplate': _selectedTemplateId,
-          'publicProfileCreated': true, // Marcamos el hito
+          'publicProfileTemplate': _selectedTemplateId,
+          'publicProfileCreated': true, 
         });
+
+        // 2. CRITICAL: We fetch the FRESH data from the 'brandProfiles' or 'users' collection
+        // to make sure we have the businessName entered in Onboarding.
+        // Since Onboarding creates the brandProfile, we should try to fetch it.
+        ProviderProfileModel? currentProfile = await firestore.getProviderPublicProfile(uid);
+        
+        // If it doesn't exist yet (edge case), we create a temporary one with the User data
+        // and the template we just selected.
+        currentProfile ??= ProviderProfileModel(
+            providerId: uid,
+            businessName: widget.user.displayName ?? 'Mi Negocio', // Fallback to user name
+            logoUrl: '',
+            brandColor: Colors.blue,
+            activeModules: [],
+            profileType: _selectedTemplateId!,
+            contactEmail: widget.user.email ?? '',
+            welcomeMessage: '¡Bienvenidos!',
+            publicProfileTemplate: _selectedTemplateId, // IMPORTANT: Pass the selection
+          );
+        
+        // If the profile existed but didn't have the template set, we force it in the local object
+        if (currentProfile.publicProfileTemplate != _selectedTemplateId) {
+           currentProfile = currentProfile.copyWith(publicProfileTemplate: _selectedTemplateId);
+        }
+
+        if (!mounted) return;
+
+        // Final Feedback
+        await _speak("¡Excelente elección! Ahora personalicemos tu marca.");
+        await Future.delayed(const Duration(milliseconds: 1000));
+
+        if (!mounted) return;
+
+        // 3. Navigate passing the PRE-FILLED profile object
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => BrandSettingsScreen(
+              user: widget.user,
+              brandProfile: currentProfile, // <--- THIS IS THE FIX. We pass the object with data.
+            ),
+          ),
+        );
+
       } catch (e) {
-        debugPrint("Error guardando template: $e");
+        debugPrint("Error saving template or navigating: $e");
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+           setState(() => _isLoading = false);
+        }
       }
     }
-
-    if (!mounted) return;
-
-    // Feedback final
-    await _speak("¡Excelente elección! Ahora personalicemos tu marca.");
-    
-    // Pequeña pausa para que se escuche el feedback
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => BrandSettingsScreen(
-          user: widget.user,
-          // initialTemplateId: _selectedTemplateId, // Si tu BrandSettings lo soporta
-        ),
-      ),
-    );
   }
 
   @override
@@ -116,7 +145,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false, // Quitamos botón atrás para obligar flujo
+        automaticallyImplyLeading: false, 
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -145,7 +174,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
                 ),
                 const SizedBox(height: 24),
                 
-                // OPCIÓN 1: PERFIL PROFESIONAL
+                // OPTION 1: PROFESSIONAL PROFILE
                 _TemplateOptionCard(
                   icon: Icons.person_outline,
                   title: 'Perfil Profesional (CV)',
@@ -158,7 +187,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
                   },
                 ),
 
-                // OPCIÓN 2: TIENDA (STORE)
+                // OPTION 2: STORE
                 _TemplateOptionCard(
                   icon: Icons.store_outlined,
                   title: 'Tienda de Servicios',
@@ -171,7 +200,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
                   },
                 ),
 
-                // OPCIÓN 3: CATÁLOGO
+                // OPTION 3: CATALOG
                 _TemplateOptionCard(
                   icon: Icons.collections_bookmark_outlined,
                   title: 'Catálogo de Servicios',
@@ -187,7 +216,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
             ),
           ),
           
-          // BOTÓN DE CONFIRMACIÓN
+          // CONFIRMATION BUTTON
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -220,7 +249,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
   }
 }
 
-/// Widget para una tarjeta de opción de plantilla con estado de selección.
+/// Widget for a template option card with selection state.
 class _TemplateOptionCard extends StatelessWidget {
   final IconData icon;
   final String title;
