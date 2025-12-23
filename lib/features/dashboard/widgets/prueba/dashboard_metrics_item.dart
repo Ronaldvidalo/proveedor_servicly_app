@@ -35,10 +35,10 @@ class DashboardMetricsItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surface, 
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.primary.withOpacity(0.3), width: 1),
+          border: Border.all(color: colors.primary.withValues(alpha:0.3), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -103,7 +103,7 @@ class _MetricValue extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color.withOpacity(0.8), size: 24),
+        Icon(icon, color: color.withValues(alpha: 0.8), size: 24),
         const SizedBox(height: 4),
         Text(
           value, 
@@ -115,7 +115,7 @@ class _MetricValue extends StatelessWidget {
         Text(
           label, 
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6)
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6)
           )
         ),
       ],

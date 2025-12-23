@@ -32,10 +32,12 @@ class DashboardMetricsCard extends StatelessWidget {
         color: colors.surface, // Fondo oscuro del tema
         borderRadius: BorderRadius.circular(16),
         // Borde sutil brillante
-        border: Border.all(color: colors.primary.withOpacity(0.3), width: 1),
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        border: Border.all(color: colors.primary.withValues(alpha: 0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -51,11 +53,13 @@ class DashboardMetricsCard extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: colors.primary.withOpacity(0.5), width: 1),
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.5), width: 1),
                 ),
                 child: CircleAvatar(
                   radius: 20,
-                  backgroundColor: colors.primary.withOpacity(0.1),
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  backgroundColor: colors.primary.withValues(alpha: 0.1),
                   backgroundImage: photoURL != null && photoURL.isNotEmpty 
                       ? NetworkImage(photoURL) 
                       : null,
@@ -100,7 +104,8 @@ class DashboardMetricsCard extends StatelessWidget {
             ],
           ),
           
-          Divider(height: 24, color: colors.onSurface.withOpacity(0.1)),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          Divider(height: 24, color: colors.onSurface.withValues(alpha: 0.1)),
           
           // --- Fila de Métricas (AHORA REACTIVA) ---
           Row(
@@ -152,7 +157,8 @@ class _MetricItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: colors.primary.withOpacity(0.8), size: 24),
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        Icon(icon, color: colors.primary.withValues(alpha: 0.8), size: 24),
         const SizedBox(height: 4),
         Text(
           value, 
@@ -164,7 +170,8 @@ class _MetricItem extends StatelessWidget {
         Text(
           label, 
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colors.onSurface.withOpacity(0.6)
+            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+            color: colors.onSurface.withValues(alpha: 0.6)
           )
         ),
       ],

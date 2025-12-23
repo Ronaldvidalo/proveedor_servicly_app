@@ -75,6 +75,8 @@ class ContactFormViewModel extends ChangeNotifier {
       // 3. Llamar al Repositorio para crear el contacto en Firestore
       await _repository.createCliente(data);
 
+      if (!context.mounted) return; // ✅ Validación de seguridad añadida
+
       // 4. Éxito y limpieza
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Contacto ${_nombre.trim()} creado exitosamente como ${_estadoSeleccionado.name.toUpperCase()}')),
@@ -89,6 +91,9 @@ class ContactFormViewModel extends ChangeNotifier {
       if (e.toString().contains('PERMISSION_DENIED')) {
          message = 'Límite de contactos alcanzado. Por favor, mejora a Plan Pro.';
       }
+      
+      if (!context.mounted) return; // ✅ Validación de seguridad añadida
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );

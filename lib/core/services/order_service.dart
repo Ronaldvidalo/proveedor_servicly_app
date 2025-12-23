@@ -29,7 +29,7 @@ class OrderService {
     return _db
         .collection('orders')
         .where('providerId', isEqualTo: providerId)
-        .where('status', isEqualTo: OrderStatus.pending_verification.name)
+        .where('status', isEqualTo: OrderStatus.pendingVerification.name)
         .orderBy('createdAt', descending: false) // Las más antiguas primero
         .snapshots()
         .map((snapshot) {

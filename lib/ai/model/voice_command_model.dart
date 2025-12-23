@@ -1,11 +1,11 @@
 // Define todas las intenciones que puede manejar el sistema.
 enum VoiceIntent { 
   saludo,
-  crear_evento,
-  proxima_cita,
-  cancelar_evento,
-  anadir_cliente,
-  cambiar_estado,
+  crearEvento,
+  proximaCita,
+  cancelarEvento,
+  anadirCliente,
+  cambiarEstado,
   // ... otras intenciones (stock, finanzas, etc.)
   desconocida,
 }

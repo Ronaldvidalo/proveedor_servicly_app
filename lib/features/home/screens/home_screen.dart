@@ -4,6 +4,7 @@
 // QA FIX 26/11/2025: Theme Integration
 // UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
 // UPDATE: Integración Notificaciones Push (Cliente)
+// UPDATE: Integración IA Servi (Conserje Virtual 360)
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -22,7 +23,7 @@ import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 import 'package:proveedor_servicly_app/core/services/marketplace_service.dart';
-import 'package:proveedor_servicly_app/core/services/notification_service.dart'; // <--- NUEVO IMPORT
+import 'package:proveedor_servicly_app/core/services/notification_service.dart'; 
 
 // --- IMPORTACIONES DE UBICACIÓN ---
 import 'package:proveedor_servicly_app/providers/location_provider.dart';
@@ -34,6 +35,14 @@ import 'package:proveedor_servicly_app/widgets/video_showcase_section.dart';
 
 // --- IMPORTACIONES DE NAVEGACIÓN ---
 import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart'; 
+
+// --- NUEVOS IMPORTS PARA SERVI (IA) ---
+import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
+import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
+import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
+import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:audioplayers/audioplayers.dart'; // Para el estado del player
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -61,6 +70,14 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   String _searchTerm = '';
   bool _isNearbyFilterActive = false;
 
+  // --- VARIABLES DE SERVI (IA) ---
+  final ServiVoiceService _voiceService = ServiVoiceService();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isSpeaking = false;
+  bool _isListening = false;
+  bool _isThinking = false;
+  // ------------------------------
+
   // DEFINICIÓN DE PESTAÑAS (Coinciden con publicProfileTemplate en BD)
   // IMPORTANTE: Estos IDs deben ser iguales a los que guardamos en BrandSettings
   final List<Map<String, String>> _profileTypes = [
@@ -84,12 +101,21 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
       setState(() => _searchTerm = _searchController.text);
     });
 
+    // --- INIT SERVI LISTENERS ---
+    _voiceService.player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _isSpeaking = state == PlayerState.playing);
+    });
+
     // --- SOLICITUD DE NOTIFICACIONES (CLIENTE) ---
     // Esto asegura que el cliente reciba alertas de sus pedidos
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+       if (!mounted) return; 
        // Usamos context.read del paquete Provider (gracias al import oculto arriba)
-       await context.read<NotificationService>().init();
-       await context.read<NotificationService>().saveTokenToDatabase();
+       final notificationService = context.read<NotificationService>();
+       await notificationService.init();
+       
+       if (!mounted) return; 
+       await notificationService.saveTokenToDatabase();
        debugPrint("🔔 Notificaciones configuradas para el Home de Cliente");
     });
   }
@@ -98,7 +124,111 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    // Limpieza de Servi
+    _voiceService.dispose();
+    _speech.stop();
     super.dispose();
+  }
+
+  // --- LÓGICA DE SERVI: EL CONSERJE ---
+  Future<void> _handleServiTap() async {
+    if (_isThinking) return;
+
+    if (_isListening) {
+      // Si está escuchando y toco, forzamos parada y proceso lo que tenga
+      _speech.stop(); 
+      setState(() => _isListening = false);
+    } else if (_isSpeaking) {
+      // Si está hablando y toco, se calla
+      await _voiceService.stop();
+      setState(() => _isSpeaking = false);
+    } else {
+      // Si está quieto, saludo inicial o escucha directa
+      if (_searchTerm.isEmpty) {
+         await _speak("Hola, soy Servi. ¿Buscás algún producto, tienda o servicio cerca?");
+         // Pequeña pausa para que termine de hablar antes de escuchar
+         await Future.delayed(const Duration(milliseconds: 2500)); 
+         if (mounted) _listen();
+      } else {
+         // Si ya hay búsqueda, escucha directo
+         _listen();
+      }
+    }
+  }
+
+  Future<void> _speak(String text) async {
+    if (!mounted) return;
+    setState(() => _isSpeaking = true);
+    await _voiceService.speak(text);
+    if (mounted) setState(() => _isSpeaking = false);
+  }
+
+  Future<void> _listen() async {
+    bool available = await _speech.initialize(
+      onError: (e) => _speak("No te escuché bien. Intenta de nuevo."),
+      onStatus: (status) {
+          if (status == 'notListening' && mounted) setState(() => _isListening = false);
+      }
+    );
+
+    if (available) {
+      if (!mounted) return;
+      setState(() => _isListening = true);
+      _speech.listen(
+        localeId: 'es_AR',
+        onResult: (val) {
+          if (val.finalResult) {
+            _processVoiceQuery(val.recognizedWords);
+          }
+        }
+      );
+    }
+  }
+
+  Future<void> _processVoiceQuery(String query) async {
+    if (query.trim().isEmpty) return;
+    
+    setState(() {
+      _isListening = false;
+      _isThinking = true;
+    });
+
+    try {
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest'; // Soporte para invitados
+        
+        // Conectamos con el Cerebro 360
+        final geminiService = GeminiService();
+        final apiConnector = ServiApiConnectorService(geminiService); 
+        
+        final response = await apiConnector.callServiLLM(query, userId);
+        
+        String voiceText = response['TEXTO_VOZ'] ?? "Listo.";
+        
+        // --- MAGIA: APLICAR FILTROS AUTOMÁTICOS ---
+        // Si Servi detectó una intención clara, actualizamos la UI del Marketplace
+        
+        // 1. Si encontró profesionales/tiendas en la respuesta, filtramos por la query original
+        // Esto permite que si dices "Zapatos", el buscador se ponga en "Zapatos"
+        if (response.containsKey('PROFESIONALES_ENCONTRADOS') || response.containsKey('PRODUCTOS_MERCADO')) {
+            _searchController.text = query; 
+            voiceText = "Encontré estas opciones para vos.";
+        }
+        
+        // 2. Si es búsqueda de cercanía
+        if (query.toLowerCase().contains('cerca') && !_isNearbyFilterActive) {
+            _toggleNearbyFilter(); // Activamos el filtro GPS visualmente
+            voiceText = "Buscando opciones cercanas a tu ubicación.";
+        }
+
+        // Feedback de voz
+        await _speak(voiceText);
+
+    } catch (e) {
+        debugPrint("Error Servi Home: $e");
+        await _speak("Tuve un problema buscando eso. ¿Probamos manual?");
+    } finally {
+        if (mounted) setState(() => _isThinking = false);
+    }
   }
 
   String _getSelectedProfileType() {
@@ -126,6 +256,22 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      
+      // --- INTEGRACIÓN: BOTÓN FLOTANTE SERVI ---
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: GestureDetector(
+            onTap: _handleServiTap,
+            child: ServiAvatar(
+                isSpeaking: _isSpeaking,
+                isListening: _isListening,
+                isThinking: _isThinking,
+                size: 65, 
+            ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
       appBar: AppBar(
         title: const Text('Explorar Servicios'),
         backgroundColor: theme.appBarTheme.backgroundColor,
@@ -148,7 +294,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             title: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: TextField(
-                controller: _searchController,
+                controller: _searchController, // Servi escribirá aquí automáticamente
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Busca nombre, servicio o dirección...',
@@ -209,7 +355,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               var providers = snapshot.data!;
               
               // --- FILTRO MANUAL (DEBUGGEABLE) ---
-              final int totalCount = providers.length;
               
               // 1. Filtro por Pestaña (Store, Catalog, etc.)
               if (selectedProfileType != 'all') {
@@ -227,7 +372,9 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                 providers = providers.where((p) {
                   final nameMatch = p.businessName.toLowerCase().contains(term);
                   final addressMatch = (p.address?.toLowerCase() ?? '').contains(term);
-                  return nameMatch || addressMatch;
+                  // NUEVO: Permitimos buscar por Categoría para que Servi funcione mejor (Ej: "Plomero")
+                  final categoryMatch = (p.mainCategory?.toLowerCase() ?? '').contains(term);
+                  return nameMatch || addressMatch || categoryMatch;
                 }).toList();
               }
 
@@ -248,8 +395,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                   return 0; // Sin cambios si no tienen ubicación
                 });
               }
-
-              // debugPrint("Marketplace: Total en BD: $totalCount | Mostrando: ${providers.length} (Filtro: $selectedProfileType)");
 
               if (providers.isEmpty) {
                 return SliverToBoxAdapter(
@@ -339,8 +484,8 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             FilterChip(
               avatar: _isNearbyFilterActive 
                 ? (locationState.isLoading 
-                    ? Padding(padding: const EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary)) 
-                    : Icon(Icons.near_me, size: 16, color: colorScheme.onPrimary))
+                  ? Padding(padding: const EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary)) 
+                  : Icon(Icons.near_me, size: 16, color: colorScheme.onPrimary))
                 : Icon(Icons.near_me_outlined, size: 16, color: colorScheme.primary),
               label: const Text("Cerca de mí"),
               selected: _isNearbyFilterActive,
@@ -458,7 +603,8 @@ class _UserAvatarMenu extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(user?.displayName ?? "Usuario", style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-              Text(user?.email ?? "", style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.6))),
+              // ✅ Fix: withValues instead of withOpacity
+              Text(user?.email ?? "", style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.6))),
               const Divider(),
             ],
           ),

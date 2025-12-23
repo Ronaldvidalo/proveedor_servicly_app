@@ -44,12 +44,14 @@ class CyberContainer extends StatelessWidget {
                 // En modo oscuro: Borde sutil o brillante si está activo
                 color: borderGlow 
                     ? accentColor 
-                    : Colors.white.withOpacity(0.05),
+                    // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                    : Colors.white.withValues(alpha: 0.05),
                 width: 1,
               )
             : Border.all(
                 // En modo claro: Borde casi invisible para definición
-                color: Colors.black.withOpacity(0.05),
+                // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                color: Colors.black.withValues(alpha: 0.05),
                 width: 1,
               ),
         boxShadow: [
@@ -57,15 +59,18 @@ class CyberContainer extends StatelessWidget {
             // --- MODO CYBER GLOW (Oscuro) ---
             BoxShadow(
               color: borderGlow 
-                  ? accentColor.withOpacity(0.25) // Glow intenso si está activo
-                  : Colors.black.withOpacity(0.3), // Sombra base
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  ? accentColor.withValues(alpha: 0.25) // Glow intenso si está activo
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  : Colors.black.withValues(alpha: 0.3), // Sombra base
               blurRadius: borderGlow ? 12 : 8,
               offset: const Offset(0, 4),
             )
           else
             // --- MODO CLEAN (Claro) ---
             BoxShadow(
-              color: Colors.black.withOpacity(0.06), // Sombra corporativa suave
+              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+              color: Colors.black.withValues(alpha: 0.06), // Sombra corporativa suave
               blurRadius: 10,
               offset: const Offset(0, 5),
               spreadRadius: -2, // Efecto "flotante" moderno
@@ -78,8 +83,10 @@ class CyberContainer extends StatelessWidget {
           borderRadius: BorderRadius.circular(borderRadius),
           onTap: onTap,
           // El splash color también se adapta a tu paleta
-          splashColor: accentColor.withOpacity(0.1),
-          highlightColor: accentColor.withOpacity(0.05),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          splashColor: accentColor.withValues(alpha: 0.1),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          highlightColor: accentColor.withValues(alpha: 0.05),
           child: Padding(
             padding: padding,
             child: child,

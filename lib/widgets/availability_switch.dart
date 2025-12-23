@@ -25,7 +25,8 @@ class _AvailabilitySwitchState extends State<AvailabilitySwitch> {
         _isAvailable ? Icons.notifications_active : Icons.notifications_off,
         color: _isAvailable ? Colors.green : Colors.grey,
       ),
-      onChanged: (bool value) async {
+      // Deshabilitamos el switch si está cargando
+      onChanged: _isLoading ? null : (bool value) async {
         if (value == true) {
           // El usuario quiere activarse -> PEDIR PERMISO
           setState(() => _isLoading = true);
@@ -33,6 +34,9 @@ class _AvailabilitySwitchState extends State<AvailabilitySwitch> {
           // 1. Llamamos a la función que creamos en AuthService
           bool granted = await authService.requestNotificationPermission();
           
+          // ✅ CORRECCIÓN: Verificar si el widget sigue montado antes de usar setState o context
+          if (!mounted) return;
+
           setState(() => _isLoading = false);
 
           if (granted) {
@@ -45,9 +49,7 @@ class _AvailabilitySwitchState extends State<AvailabilitySwitch> {
           } else {
             // Permiso denegado: No activamos el switch y explicamos por qué
             setState(() => _isAvailable = false);
-            if (mounted) {
-              _showPermissionDeniedDialog(context);
-            }
+            _showPermissionDeniedDialog(context);
           }
         } else {
           // El usuario se desactiva (no requiere permisos, solo lógica de negocio)

@@ -16,7 +16,8 @@ class InventoryIntelligenceService {
     
     // Asumimos que su ProductModel tiene estos campos. Usamos 0/null como fallback.
     final currentQuantity = product.quantity ?? 0;
-    final minStock = product.minStock ?? 5; 
+    // ✅ CORRECCIÓN: Eliminado '?? 5' ya que minStock no es nullable
+    final minStock = product.minStock; 
     
     // --- LÓGICA 1: Tarea de Caducidad ---
     if (product.expiryDate != null) {
@@ -32,7 +33,7 @@ class InventoryIntelligenceService {
           description: 'El producto ${product.name} caduca en $daysUntilExpiry días. Revisa si se puede vender con descuento o si debe ser desechado.',
           startTime: reviewDate,
           endTime: reviewDate.add(const Duration(minutes: 30)), // Bloqueo de 30 minutos
-          eventType: EventType.personal_reminder, 
+          eventType: EventType.personalReminder, 
           providerId: _userId, 
           isAllDay: false,
         );
@@ -48,7 +49,7 @@ class InventoryIntelligenceService {
           description: 'El stock ($currentQuantity) de ${product.name} está en o por debajo del nivel mínimo ($minStock). ¡Es hora de realizar un pedido!',
           startTime: DateTime.now().add(const Duration(hours: 1)), // Sugerencia de tarea inmediata
           endTime: DateTime.now().add(const Duration(hours: 1, minutes: 30)),
-          eventType: EventType.personal_reminder,
+          eventType: EventType.personalReminder,
           providerId: _userId,
           isAllDay: false,
         );

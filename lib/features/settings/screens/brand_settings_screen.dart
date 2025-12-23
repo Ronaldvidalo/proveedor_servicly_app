@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:audioplayers/audioplayers.dart'; 
+import 'package:audioplayers/audioplayers.dart';
 
 // --- Imports para el Tour ---
 import 'package:showcaseview/showcaseview.dart';
@@ -22,7 +22,8 @@ import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
-// --- IMPORTAR LOS WIDGETS REUTILIZABLES (NUEVO ARCHIVO) ---
+// --- IMPORTAR LOS WIDGETS REUTILIZABLES ---
+// Asegúrate de que esta ruta sea correcta según donde guardaste el archivo
 import 'package:proveedor_servicly_app/features/settings/widgets/brand_settings_widgets.dart';
 
 // Data Prefijos
@@ -32,6 +33,7 @@ final Map<String, String> _countryDialCodes = {
   'UY': '+598', 'VE': '+58', 'ES': '+34',
 };
 
+// Función auxiliar para color (Local o importada de widgets, ambas funcionan)
 Color? _colorFromHex(String? hexColor) {
   if (hexColor == null || hexColor.isEmpty) return null;
   final hexCode = hexColor.replaceAll('#', '');
@@ -59,14 +61,14 @@ class BrandSettingsScreen extends StatefulWidget {
 class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // --- Claves Globales para el Tour ---
+  // --- Claves Globales para el Tour (Showcase) ---
   final GlobalKey _keyIdentitySection = GlobalKey();
   final GlobalKey _keyColorSection = GlobalKey();
   final GlobalKey _keyThemeSection = GlobalKey();
   final GlobalKey _keyFormatSection = GlobalKey();
   final GlobalKey _keySaveButton = GlobalKey();
 
-  BuildContext? _showCaseContext; 
+  BuildContext? _showCaseContext;
 
   late TextEditingController _businessNameController;
   late TextEditingController _sloganController;
@@ -83,7 +85,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _facebookController;
   late TextEditingController _tiktokController;
 
-  String _currentDialCode = '+54'; 
+  String _currentDialCode = '+54';
 
   bool _isLoading = false;
   XFile? _selectedImageFile;
@@ -102,6 +104,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // Inicialización de controladores
     _businessNameController = TextEditingController();
     _sloganController = TextEditingController();
     _addressController = TextEditingController();
@@ -116,23 +119,26 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
     _initializeFields();
 
+    // Listener para la animación del Avatar
     _voiceService.player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _isSpeaking = state == PlayerState.playing);
     });
 
+    // Iniciar chequeo del Tour
     _checkIfFirstTime();
   }
 
   Future<void> _checkIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
-    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v3') ?? false;
+    // CAMBIÉ A 'v4' PARA FORZAR QUE TE APAREZCA EL TOUR AL PROBAR ESTE CÓDIGO
+    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v4') ?? false;
 
     if (!hasSeenTour) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _speak("Bienvenido al estudio de diseño. Aquí definiremos cómo te ve el mundo. Ya cargué tus datos básicos.");
+        await _speak("Bienvenido al estudio de diseño. Aquí definiremos cómo te ve el mundo. Toca los elementos resaltados.");
         if (mounted) {
           _startTour();
-          prefs.setBool('hasSeenBrandSettingsTour_v3', true);
+          prefs.setBool('hasSeenBrandSettingsTour_v4', true);
         }
       });
     }
@@ -140,11 +146,20 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
   void _startTour() {
     if (_showCaseContext != null) {
-      ShowCaseWidget.of(_showCaseContext!).startShowCase([_keyIdentitySection, _keyColorSection, _keyThemeSection, _keyFormatSection, _keySaveButton]);
+      ShowCaseWidget.of(_showCaseContext!).startShowCase([
+        _keyIdentitySection,
+        _keyColorSection,
+        _keyThemeSection,
+        _keyFormatSection,
+        _keySaveButton
+      ]);
+    } else {
+      debugPrint("Error: _showCaseContext es nulo");
     }
   }
 
   Future<void> _speak(String text) async {
+    // Asegúrate de que la configuración de audio esté activa en tu dispositivo/simulador
     await _voiceService.speak(text);
   }
 
@@ -159,32 +174,47 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
   void _onShowcaseStepStart(int? index, GlobalKey key) {
     String script = _getScriptForStep(key);
+    
+    // Aseguramos que el widget sea visible (scroll automático)
     if (key.currentContext != null) {
-      Scrollable.ensureVisible(key.currentContext!, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut, alignment: 0.5);
+      Scrollable.ensureVisible(
+        key.currentContext!, 
+        duration: const Duration(milliseconds: 600), 
+        curve: Curves.easeInOut, 
+        alignment: 0.5
+      );
     }
+    
     if (script.isNotEmpty) {
-      Future.delayed(const Duration(milliseconds: 400), () { if (mounted) _speak(script); });
+      // Pequeño delay para que coincida con la animación visual
+      Future.delayed(const Duration(milliseconds: 400), () { 
+        if (mounted) _speak(script); 
+      });
     }
   }
 
   void _giveContextualHelp() {
-    if (_isSpeaking) { _voiceService.stop(); return; }
-    _speak("Estás en el editor de marca. Aquí puedes cambiar colores, logos y redes sociales cuando quieras. No olvides guardar al final.");
+    if (_isSpeaking) { 
+      _voiceService.stop(); 
+      return; 
+    }
+    _speak("Estás en el editor de marca. Toca el signo de interrogación arriba para reiniciar el tour guiado.");
   }
 
   void _initializeFields() {
     final brand = widget.brandProfile;
-    final userLegacy = widget.user.personalization; 
+    final userLegacy = widget.user.personalization;
 
     _businessNameController.text = brand?.businessName ?? userLegacy['businessName'] ?? widget.user.displayName ?? '';
     _sloganController.text = brand?.slogan ?? userLegacy['slogan'] ?? '';
     _addressController.text = brand?.address ?? userLegacy['address'] ?? '';
     _contactEmailController.text = brand?.contactEmail ?? widget.user.email ?? '';
-    
+
     String countryCode = brand?.country ?? userLegacy['country'] ?? 'AR';
     _countryController.text = countryCode;
-    _currentDialCode = _countryDialCodes[countryCode] ?? '+54'; 
+    _currentDialCode = _countryDialCodes[countryCode] ?? '+54';
 
+    // Lógica para limpiar el prefijo si ya existe en la DB
     String rawPhone = brand?.phone ?? userLegacy['phone'] ?? '';
     if (rawPhone.startsWith(_currentDialCode)) {
       _phoneController.text = rawPhone.substring(_currentDialCode.length).trim();
@@ -217,12 +247,17 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _businessNameController.dispose(); _sloganController.dispose(); _addressController.dispose();
     _contactEmailController.dispose(); _countryController.dispose(); _phoneController.dispose();
     _whatsappController.dispose(); _websiteController.dispose(); _instagramController.dispose();
-    _facebookController.dispose(); _tiktokController.dispose(); _voiceService.dispose(); 
+    _facebookController.dispose(); _tiktokController.dispose(); 
+    _voiceService.dispose();
     super.dispose();
   }
 
+  // Usamos PublicThemeData importado del archivo de widgets
   PublicThemeData _getPublicThemeData(String themeId) {
-    return publicProfileThemes.firstWhere((t) => t.id == themeId, orElse: () => publicProfileThemes.firstWhere((t) => t.id == 'cyber_glow'));
+    return publicProfileThemes.firstWhere(
+      (t) => t.id == themeId, 
+      orElse: () => publicProfileThemes.firstWhere((t) => t.id == 'cyber_glow')
+    );
   }
 
   Future<void> _pickImage() async {
@@ -272,7 +307,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         } catch (e) { debugPrint("Error geocoding: $e"); }
       }
 
-      final hexColor = '#${_selectedBrandColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+      final hexColor = '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}';
       final fullPhone = _phoneController.text.trim().isNotEmpty ? "$_currentDialCode ${_phoneController.text.trim()}" : "";
       final fullWhatsapp = _whatsappController.text.trim().isNotEmpty ? "$_currentDialCode ${_whatsappController.text.trim()}" : "";
 
@@ -316,6 +351,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   Widget build(BuildContext context) {
     final ThemeData appTheme = Theme.of(context);
     final PublicThemeData publicTheme = _getPublicThemeData(_selectedPublicTheme);
+    // getOnColor viene de brand_settings_widgets.dart
     final ThemeData previewTheme = appTheme.copyWith(
       colorScheme: appTheme.colorScheme.copyWith(surface: publicTheme.surface, onPrimary: getOnColor(_selectedBrandColor)),
       scaffoldBackgroundColor: publicTheme.background,
@@ -323,14 +359,39 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
     return ShowCaseWidget(
       onStart: (index, key) => _onShowcaseStepStart(index, key),
-      onComplete: (index, key) { if (index == 4) _speak("¡Todo listo! Tienes una marca increíble."); },
+      onComplete: (index, key) { 
+        if (index == 4) _speak("¡Todo listo! Tienes una marca increíble."); 
+      },
       builder: (context) {
         _showCaseContext = context;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Editar Perfil Público'),
-            backgroundColor: appTheme.scaffoldBackgroundColor, foregroundColor: appTheme.colorScheme.onSurface, elevation: 0,
-            actions: [Padding(padding: const EdgeInsets.only(right: 16.0), child: Center(child: ServiAvatar(isSpeaking: _isSpeaking, size: 35, onTap: _giveContextualHelp)))],
+            backgroundColor: appTheme.scaffoldBackgroundColor, 
+            foregroundColor: appTheme.colorScheme.onSurface, 
+            elevation: 0,
+            actions: [
+              // --- 1. Botón Manual para reiniciar el Tour ---
+              IconButton(
+                icon: const Icon(Icons.help_outline_rounded),
+                tooltip: 'Iniciar Tour Guiado',
+                onPressed: () {
+                   _speak("Reiniciando el tour guiado.");
+                   _startTour();
+                },
+              ),
+              // --- 2. Avatar de la IA ---
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0, left: 8.0), 
+                child: Center(
+                  child: ServiAvatar(
+                    isSpeaking: _isSpeaking, 
+                    size: 35, 
+                    onTap: _giveContextualHelp
+                  )
+                )
+              )
+            ],
           ),
           backgroundColor: previewTheme.scaffoldBackgroundColor,
           body: Theme(
@@ -350,18 +411,62 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       constraints: const BoxConstraints(maxWidth: 700),
                       child: Column(
                         children: [
+                          // --- Sección 1 con Tour ---
                           BrandSectionCard(title: 'Identidad de Marca (Público)', children: [
-                            Showcase(key: _keyIdentitySection, title: 'Tu Marca', description: 'Sube tu logo y define el nombre de tu negocio.', child: IdentityCard(imageFile: _selectedImageFile, existingLogoUrl: _existingLogoUrl, nameController: _businessNameController, decoration: inputDecoration, onTapLogo: _pickImage)),
+                            Showcase(
+                              key: _keyIdentitySection, 
+                              title: 'Tu Marca', 
+                              description: 'Sube tu logo y define el nombre de tu negocio.', 
+                              child: IdentityCard(
+                                imageFile: _selectedImageFile, 
+                                existingLogoUrl: _existingLogoUrl, 
+                                nameController: _businessNameController, 
+                                decoration: inputDecoration, 
+                                onTapLogo: _pickImage
+                              )
+                            ),
                             const SizedBox(height: 24),
-                            Showcase(key: _keyColorSection, title: 'Color de Acento', description: 'Elige un color que represente tu marca.', child: ColorSelector(title: 'Color de Acento (Público)', predefinedColors: _predefinedBrandColors, selectedColor: _selectedBrandColor, onColorSelected: (color) => setState(() => _selectedBrandColor = color))),
+                            Showcase(
+                              key: _keyColorSection, 
+                              title: 'Color de Acento', 
+                              description: 'Elige un color que represente tu marca.', 
+                              child: ColorSelector(
+                                title: 'Color de Acento (Público)', 
+                                predefinedColors: _predefinedBrandColors, 
+                                selectedColor: _selectedBrandColor, 
+                                onColorSelected: (color) => setState(() => _selectedBrandColor = color)
+                              )
+                            ),
                             const SizedBox(height: 24),
-                            Showcase(key: _keyThemeSection, title: 'Atmósfera (Skin)', description: 'Selecciona el estilo de fondo para tu página.', child: ThemeSelector(selectedThemeId: _selectedPublicTheme, onThemeSelected: (themeId) => setState(() => _selectedPublicTheme = themeId))),
+                            Showcase(
+                              key: _keyThemeSection, 
+                              title: 'Atmósfera (Skin)', 
+                              description: 'Selecciona el estilo de fondo para tu página.', 
+                              child: ThemeSelector(
+                                selectedThemeId: _selectedPublicTheme, 
+                                onThemeSelected: (themeId) => setState(() => _selectedPublicTheme = themeId)
+                              )
+                            ),
                           ]),
+                          
                           const SizedBox(height: 24),
+                          
+                          // --- Sección 2 con Tour ---
                           BrandSectionCard(title: 'Formato de Perfil Público', subtitle: 'Elige cómo verán tus clientes tu página.', children: [
-                            Showcase(key: _keyFormatSection, title: 'Diseño de Página', description: '¿Vendes productos o servicios?', child: TemplateSelector(selectedFormat: _selectedFormat, onFormatSelected: (format) => setState(() => _selectedFormat = format))),
+                            Showcase(
+                              key: _keyFormatSection, 
+                              title: 'Diseño de Página', 
+                              description: '¿Vendes productos o servicios?', 
+                              child: TemplateSelector(
+                                selectedFormat: _selectedFormat, 
+                                onFormatSelected: (format) => setState(() => _selectedFormat = format)
+                              )
+                            ),
                           ]),
+                          
                           const SizedBox(height: 24),
+                          
+                          // --- Otras Secciones (Sin Tour específico) ---
                           BrandSectionCard(title: 'Contenido del Perfil', children: [
                             TextFormField(controller: _sloganController, style: TextStyle(color: colors.onSurface), decoration: inputDecoration.copyWith(labelText: 'Slogan o Mensaje de Bienvenida', prefixIcon: Icon(Icons.campaign_outlined, color: colors.onSurface.withValues(alpha: 0.7))), maxLength: 150),
                             const SizedBox(height: 16),
@@ -369,9 +474,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                             const SizedBox(height: 16),
                             TextFormField(controller: _countryController, readOnly: true, style: TextStyle(color: colors.onSurface.withValues(alpha: 0.5)), decoration: inputDecoration.copyWith(labelText: 'País (Seleccionado al inicio)', prefixIcon: Icon(Icons.flag_outlined, color: colors.onSurface.withValues(alpha: 0.5)))),
                           ]),
+                          
                           const SizedBox(height: 24),
                           
-                          // ✅ CORREGIDO: Eliminado el parámetro 'theme'
                           ContactInfoSection(
                             decoration: inputDecoration, 
                             phoneController: _phoneController, 
@@ -386,7 +491,23 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                           const SizedBox(height: 24),
                           PaymentMethodsCard(user: widget.user),
                           const SizedBox(height: 48),
-                          Showcase(key: _keySaveButton, title: 'Publicar', description: 'Guarda para que tus clientes vean los cambios.', child: SizedBox(height: 50, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: appTheme.colorScheme.primary, foregroundColor: appTheme.colorScheme.onPrimary), onPressed: _isLoading ? null : _saveSettings, child: _isLoading ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: appTheme.colorScheme.onPrimary, strokeWidth: 3)) : const Text('Guardar Cambios')))),
+                          
+                          // --- Botón Guardar con Tour ---
+                          Showcase(
+                            key: _keySaveButton, 
+                            title: 'Publicar', 
+                            description: 'Guarda para que tus clientes vean los cambios.', 
+                            child: SizedBox(
+                              height: 50, 
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(backgroundColor: appTheme.colorScheme.primary, foregroundColor: appTheme.colorScheme.onPrimary), 
+                                onPressed: _isLoading ? null : _saveSettings, 
+                                child: _isLoading 
+                                  ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: appTheme.colorScheme.onPrimary, strokeWidth: 3)) 
+                                  : const Text('Guardar Cambios')
+                              )
+                            )
+                          ),
                           const SizedBox(height: 24),
                         ],
                       ),

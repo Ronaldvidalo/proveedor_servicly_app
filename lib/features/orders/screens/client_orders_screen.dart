@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ IMPORTANTE: Soluciona el error de Timestamp
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
-import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/order_detail_screen.dart';
-import 'package:proveedor_servicly_app/features/orders/screens/client_order_detail_screen.dart';
+import 'package:proveedor_servicly_app/features/orders/screens/client_order_detail_screen.dart'; // Asegúrate de importar la pantalla de detalle CORRECTA
 
 class ClientOrdersScreen extends StatelessWidget {
   const ClientOrdersScreen({super.key});
@@ -46,10 +45,11 @@ class ClientOrdersScreen extends StatelessWidget {
 
             final orders = snapshot.data!;
 
-            // Filtramos las órdenes en dos listas
+            // 1. FILTRADO: Agregamos 'inProgress' a las órdenes activas
             final activeOrders = orders.where((o) => 
-              o.status == OrderStatus.pending_payment || 
-              o.status == OrderStatus.pending_verification
+              o.status == OrderStatus.pendingPayment || 
+              o.status == OrderStatus.pendingVerification ||
+              o.status == OrderStatus.inProgress // <--- ¡AQUÍ ESTABA EL PROBLEMA!
             ).toList();
 
             final historyOrders = orders.where((o) => 
@@ -111,22 +111,27 @@ class _OrderTile extends StatelessWidget {
   final OrderModel order;
   const _OrderTile({required this.order});
 
+  // 2. COLORES: Definimos color para el nuevo estado
   Color _getStatusColor(OrderStatus status) {
     switch (status) {
-      case OrderStatus.pending_verification: return Colors.orange;
+      case OrderStatus.pendingVerification: return Colors.orange;
+      case OrderStatus.pendingPayment: return Colors.blue;
+      case OrderStatus.inProgress: return Colors.indigoAccent; // <--- NUEVO COLOR
       case OrderStatus.completed: return Colors.green;
       case OrderStatus.cancelled: return Colors.red;
-      default: return Colors.grey;
+      case OrderStatus.disputed: return Colors.purple;
     }
   }
 
+  // 3. TEXTO: Definimos etiqueta para el nuevo estado
   String _getStatusText(OrderStatus status) {
     switch (status) {
-      case OrderStatus.pending_verification: return "Verificando Pago";
-      case OrderStatus.pending_payment: return "Pago Pendiente";
+      case OrderStatus.pendingVerification: return "Verificando Pago";
+      case OrderStatus.pendingPayment: return "Pago Pendiente";
+      case OrderStatus.inProgress: return "En Camino"; // <--- NUEVA ETIQUETA
       case OrderStatus.completed: return "Completado";
       case OrderStatus.cancelled: return "Cancelado";
-      default: return status.name;
+      case OrderStatus.disputed: return "En Disputa";
     }
   }
 
@@ -147,9 +152,9 @@ class _OrderTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
+          // Navegar al detalle (asegúrate de usar ClientOrderDetailScreen)
           Navigator.push(
             context,
-            // Cambiamos OrderDetailScreen por ClientOrderDetailScreen
             MaterialPageRoute(builder: (_) => ClientOrderDetailScreen(order: order)),
           );
         },
@@ -164,10 +169,8 @@ class _OrderTile extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
-                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
                       border: Border.all(color: color.withValues(alpha: 0.5)),
                     ),
                     child: Text(

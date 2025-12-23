@@ -7,11 +7,12 @@ class AiConfigService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Colección para la configuración global de la IA
-  static const String _CONFIG_DOC_PATH = 'settings/ai_config';
+  // ✅ CORRECCIÓN: Nombre cambiado a lowerCamelCase
+  static const String _configDocPath = 'settings/ai_config';
 
   /// Obtiene la configuración de SERVI en tiempo real (Stream).
   Stream<Map<String, dynamic>> getAiConfigStream() {
-    return _firestore.doc(_CONFIG_DOC_PATH)
+    return _firestore.doc(_configDocPath)
         .snapshots()
         .map((snapshot) => snapshot.data() ?? {
           // Valores por defecto seguros (Fallback)
@@ -25,7 +26,7 @@ class AiConfigService {
   /// Obtiene la configuración una sola vez (Future).
   Future<Map<String, dynamic>> getAiConfigOnce() async {
     try {
-      final doc = await _firestore.doc(_CONFIG_DOC_PATH).get();
+      final doc = await _firestore.doc(_configDocPath).get();
       return doc.data() ?? {
           "ocr_model": "gemini-2.5-flash", 
           "cost_alert_threshold": 0.20,

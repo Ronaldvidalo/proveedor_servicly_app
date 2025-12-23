@@ -42,13 +42,13 @@ class CyberCard extends StatelessWidget {
           // Sombra diferente para cada modo
           if (isDark && hasGlow)
             BoxShadow(
-              color: theme.colorScheme.primary.withOpacity(0.3),
+              color: theme.colorScheme.primary.withValues(alpha: 0.3),
               blurRadius: 12,
               spreadRadius: 1,
             )
           else if (!isDark)
             BoxShadow(
-              color: Colors.black.withOpacity(0.05), // Sombra suave material design
+              color: Colors.black.withValues(alpha: 0.05), // Sombra suave material design
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),

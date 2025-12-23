@@ -26,7 +26,8 @@ class ShareProductButton extends StatelessWidget {
         "¡Mira lo que encontré en Servicly! 🚀\n\n"
         "*${product.name}*\n"
         "A solo: \$${product.price.toStringAsFixed(2)}\n\n"
-        "${product.description.length > 80 ? product.description.substring(0, 80) + '...' : product.description}\n\n"
+        // ✅ CORRECCIÓN: Uso de interpolación en lugar de concatenación (+)
+        "${product.description.length > 80 ? '${product.description.substring(0, 80)}...' : product.description}\n\n"
         "📲 Descárgalo aquí: $appDownloadLink";
 
     // --- PASO 1: COPIAR AL PORTAPAPELES ---
@@ -98,9 +99,11 @@ class ShareProductButton extends StatelessWidget {
         onPressed: () => share(context, product),
         style: OutlinedButton.styleFrom(
           foregroundColor: color,
-          side: BorderSide(color: color.withAlpha(50)),
+          // ✅ CORRECCIÓN: withValues en lugar de withAlpha (50/255 ≈ 0.2)
+          side: BorderSide(color: color.withValues(alpha: 0.2)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: backgroundColor ?? color.withAlpha(10),
+          // ✅ CORRECCIÓN: withValues en lugar de withAlpha (10/255 ≈ 0.04)
+          backgroundColor: backgroundColor ?? color.withValues(alpha: 0.04),
         ),
         icon: const Icon(Icons.share_rounded, size: 20),
         label: const Text("Compartir"),

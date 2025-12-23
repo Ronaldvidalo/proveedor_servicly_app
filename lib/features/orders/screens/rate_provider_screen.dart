@@ -66,7 +66,7 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
             const SizedBox(height: 20),
             CircleAvatar(
               radius: 40,
-              backgroundColor: colorScheme.primary.withOpacity(0.2),
+              backgroundColor: colorScheme.primary.withValues(alpha: 0.2),
               child: Icon(Icons.storefront, size: 40, color: colorScheme.primary),
             ),
             const SizedBox(height: 20),

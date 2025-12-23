@@ -25,7 +25,7 @@ class GeocodingService {
         };
       }
     } catch (e) {
-      print("Error al geocodificar dirección '$address': $e");
+      debugPrint ("Error al geocodificar dirección '$address': $e");
     }
     return null;
   }
@@ -39,7 +39,7 @@ class GeocodingService {
         return "${place.street}, ${place.locality}";
       }
     } catch (e) {
-      print("Error obteniendo dirección: $e");
+      debugPrint ("Error obteniendo dirección: $e");
     }
     return null;
   }

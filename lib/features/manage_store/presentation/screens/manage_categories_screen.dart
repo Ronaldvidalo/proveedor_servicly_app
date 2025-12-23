@@ -92,7 +92,7 @@ class _CategoryTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accentColor.withOpacity(0.2)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.2)),
       ),
       child: ListTile(
         leading: const Icon(Icons.folder_open_rounded, color: accentColor),
@@ -200,11 +200,15 @@ void _showAddEditCategoryDialog(BuildContext context, {required UserModel user, 
                   } else {
                     await categoryService.addCategory(user.uid, categoryName);
                   }
-                  Navigator.of(dialogContext).pop();
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                    );
+                  }
                 }
               }
             },
@@ -237,11 +241,15 @@ void _showDeleteConfirmationDialog(BuildContext context, {required UserModel use
             onPressed: () async {
               try {
                 await categoryService.deleteCategory(user.uid, category.id);
-                Navigator.of(dialogContext).pop();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
               } catch (e) {
-                 ScaffoldMessenger.of(context).showSnackBar(
+                 if (context.mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
-                  );
+                   );
+                 }
               }
             },
             child: const Text('Eliminar'),

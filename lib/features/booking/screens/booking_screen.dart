@@ -13,7 +13,7 @@ class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key, required this.providerId});
 
   @override
-  _BookingScreenState createState() => _BookingScreenState();
+  State<BookingScreen> createState() => _BookingScreenState();
 }
 
 class _BookingScreenState extends State<BookingScreen> {
@@ -250,15 +250,28 @@ void _showBookingConfirmationDialog(BuildContext context, DateTime slot) {
                         clientName: nameController.text,
                         clientPhone: phoneController.text,
                       );
-                      Navigator.of(dialogContext).pop(); // Cierra el diálogo
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('¡Turno reservado con éxito!'), backgroundColor: Colors.green),
-                      );
+                      
+                      // Validación de mounted para el diálogo
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop(); // Cierra el diálogo
+                      }
+                      
+                      // Validación de mounted para el scaffold padre
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('¡Turno reservado con éxito!'), backgroundColor: Colors.green),
+                        );
+                      }
                     } catch (e) {
-                      Navigator.of(dialogContext).pop();
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error al reservar: $e'), backgroundColor: Colors.redAccent),
-                      );
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                      
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al reservar: $e'), backgroundColor: Colors.redAccent),
+                        );
+                      }
                     }
                   }
                 },
@@ -271,4 +284,3 @@ void _showBookingConfirmationDialog(BuildContext context, DateTime slot) {
     },
   );
 }
-

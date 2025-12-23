@@ -215,47 +215,67 @@ export const notifyOrderStatus = onDocumentUpdated('orders/{orderId}', async(eve
     // Si el estado no cambió, no hacemos nada
     if (newData.status === oldData.status) return null;
 
-    const clientId = newData.clientId;
-    const newStatus = newData.status; // 'confirmed', 'ready', 'completed'
-    const logisticMessage = newData.logisticMessage || "";
+    const newStatus = newData.status;
+    const orderId = event.params.orderId;
 
-    if (!clientId) return;
+    let targetUserId = "";
+    let title = "";
+    let body = "";
+    let notificationType = ""; // Para saber a qué pantalla ir en Flutter
+
+    // --- CASO 1: PROVEEDOR PROGRAMÓ EL ENVÍO (inProgress) ---
+    // Destino: Cliente
+    if (newStatus === 'inProgress') {
+        targetUserId = newData.clientId;
+        title = "🚚 ¡Tu pedido está en camino!";
+        body = newData.providerNote ?
+            `Nota del proveedor: ${newData.providerNote}` :
+            "El proveedor ha programado la entrega/retiro.";
+        notificationType = "order_update_client"; // Ir a Mis Compras
+    }
+
+    // --- CASO 2: CLIENTE CONFIRMÓ RECEPCIÓN (completed) ---
+    // Destino: Proveedor
+    else if (newStatus === 'completed') {
+        targetUserId = newData.providerId;
+        title = "✅ Entrega Confirmada";
+        body = `El cliente ${newData.clientName || 'Usuario'} confirmó que recibió el pedido.`;
+        notificationType = "order_update_provider"; // Ir a Gestión de Pedidos
+    }
+
+    // --- CASO 3: PEDIDO CANCELADO (cancelled) ---
+    // Destino: Cliente (asumiendo que el proveedor cancela usualmente)
+    else if (newStatus === 'cancelled') {
+        targetUserId = newData.clientId;
+        title = "Pedido Cancelado ❌";
+        body = "El proveedor ha cancelado la orden.";
+        notificationType = "order_update_client";
+    }
+
+    // Si no hay target, salimos
+    if (!targetUserId) return null;
 
     try {
-        // CORREGIDO: Busca tokens del cliente en subcolección
-        const tokens = await getUserTokens(clientId);
+        // Obtenemos tokens del usuario destino
+        const tokens = await getUserTokens(targetUserId);
 
-        if (tokens.length === 0) return;
-
-        let title = "Actualización de tu pedido";
-        let body = `Tu orden está ahora: ${newStatus}`;
-
-        if (newStatus === 'confirmed') {
-            title = "¡Pedido Confirmado! ✅";
-            body = logisticMessage || "El proveedor ha aceptado tu pedido.";
-        } else if (newStatus === 'ready') {
-            title = "¡Listo para retirar! 📦";
-            body = logisticMessage || "Tu paquete te está esperando.";
-        } else if (newStatus === 'completed') {
-            title = "Pedido Entregado 🎉";
-            body = "Gracias por tu compra. ¡No olvides calificar!";
-        } else if (newStatus === 'cancelled') {
-            title = "Pedido Cancelado ❌";
-            body = "El proveedor ha cancelado la orden.";
+        if (tokens.length === 0) {
+            logger.info(`El usuario ${targetUserId} no tiene tokens.`);
+            return null;
         }
 
         const message = {
             notification: { title, body },
             data: {
-                type: "order_update",
-                orderId: event.params.orderId,
+                type: notificationType, // Usamos esto en Flutter para navegar
+                orderId: orderId,
                 click_action: "FLUTTER_NOTIFICATION_CLICK"
             },
             tokens: tokens,
         };
 
-        await messaging.sendEachForMulticast(message);
-        logger.info(`Notificación Cliente enviada: ${title}`);
+        const response = await messaging.sendEachForMulticast(message);
+        logger.info(`Notificación (${newStatus}) enviada a ${targetUserId}: ${response.successCount} éxitos.`);
 
     } catch (error) {
         logger.error("Error en notifyOrderStatus:", error);

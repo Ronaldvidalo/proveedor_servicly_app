@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart'; // Para vibración (HapticFeedback)
 import 'dart:ui' as ui;
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart'; // Para controlar audio
+
 
 // --- IMPORTACIÓN DEL SERVICIO DE VOZ ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';

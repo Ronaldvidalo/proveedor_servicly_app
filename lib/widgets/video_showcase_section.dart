@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
 import 'package:proveedor_servicly_app/core/services/video_service.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/video_player_screen.dart';
-import 'package:proveedor_servicly_app/widgets/VideoCard.dart';
+import 'package:proveedor_servicly_app/widgets/video_card.dart';
 
 class VideoShowcaseSection extends StatelessWidget {
   const VideoShowcaseSection({super.key});

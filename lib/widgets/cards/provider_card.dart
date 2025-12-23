@@ -34,12 +34,14 @@ class ProviderCard extends StatelessWidget {
           color: surfaceColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: brandColor.withOpacity(0.4),
+            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+            color: brandColor.withValues(alpha: 0.4),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -72,9 +74,12 @@ class ProviderCard extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.1),
-                        Colors.black.withOpacity(0.4),
-                        Colors.black.withOpacity(0.95),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        Colors.black.withValues(alpha: 0.1),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        Colors.black.withValues(alpha: 0.4),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        Colors.black.withValues(alpha: 0.95),
                       ],
                       stops: const [0.0, 0.5, 1.0],
                     ),
@@ -117,19 +122,22 @@ class ProviderCard extends StatelessWidget {
                       provider.welcomeMessage,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.location_on_rounded, size: 12, color: brandColor.withOpacity(0.8)),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        Icon(Icons.location_on_rounded, size: 12, color: brandColor.withValues(alpha: 0.8)),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             provider.address ?? 'Sin dirección',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 10),
+                            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 10),
                           ),
                         ),
                         if (distanceText != null) ...[
@@ -137,9 +145,11 @@ class ProviderCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: brandColor.withOpacity(0.2),
+                              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                              color: brandColor.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: brandColor.withOpacity(0.5)),
+                              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                              border: Border.all(color: brandColor.withValues(alpha: 0.5)),
                             ),
                             child: Text(
                               distanceText!,
@@ -202,9 +212,11 @@ class ProviderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E).withOpacity(0.9), // Fondo oscuro para legibilidad
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        color: const Color(0xFF1A1A2E).withValues(alpha: 0.9), // Fondo oscuro para legibilidad
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.8)),
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        border: Border.all(color: color.withValues(alpha: 0.8)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -232,7 +244,8 @@ class ProviderCard extends StatelessWidget {
         child: Icon(
           Icons.storefront_rounded,
           size: 48,
-          color: brandColor.withOpacity(0.3),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          color: brandColor.withValues(alpha: 0.3),
         ),
       ),
     );

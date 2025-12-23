@@ -88,7 +88,7 @@ class KpiCard extends StatelessWidget {
                     Icon(
                       Icons.arrow_forward_ios,
                       size: 18.0,
-                      color: color.withOpacity(0.8),
+                      color: color.withValues(alpha: 0.8),
                     ),
                 ],
               ),

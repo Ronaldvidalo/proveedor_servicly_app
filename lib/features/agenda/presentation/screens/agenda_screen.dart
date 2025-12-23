@@ -164,7 +164,7 @@ class _AgendaScreenState extends ConsumerState<AgendaScreen> {
                 if (_filterType == 'visit') {
                   dayEvents = dayEvents.where((e) => e.eventType == EventType.visit || e.eventType == EventType.appointment).toList();
                 } else if (_filterType == 'financial') {
-                  dayEvents = dayEvents.where((e) => e.eventType == EventType.payment_reminder || e.eventType == EventType.collection_reminder).toList();
+                  dayEvents = dayEvents.where((e) => e.eventType == EventType.paymentReminder || e.eventType == EventType.collectionReminder).toList();
                 }
 
                 dayEvents.sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -293,15 +293,15 @@ class _AgendaEventCard extends StatelessWidget {
         stripeColor = colorScheme.primary; // Azul/Tema
         icon = Icons.video_call;
         break;
-      case EventType.payment_reminder:
+      case EventType.paymentReminder:
         stripeColor = Colors.redAccent; // Semántica OK
         icon = Icons.money_off;
         break;
-      case EventType.collection_reminder:
+      case EventType.collectionReminder:
         stripeColor = Colors.amber; // Semántica OK
         icon = Icons.attach_money;
         break;
-      default: // personal_reminder
+      default: // personalReminder
         stripeColor = Colors.purpleAccent;
         icon = Icons.person;
     }

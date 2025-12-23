@@ -1,196 +1,303 @@
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 
 class ServiApiConnectorService {
   final GeminiService _geminiService;
-  final FirestoreService _firestoreService; 
-  
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  ServiApiConnectorService(this._geminiService, this._firestoreService);
+  ServiApiConnectorService(this._geminiService);
 
+  // --- CEREBRO CENTRAL 360° + EJECUTOR + CONSEJERO ---
   Future<Map<String, dynamic>> callServiLLM(String query, String userId) async {
     final lowerQuery = query.toLowerCase().trim();
-    debugPrint('>>> SERVI CONECTOR: Analizando "$lowerQuery" para usuario $userId');
+    debugPrint('>>> SERVI SUPER MASTER: Escaneando para: "$lowerQuery"');
 
-    // 1. --- BYPASS RÁPIDO ---
+    // 1. IDENTIDAD
     if (lowerQuery.contains('quien') && lowerQuery.contains('eres')) {
       return {
-        "TEXTO_ESCRITO": "Soy SERVI, tu asistente de inteligencia artificial conectado a Servicly.",
-        "TEXTO_VOZ": "Soy Servi, tu asistente virtual.",
+        "TEXTO_ESCRITO": "Soy SERVI. Puedo redactar presupuestos, cargar productos al inventario, buscar profesionales y analizar tu negocio.",
+        "TEXTO_VOZ": "Soy Servi. Tu asistente ejecutivo para todo el ecosistema.",
       };
     }
+
+    // 2. DETECCIÓN DE INTENCIÓN
     
-    if (lowerQuery.contains('hola') || lowerQuery.contains('buen dia') || lowerQuery.contains('chau')) {
-        return {
-            "TEXTO_ESCRITO": "¡Hola! Todo listo. ¿Revisamos la agenda o las ventas?",
-            "TEXTO_VOZ": "¡Hola! ¿Cómo venimos hoy? Decime en qué te ayudo.",
-        };
-    }
+    // A. INTENCIÓN DE ACCIÓN 1: PRESUPUESTOS (Ya existente)
+    bool isQuoteIntent = lowerQuery.contains('presupuesto') || lowerQuery.contains('cotiza') || (lowerQuery.contains('crear') && lowerQuery.contains('nota'));
+
+    // B. INTENCIÓN DE ACCIÓN 2: INVENTARIO (NUEVO 📦)
+    // Detecta frases como "Agregar producto Coca Cola", "Cargar stock de zapatillas", "Nuevo articulo"
+    bool isProductIntent = (lowerQuery.contains('agregar') || lowerQuery.contains('cargar') || lowerQuery.contains('subir') || lowerQuery.contains('crear')) && 
+                           (lowerQuery.contains('producto') || lowerQuery.contains('articulo') || lowerQuery.contains('stock') || lowerQuery.contains('inventario'));
+
+    // C. BÚSQUEDA EXTERNA (Marketplace)
+    bool searchMarketplace = lowerQuery.contains('buscar') || lowerQuery.contains('necesito') || lowerQuery.contains('quiero') || lowerQuery.contains('tienda') || lowerQuery.contains('precio') || lowerQuery.contains('cerca') ||
+                             lowerQuery.contains('tecnico') || lowerQuery.contains('plomero') || lowerQuery.contains('electricista') || lowerQuery.contains('veterinaria') || lowerQuery.contains('peluqueria') || lowerQuery.contains('medico');
     
-    if (lowerQuery.contains('anima') || lowerQuery.contains('triste') || lowerQuery.contains('felicita')) {
-        return await _handleEmotionalQuery(lowerQuery);
-    }
+    // D. GESTIÓN INTERNA (Personal)
+    bool searchPersonal = lowerQuery.contains('mi ') || lowerQuery.contains('pedido') || lowerQuery.contains('venta') || lowerQuery.contains('agenda') || lowerQuery.contains('ganancia') || lowerQuery.contains('estatus') || lowerQuery.contains('stock');
 
-    // 2. --- RECOLECCIÓN DE DATOS ---
-    final Map<String, dynamic> contextData = {};
-    String emotionalToneInstruction = ''; 
+    // Si es ambiguo y no es una acción clara, activamos búsqueda personal por defecto
+    if (!searchMarketplace && !searchPersonal && !isQuoteIntent && !isProductIntent) searchPersonal = true; 
+
+    // 3. EJECUCIÓN PARALELA DE TODAS LAS SONDAS
+    final Map<String, dynamic> globalContext = {};
+    final Map<String, dynamic> businessHealth = {}; 
     
-    bool needAll = lowerQuery.contains('resumen') || lowerQuery.contains('cómo voy') || lowerQuery.contains('negocio');
-    bool needAgenda = needAll || lowerQuery.contains('cita') || lowerQuery.contains('agenda') || lowerQuery.contains('calendario') || lowerQuery.contains('tengo');
-    bool needFinance = needAll || lowerQuery.contains('venta') || lowerQuery.contains('ganancia') || lowerQuery.contains('plata') || lowerQuery.contains('caja');
-    bool needInventory = needAll || lowerQuery.contains('stock') || lowerQuery.contains('producto') || lowerQuery.contains('inventario');
-    bool needClients = needAll || lowerQuery.contains('cliente');
+    await Future.wait([
+        // Sonda de Acción 1 (Presupuestos)
+        if (isQuoteIntent) _analyzeQuoteContext(userId, lowerQuery, globalContext),
 
-
-    // --- A) CONEXIÓN CON AGENDA (BLINDADA) ---
-    if (needAgenda) {
-       try {
-        final now = DateTime.now();
-        // Definimos el rango: Desde el inicio de hoy hasta 7 días después
-        final startOfRange = DateTime(now.year, now.month, now.day); 
-        final endOfRange = startOfRange.add(const Duration(days: 7));
-
-        // 1. TRAEMOS TODO (Filtrado solo por usuario para evitar problemas de tipos)
-        final appointmentsSnapshot = await _firestore.collection('events')
-            .where('providerId', isEqualTo: userId) 
-            .get();
-
-        debugPrint("🔍 Eventos crudos encontrados en DB: ${appointmentsSnapshot.docs.length}");
-
-        // 2. PROCESAMOS Y FILTRAMOS EN MEMORIA
-        final List<String> validAppointments = [];
-
-        for (var doc in appointmentsSnapshot.docs) {
-            final data = doc.data();
-            DateTime? eventDate;
-
-            // Detección inteligente de tipo de fecha
-            if (data['startTime'] is Timestamp) {
-                eventDate = (data['startTime'] as Timestamp).toDate();
-            } else if (data['startTime'] is String) {
-                eventDate = DateTime.tryParse(data['startTime']);
-            }
-
-            // Si la fecha es válida y cae en esta semana
-            if (eventDate != null && 
-                eventDate.isAfter(startOfRange.subtract(const Duration(hours: 1))) && 
-                eventDate.isBefore(endOfRange)) {
-                
-                String dayName = DateFormat('EEEE', 'es_AR').format(eventDate);
-                String time = DateFormat('HH:mm').format(eventDate);
-                String title = data['title'] ?? 'Cita sin título';
-                
-                validAppointments.add("$dayName a las $time: $title");
-            }
-        }
-
-        contextData['agenda_semana'] = validAppointments.isEmpty 
-            ? "Agenda libre para los próximos 7 días." 
-            : validAppointments;
-            
-        debugPrint("📅 Agenda filtrada final: $validAppointments"); 
-
-      } catch (e) {
-        debugPrint("❌ Error Agenda: $e");
-        contextData['agenda_error'] = "No pude leer la colección 'events'.";
-      }
-    }
-
-    // --- B) CONEXIÓN CON FINANZAS ---
-    if (needFinance || needAll) {
-      try {
-        // Para finanzas mantenemos la query simple por ahora, o aplicamos la misma lógica si falla
-        final now = DateTime.now();
-        // Formato string para comparar en transactions (asumiendo que ahí sí guardas string YYYY-MM-DD)
-        final startOfMonthStr = DateFormat('yyyy-MM-01').format(now);
+        // Sonda de Acción 2 (Productos - NUEVO)
+        if (isProductIntent) _analyzeProductContext(userId, lowerQuery, globalContext),
         
-        final transactionsSnapshot = await _firestore.collection('users/$userId/transactions')
-            .get(); // Traemos todo y filtramos fecha en memoria por seguridad
-
-        double ingresosMes = 0;
-        double gastosMes = 0;
-        int ventasCount = 0;
-
-        for (var doc in transactionsSnapshot.docs) {
-          final data = doc.data();
-          // Verificar fecha
-          final String? dateStr = data['date'] as String?;
-          if (dateStr != null && dateStr.compareTo(startOfMonthStr) >= 0) {
-              // Pertenece a este mes
-              final double amount = (data['amount'] ?? 0).toDouble();
-              if (data['type'] == 'income' || data['type'] == 'sale') {
-                ingresosMes += amount;
-                ventasCount++;
-              } else if (data['type'] == 'expense' || data['type'] == 'cost') {
-                gastosMes += amount;
-              }
-          }
-        }
+        // Sonda de Marketplace (Solo si no es una orden de acción)
+        if (searchMarketplace && !isQuoteIntent && !isProductIntent) _scanMarketplace(lowerQuery, globalContext),
         
-        double gananciaNeta = ingresosMes - gastosMes;
+        // Sonda de Datos Personales (Solo si no es una orden de acción)
+        if (searchPersonal && !isQuoteIntent && !isProductIntent) _scanPersonalData(userId, lowerQuery, globalContext),
         
-        if (gananciaNeta > 50000 && now.day < 15) { 
-            emotionalToneInstruction = "Tu ganancia neta es excelente. ¡Felicítalo!";
-        } else if (gananciaNeta < 0 && now.day > 10) { 
-            emotionalToneInstruction = "El negocio tiene balance negativo. Dale ánimo.";
-        }
+        // El Consejero de Salud (SIEMPRE ACTIVO)
+        _checkBusinessHealth(userId, businessHealth),
+    ]);
 
-        contextData['finanzas_mes_actual'] = {
-          "ingresos": ingresosMes,
-          "gastos": gastosMes,
-          "ganancia": gananciaNeta,
-          "cantidad_ventas": ventasCount,
-        };
-      } catch (e) {
-        debugPrint("Error Finanzas: $e");
-        contextData['finanzas_error'] = "No pude acceder a transactions.";
-      }
-    }
-
-    // --- C) CONEXIÓN CON INVENTARIO ---
-    if (needInventory) {
-       try {
-        final inventorySnapshot = await _firestore.collection('users/$userId/products')
-            .where('stock', isLessThan: 5)
-            .get();
-            
-        final lowStockItems = inventorySnapshot.docs.map((doc) => "${doc.data()['name']} (${doc.data()['stock']})").toList();
-        contextData['alertas_inventario'] = lowStockItems.isEmpty ? "Stock saludable." : "BAJO STOCK: ${lowStockItems.join(', ')}.";
-      } catch (e) {
-        debugPrint("Error Inventario: $e");
-      }
-    }
-
-    // --- D) CONEXIÓN CON CLIENTES ---
-    if (needClients) {
-       try {
-        final clientsSnapshot = await _firestore.collection('users/$userId/clients').get();
-        contextData['total_clientes'] = clientsSnapshot.docs.length;
-      } catch (e) {
-        debugPrint("Error CRM: $e");
-      }
-    }
-
-    // 3. --- CONTEXTO FINAL ---
+    // 4. GENERACIÓN DE RESPUESTA CON ESTRUCTURA DE COMANDO
     final contextJson = {
-      "fecha_hoy": DateFormat('EEEE d MMMM yyyy', 'es_AR').format(DateTime.now()),
-      "ESTADO_NEGOCIO": contextData,
-      "INSTRUCCIONES": 
-          "Sos Servi. Analizá 'ESTADO_NEGOCIO'. ${emotionalToneInstruction.isNotEmpty ? emotionalToneInstruction : ''} Responde natural."
+      "fecha_actual": DateFormat('EEEE d MMMM, HH:mm', 'es_AR').format(DateTime.now()),
+      "RESULTADOS_DATA": globalContext,
+      "SALUD_NEGOCIO": businessHealth, 
+      "INSTRUCCIONES": """
+          Sos SERVI, asistente ejecutivo de Servicly.
+          
+          CASO 1: EL USUARIO QUIERE UN PRESUPUESTO (isQuoteIntent):
+          - Analiza la frase y extrae: Cliente, Concepto y Precio.
+          - JSON Respuesta:
+            {
+               "TEXTO_ESCRITO": "Abriendo presupuesto...",
+               "TEXTO_VOZ": "Dale, abriendo el editor de presupuestos.",
+               "ACCION": "NAVEGAR_PRESUPUESTO",
+               "DATOS_PRECARGA": { "cliente_nombre": "...", "concepto": "...", "precio_estimado": 0.0, "sugerencia_ia": "..." }
+            }
+
+          CASO 2: EL USUARIO QUIERE AGREGAR UN PRODUCTO (isProductIntent):
+          - Analiza la frase y extrae: Nombre del Producto, Precio y Stock (Cantidad).
+          - Si no menciona stock, asume 0. Si no menciona precio, asume 0.
+          - Revisa 'PRODUCTOS_SIMILARES' en el contexto. Si ya existe algo parecido, avísalo en "aviso_ia".
+          - JSON Respuesta:
+            {
+               "TEXTO_ESCRITO": "Preparando nuevo producto...",
+               "TEXTO_VOZ": "Abriendo ficha de producto. Revisa los datos.",
+               "ACCION": "NAVEGAR_PRODUCTO",
+               "DATOS_PRECARGA": { 
+                  "nombre_producto": "...", 
+                  "precio": 0.0, 
+                  "stock": 0,
+                  "aviso_ia": "..." 
+               }
+            }
+
+          CASO 3: CONSULTA NORMAL:
+          - Responde la duda usando 'RESULTADOS_DATA'.
+          - Revisa 'SALUD_NEGOCIO'. Si hay alertas graves (InventoryEmpty, NoCostStructure), agrega un "💡 Tip Servi" al final.
+          
+          TONO: Profesional, ejecutivo, argentino.
+      """
     };
 
     return await _geminiService.callContextualLLM(query, contextJson);
   }
-  
-  Future<Map<String, dynamic>> _handleEmotionalQuery(String query) async {
-    final result = await _geminiService.callContextualLLM(
-      query, 
-      {"MODO": "Empatía pura", "INSTRUCCIÓN": "Responde con calidez humana argentina."}
-    );
-    return result;
+
+  // ==============================================================================
+  // 📝 SONDA 0: ANALISTA DE PRESUPUESTOS
+  // ==============================================================================
+  Future<void> _analyzeQuoteContext(String userId, String query, Map<String, dynamic> context) async {
+      try {
+          final servicesSnapshot = await _firestore.collection('users/$userId/products').limit(50).get();
+          final List<String> priceHistory = [];
+          final queryWords = query.toLowerCase().split(' ').where((w) => w.length > 3).toList();
+
+          for(var doc in servicesSnapshot.docs) {
+              final d = doc.data();
+              String name = (d['name'] ?? '').toString().toLowerCase();
+              if (queryWords.any((word) => name.contains(word))) { 
+                  double price = double.tryParse(d['price'].toString()) ?? 0.0;
+                  priceHistory.add("${d['name']}: \$$price");
+              }
+          }
+          context['HISTORIAL_PRECIOS_SIMILARES'] = priceHistory.isEmpty ? "No hay referencias previas." : priceHistory;
+      } catch (e) { debugPrint("⚠️ Error analizando presupuesto: $e"); }
+  }
+
+  // ==============================================================================
+  // 📦 SONDA 0.5: ANALISTA DE PRODUCTOS (NUEVO)
+  // ==============================================================================
+  Future<void> _analyzeProductContext(String userId, String query, Map<String, dynamic> context) async {
+      try {
+          // Buscamos si ya existen productos con nombres similares para evitar duplicados
+          final productsSnapshot = await _firestore.collection('users/$userId/products').limit(100).get();
+          final List<String> similarProducts = [];
+          final queryLower = query.toLowerCase();
+
+          for(var doc in productsSnapshot.docs) {
+              final d = doc.data();
+              String name = (d['name'] ?? '').toString();
+              // Chequeo simple de coincidencia
+              if (queryLower.contains(name.toLowerCase()) || name.toLowerCase().contains(queryLower.split(' ').last)) {
+                  similarProducts.add("$name (Stock: ${d['stock']})");
+              }
+          }
+          if (similarProducts.isNotEmpty) {
+             context['PRODUCTOS_SIMILARES_EXISTENTES'] = similarProducts;
+          }
+      } catch (e) { debugPrint("⚠️ Error analizando productos: $e"); }
+  }
+
+  // ==============================================================================
+  // 🏥 SONDA 1: CONSEJERO DE SALUD (PROACTIVO)
+  // ==============================================================================
+  Future<void> _checkBusinessHealth(String userId, Map<String, dynamic> healthReport) async {
+    try {
+        final productsSnapshot = await _firestore.collection('users/$userId/products').limit(1).get();
+        if (productsSnapshot.docs.isEmpty) {
+            healthReport['ALERTA'] = "InventoryEmpty";
+            healthReport['DETALLE'] = "Usuario sin productos.";
+            return; 
+        }
+        final lowStockSnapshot = await _firestore.collection('users/$userId/products').where('stock', isLessThan: 5).limit(3).get();
+        if (lowStockSnapshot.docs.isNotEmpty) {
+            final names = lowStockSnapshot.docs.map((d) => d.data()['name']).join(", ");
+            healthReport['ALERTA_STOCK'] = "LowStock";
+            healthReport['PRODUCTOS_BAJOS'] = names;
+        }
+        final configSnapshot = await _firestore.collection('users').doc(userId).collection('settings').doc('financial_config').get();
+        double fixedCost = 0.0;
+        if (configSnapshot.exists) {
+            fixedCost = double.tryParse(configSnapshot.data()?['costoFijoUnitarioCalculado']?.toString() ?? '0') ?? 0.0;
+        }
+        if (fixedCost <= 0) {
+            healthReport['ALERTA_FINANCIERA'] = "NoCostStructure";
+        }
+    } catch (e) { debugPrint("⚠️ Error Salud Negocio: $e"); }
+  }
+
+  // ==============================================================================
+  // 🌍 SONDA 2: MARKETPLACE (PROFESIONALES + PRODUCTOS)
+  // ==============================================================================
+  Future<void> _scanMarketplace(String query, Map<String, dynamic> context) async {
+      try {
+          final profilesSnapshot = await _firestore.collectionGroup('brandProfile').limit(50).get();
+          final List<String> foundProfessionals = [];
+          for (var doc in profilesSnapshot.docs) {
+              final data = doc.data();
+              String category = (data['mainCategory'] ?? '').toString(); 
+              String businessName = (data['businessName'] ?? data['name'] ?? 'Profesional').toString();
+              String city = (data['city'] ?? 'Zona General').toString();
+              
+              bool matchCategory = category.toLowerCase().contains(query.toLowerCase()) || 
+                                   query.toLowerCase().contains(category.toLowerCase().substring(0, category.length > 3 ? category.length - 1 : category.length));
+              bool matchName = businessName.toLowerCase().contains(query.toLowerCase());
+
+              if (matchCategory || matchName) {
+                   foundProfessionals.add("$businessName ($category) - $city");
+              }
+          }
+          if (foundProfessionals.isNotEmpty) {
+            context['PROFESIONALES_ENCONTRADOS'] = foundProfessionals.take(5).toList();
+          } else if (query.contains('necesito') || query.contains('busco')) {
+            context['AVISO_PROFESIONALES'] = "Sin coincidencias en perfiles.";
+          }
+
+          if (!query.contains('servi') && !query.contains('tecnico')) {
+              final productsSnapshot = await _firestore.collectionGroup('products').limit(30).get();
+              final List<String> foundProducts = [];
+              for (var doc in productsSnapshot.docs) {
+                  final data = doc.data();
+                  String name = (data['name'] ?? '').toString();
+                  if (name.toLowerCase().contains(query)) {
+                      double price = double.tryParse(data['price'].toString()) ?? 0.0;
+                      foundProducts.add("$name (\$$price)");
+                  }
+              }
+              if (foundProducts.isNotEmpty) {
+                context['PRODUCTOS_MERCADO'] = foundProducts.take(5).toList();
+              }
+          }
+      } catch (e) { debugPrint("⚠️ Error Marketplace: $e"); }
+  }
+
+  // ==============================================================================
+  // 🏠 SONDA 3: DATOS PERSONALES (GESTIÓN BLINDADA)
+  // ==============================================================================
+  Future<void> _scanPersonalData(String userId, String query, Map<String, dynamic> context) async {
+      try {
+          // A. MIS PEDIDOS (Cliente)
+          if (query.contains('pedido') || query.contains('compra')) {
+              final ordersSnapshot = await _firestore.collection('orders')
+                  .where('clientId', isEqualTo: userId)
+                  .orderBy('createdAt', descending: true).limit(5).get();
+              final List<String> myOrders = [];
+              for (var doc in ordersSnapshot.docs) {
+                  final d = doc.data();
+                  myOrders.add("Pedido a ${d['storeName']}: ${d['status']}");
+              }
+              context['MIS_PEDIDOS_CLIENTE'] = myOrders.isEmpty ? "Sin pedidos recientes." : myOrders;
+          }
+
+          // B. MI NEGOCIO (Proveedor)
+          if (query.contains('venta') || query.contains('agenda') || query.contains('resumen') || query.contains('ganancia') || query.contains('stock')) {
+              
+              final now = DateTime.now();
+              final startMonth = DateFormat('yyyy-MM-01').format(now);
+              final transactions = await _firestore.collection('users/$userId/transactions').limit(300).get();
+              
+              double ingresos = 0;
+              double gastos = 0;
+              
+              for(var doc in transactions.docs) {
+                  final d = doc.data();
+                  String dateStr = (d['date'] ?? '').toString();
+                  
+                  if (dateStr.compareTo(startMonth) >= 0) {
+                      double amount = 0.0;
+                      if (d['amount'] is num) amount = (d['amount'] as num).toDouble();
+                      else if (d['amount'] is String) amount = double.tryParse(d['amount']) ?? 0.0;
+
+                      if (d['type'] == 'income' || d['type'] == 'sale') {
+                          ingresos += amount;
+                      } else if (d['type'] == 'expense' || d['type'] == 'cost') {
+                          gastos += amount;
+                      }
+                  }
+              }
+              
+              final startDay = DateTime(now.year, now.month, now.day);
+              final endWeek = startDay.add(const Duration(days: 7));
+              final eventsSnapshot = await _firestore.collection('events').where('providerId', isEqualTo: userId).get();
+              
+              final List<String> agenda = [];
+              for (var doc in eventsSnapshot.docs) {
+                  final d = doc.data();
+                  DateTime? evtDate;
+                  try { 
+                      if (d['startTime'] is Timestamp) evtDate = (d['startTime'] as Timestamp).toDate();
+                      else if (d['startTime'] is String) evtDate = DateTime.tryParse(d['startTime']);
+                  } catch (_) {}
+
+                  if (evtDate != null && evtDate.isAfter(startDay) && evtDate.isBefore(endWeek)) {
+                      String day = DateFormat('EEEE d', 'es_AR').format(evtDate);
+                      String time = DateFormat('HH:mm').format(evtDate);
+                      agenda.add("$day $time: ${d['title']}");
+                  }
+              }
+              
+              context['MI_NEGOCIO'] = {
+                  "ingresos_mes": ingresos,
+                  "gastos_mes": gastos,
+                  "agenda_semanal": agenda.isEmpty ? "Libre." : agenda
+              };
+          }
+      } catch (e) { debugPrint("⚠️ Error Datos Personales: $e"); }
   }
 }

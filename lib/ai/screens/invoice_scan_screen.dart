@@ -17,263 +17,263 @@ import '../services/image_picker_service.dart';
 
 
 class InvoiceScanScreen extends ConsumerStatefulWidget {
-	
-	final _pickerService = ImagePickerService();
-	final _geminiService = GeminiService();
+  
+  final _pickerService = ImagePickerService();
+  final _geminiService = GeminiService();
 
-	InvoiceScanScreen({super.key}); 
+  InvoiceScanScreen({super.key}); 
 
-	@override
-	ConsumerState<InvoiceScanScreen> createState() => _InvoiceScanScreenState();
+  @override
+  ConsumerState<InvoiceScanScreen> createState() => _InvoiceScanScreenState();
 }
 
 class _InvoiceScanScreenState extends ConsumerState<InvoiceScanScreen> {
-	late final InventoryRepository _inventoryRepo;
+  late final InventoryRepository _inventoryRepo;
 
-	Invoice? _rawInvoiceResult; 
-	List<AnalyzedLineItem>? _analyzedItems; 
-	bool _isLoading = false;
-	String? _errorMessage;
-	
-	static const double _alertThreshold = 0.20; 
-	
-	@override
-	void initState() {
-		super.initState();
-		
-		final intelligenceService = ref.read(inventoryIntelligenceServiceProvider);
-		
-		_inventoryRepo = InventoryRepository(
-			firestore: FirebaseFirestore.instance,
-			auth: FirebaseAuth.instance, 
-			intelligenceService: intelligenceService,
-		);
-	}
+  Invoice? _rawInvoiceResult; 
+  List<AnalyzedLineItem>? _analyzedItems; 
+  bool _isLoading = false;
+  String? _errorMessage;
+  
+  static const double _alertThreshold = 0.20; 
+  
+  @override
+  void initState() {
+    super.initState();
+    
+    final intelligenceService = ref.read(inventoryIntelligenceServiceProvider);
+    
+    _inventoryRepo = InventoryRepository(
+      firestore: FirebaseFirestore.instance,
+      auth: FirebaseAuth.instance, 
+      intelligenceService: intelligenceService,
+    );
+  }
 
-	// --- 1. Flujo Principal de SERVI ---
-	Future<void> _scanInvoice() async {
-		setState(() {
-			_isLoading = true;
-			_analyzedItems = null;
-			_errorMessage = null;
-		});
+  // --- 1. Flujo Principal de SERVI ---
+  Future<void> _scanInvoice() async {
+    setState(() {
+      _isLoading = true;
+      _analyzedItems = null;
+      _errorMessage = null;
+    });
 
-		try {
-			final aiConfig = await ref.read(aiConfigServiceProvider).getAiConfigOnce();
-			final double dynamicThreshold = (aiConfig['cost_alert_threshold'] as num?)?.toDouble() ?? _alertThreshold;
-			
-			// 1. Capturar la imagen y obtener el Base64
-			final base64 = await widget._pickerService.pickAndEncodeImage();
-			if (base64 == null) {
-				setState(() => _isLoading = false);
-				return; 
-			}
+    try {
+      final aiConfig = await ref.read(aiConfigServiceProvider).getAiConfigOnce();
+      final double dynamicThreshold = (aiConfig['cost_alert_threshold'] as num?)?.toDouble() ?? _alertThreshold;
+      
+      // 1. Capturar la imagen y obtener el Base64
+      final base64 = await widget._pickerService.pickAndEncodeImage();
+      if (base64 == null) {
+        setState(() => _isLoading = false);
+        return; 
+      }
 
-			// 2. Llamar al servicio de IA (Gemini OCR). 
-			// 2. Llamar al servicio de IA (Gemini OCR). 
-			// **SOLUCIÓN:** Aplicamos un cast 'as Invoice' para forzar la asignación al tipo de modelo esperado.
-			final Invoice rawResult = await widget._geminiService.extractDataFromImage(base64) as Invoice; // 👈 CAST EXPLÍCITO
+      // 2. Llamar al servicio de IA (Gemini OCR). 
+      // 2. Llamar al servicio de IA (Gemini OCR). 
+      // **SOLUCIÓN:** Aplicamos un cast 'as Invoice' para forzar la asignación al tipo de modelo esperado.
+      final Invoice rawResult = await widget._geminiService.extractDataFromImage(base64) as Invoice; // 👈 CAST EXPLÍCITO
 
-			// 3. Obtener el Costo Fijo Unitario actual
-			final currentFixedCost = await _inventoryRepo.getCurrentFixedCostSnapshot();
-			
-					
-			// 4. Análisis Inteligente de Costos y Clasificación
-			final List<Future<AnalyzedLineItem>> analysisFutures = rawResult.lineItems.map((item) async {
-					final avgCost = await _inventoryRepo.getHistoricalAverageCost(item.description);
-					double deviation = (avgCost > 0) ? (item.unitPrice - avgCost) / avgCost : 0.0;
-					
-					final suggestedCategory = await widget._geminiService.suggestCategory(item.description);
+      // 3. Obtener el Costo Fijo Unitario actual
+      final currentFixedCost = await _inventoryRepo.getCurrentFixedCostSnapshot();
+      
+          
+      // 4. Análisis Inteligente de Costos y Clasificación
+      final List<Future<AnalyzedLineItem>> analysisFutures = rawResult.lineItems.map((item) async {
+          final avgCost = await _inventoryRepo.getHistoricalAverageCost(item.description);
+          double deviation = (avgCost > 0) ? (item.unitPrice - avgCost) / avgCost : 0.0;
+          
+          final suggestedCategory = await widget._geminiService.suggestCategory(item.description);
 
-					const double assumedSellingPrice = 100.0; 
-					
-					return AnalyzedLineItem(
-						item: item,
-						historicalAvgCost: avgCost,
-						costDeviationPercentage: deviation,
-						sellingPrice: assumedSellingPrice, 
-						fixedCostSnapshot: currentFixedCost,
-						suggestedCategory: suggestedCategory,
-					);
-			}).toList();
-			
-			final analysisResults = await Future.wait(analysisFutures);
+          const double assumedSellingPrice = 100.0; 
+          
+          return AnalyzedLineItem(
+            item: item,
+            historicalAvgCost: avgCost,
+            costDeviationPercentage: deviation,
+            sellingPrice: assumedSellingPrice, 
+            fixedCostSnapshot: currentFixedCost,
+            suggestedCategory: suggestedCategory,
+          );
+      }).toList();
+      
+      final analysisResults = await Future.wait(analysisFutures);
 
-			// 5. Chequear y Mostrar Alerta
-			final bool hasAlerts = analysisResults.any((item) => item.costDeviationPercentage.abs() > dynamicThreshold);
+      // 5. Chequear y Mostrar Alerta
+      final bool hasAlerts = analysisResults.any((item) => item.costDeviationPercentage.abs() > dynamicThreshold);
 
-			if (hasAlerts) {
-					final confirmed = await _showCostAlert(analysisResults);
-					if (!confirmed) {
-						if (mounted) setState(() => _isLoading = false);
-						return;
-					}
-			}
+      if (hasAlerts) {
+          final confirmed = await _showCostAlert(analysisResults);
+          if (!confirmed) {
+            if (mounted) setState(() => _isLoading = false);
+            return;
+          }
+      }
 
-			// 6. Actualizar la interfaz
-			setState(() {
-				_rawInvoiceResult = rawResult;
-				_analyzedItems = analysisResults;
-			});
-			
-		} catch (e) {
-			setState(() {
-				_errorMessage = e.toString();
-				debugPrint('Error en SERVI OCR: $e');
-			});
-		} finally {
-			if (mounted) setState(() => _isLoading = false);
-		}
-	}
-	
-	// --- 2. Flujo de Persistencia ---
-	Future<void> _saveInvoice() async {
-		if (_rawInvoiceResult == null) return;
-		
-		await _inventoryRepo.saveInvoice(_rawInvoiceResult!); 
-		
-		if (mounted) {
-			ScaffoldMessenger.of(context).showSnackBar(
-					const SnackBar(content: Text('Factura guardada y lista para inventario.')));
-			Navigator.of(context).pop();
-		}
-	}
-	
-	// --- 3. DIÁLOGO DE ALERTA DE COSTO ---
-	Future<bool> _showCostAlert(List<AnalyzedLineItem> items) {
-			final alertItems = items.where((i) => i.requiresAlert).toList();
-			
-			return showDialog<bool>(
-					context: context,
-					barrierDismissible: false,
-					builder: (ctx) => AlertDialog(
-							title: const Text('🚨 ¡Alerta de Costo Inusual!'),
-							content: SingleChildScrollView(
-									child: ListBody(
-											children: [
-													Text('El precio de compra de los siguientes artículos es significativamente diferente al promedio histórico (±${(_alertThreshold * 100).toInt()}%).'),
-													const SizedBox(height: 10),
-													...alertItems.map((item) => Text(
-															'• ${item.alertMessage}',
-															style: TextStyle(color: item.costDeviationPercentage > 0 ? Colors.redAccent : Colors.orangeAccent, fontWeight: FontWeight.bold),
-													)),
-													const SizedBox(height: 10),
-													const Text('¿Desea continuar e ingresar estos artículos al inventario con este costo?'),
-											],
-									),
-							),
-							actions: [
-									TextButton(
-											onPressed: () => Navigator.pop(ctx, false),
-											child: const Text('Revisar y Cancelar'),
-									),
-									FilledButton(
-											onPressed: () => Navigator.pop(ctx, true),
-											child: const Text('Continuar y Guardar'),
-									),
-							],
-					),
-			).then((value) => value ?? false);
-	}
-	
-	// --- 4. Implementación del método 'build' requerido ---
-	@override
-	Widget build(BuildContext context) {
-		return Scaffold(
-			appBar: AppBar(
-				title: const Text('SERVI: Escaneo de Factura'),
-			),
-			body: Center(
-				child: _isLoading 
-						? const Column(
-								mainAxisAlignment: MainAxisAlignment.center,
-								children: [
-									CircularProgressIndicator(),
-									SizedBox(height: 16),
-									Text('SERVI Analizando... ¡Casi listo!'),
-								],
-							)
-						: _errorMessage != null
-								? Text('Error: $_errorMessage', style: const TextStyle(color: Colors.red))
-								: _rawInvoiceResult == null
-										? ElevatedButton(
-												onPressed: _scanInvoice,
-												child: const Text('Escanear Nueva Factura con SERVI'),
-											)
-										: SingleChildScrollView(
-												padding: const EdgeInsets.all(16),
-												child: _buildInvoiceForm(),
-											),
-			),
-		);
-	}
-	
-	// --- 5. Implementación del método '_buildInvoiceForm' ---
-	Widget _buildInvoiceForm() {
-		final displayItems = _analyzedItems ?? _rawInvoiceResult!.lineItems.map((e) => AnalyzedLineItem(
-				item: e, 
-				historicalAvgCost: 0, 
-				costDeviationPercentage: 0.0,
-				sellingPrice: 0.0, 
-				fixedCostSnapshot: 0.0, 
-				suggestedCategory: 'Pendiente', 
-		)).toList();
-		
-		return Column(
-			crossAxisAlignment: CrossAxisAlignment.start,
-			children: [
-				Text('Proveedor: ${_rawInvoiceResult!.vendorName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-				Text('Monto Total: \$${_rawInvoiceResult!.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
-				const Divider(height: 30),
-				
-				const Text('Items y Análisis Proyectado (SERVI):', style: TextStyle(fontWeight: FontWeight.bold)),
-				
-				...displayItems.map((analyzedItem) {
-						final isAlert = analyzedItem.requiresAlert;
-						final item = analyzedItem.item;
-						return Padding(
-								padding: const EdgeInsets.symmetric(vertical: 8.0),
-								child: Column(
-										crossAxisAlignment: CrossAxisAlignment.start,
-										children: [
-												ListTile(
-														leading: Icon(isAlert ? Icons.warning_rounded : Icons.check_circle_outline, color: isAlert ? Colors.redAccent : Colors.green),
-														title: Text(item.description, style: const TextStyle(fontWeight: FontWeight.bold)),
-														subtitle: Text(
-																'Cant: ${item.quantity} | Costo Unitario de Compra: \$${item.unitPrice.toStringAsFixed(2)}',
-														),
-														trailing: isAlert ? const Icon(Icons.info_outline, color: Colors.red) : null,
-												),
-												Padding(
-														padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
-														child: Column(
-																crossAxisAlignment: CrossAxisAlignment.start,
-																children: [
-																		if (isAlert) 
-																				Text(analyzedItem.alertMessage, style: const TextStyle(fontSize: 12, color: Colors.red, fontStyle: FontStyle.italic)),
-																		
-																		const SizedBox(height: 4),
-																		
-																		Text(analyzedItem.marginMessage, style: TextStyle(
-																				fontSize: 13, 
-																				color: analyzedItem.grossProfitMargin > 0.25 ? Colors.green : Colors.orange,
-																				fontWeight: FontWeight.w600,
-																		)),
-																		Text('Costo Fijo Aplicado: \$${analyzedItem.fixedCostSnapshot.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-																],
-														),
-												),
-												const Divider(height: 1),
-										],
-								),
-						);
-				}).toList(),
-				const SizedBox(height: 30),
-				ElevatedButton(
-					onPressed: _saveInvoice,
-					child: const Text('Confirmar y Guardar en Inventario'),
-				),
-			],
-		);
-	}
+      // 6. Actualizar la interfaz
+      setState(() {
+        _rawInvoiceResult = rawResult;
+        _analyzedItems = analysisResults;
+      });
+      
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        debugPrint('Error en SERVI OCR: $e');
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+  
+  // --- 2. Flujo de Persistencia ---
+  Future<void> _saveInvoice() async {
+    if (_rawInvoiceResult == null) return;
+    
+    await _inventoryRepo.saveInvoice(_rawInvoiceResult!); 
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Factura guardada y lista para inventario.')));
+      Navigator.of(context).pop();
+    }
+  }
+  
+  // --- 3. DIÁLOGO DE ALERTA DE COSTO ---
+  Future<bool> _showCostAlert(List<AnalyzedLineItem> items) {
+      final alertItems = items.where((i) => i.requiresAlert).toList();
+      
+      return showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+              title: const Text('🚨 ¡Alerta de Costo Inusual!'),
+              content: SingleChildScrollView(
+                  child: ListBody(
+                      children: [
+                          Text('El precio de compra de los siguientes artículos es significativamente diferente al promedio histórico (±${(_alertThreshold * 100).toInt()}%).'),
+                          const SizedBox(height: 10),
+                          ...alertItems.map((item) => Text(
+                              '• ${item.alertMessage}',
+                              style: TextStyle(color: item.costDeviationPercentage > 0 ? Colors.redAccent : Colors.orangeAccent, fontWeight: FontWeight.bold),
+                          )),
+                          const SizedBox(height: 10),
+                          const Text('¿Desea continuar e ingresar estos artículos al inventario con este costo?'),
+                      ],
+                  ),
+              ),
+              actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Revisar y Cancelar'),
+                  ),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Continuar y Guardar'),
+                  ),
+              ],
+          ),
+      ).then((value) => value ?? false);
+  }
+  
+  // --- 4. Implementación del método 'build' requerido ---
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('SERVI: Escaneo de Factura'),
+      ),
+      body: Center(
+        child: _isLoading 
+            ? const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('SERVI Analizando... ¡Casi listo!'),
+                ],
+              )
+            : _errorMessage != null
+                ? Text('Error: $_errorMessage', style: const TextStyle(color: Colors.red))
+                : _rawInvoiceResult == null
+                    ? ElevatedButton(
+                        onPressed: _scanInvoice,
+                        child: const Text('Escanear Nueva Factura con SERVI'),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: _buildInvoiceForm(),
+                      ),
+      ),
+    );
+  }
+  
+  // --- 5. Implementación del método '_buildInvoiceForm' ---
+  Widget _buildInvoiceForm() {
+    final displayItems = _analyzedItems ?? _rawInvoiceResult!.lineItems.map((e) => AnalyzedLineItem(
+        item: e, 
+        historicalAvgCost: 0, 
+        costDeviationPercentage: 0.0,
+        sellingPrice: 0.0, 
+        fixedCostSnapshot: 0.0, 
+        suggestedCategory: 'Pendiente', 
+    )).toList();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Proveedor: ${_rawInvoiceResult!.vendorName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text('Monto Total: \$${_rawInvoiceResult!.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
+        const Divider(height: 30),
+        
+        const Text('Items y Análisis Proyectado (SERVI):', style: TextStyle(fontWeight: FontWeight.bold)),
+        
+        ...displayItems.map((analyzedItem) {
+            final isAlert = analyzedItem.requiresAlert;
+            final item = analyzedItem.item;
+            return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                        ListTile(
+                            leading: Icon(isAlert ? Icons.warning_rounded : Icons.check_circle_outline, color: isAlert ? Colors.redAccent : Colors.green),
+                            title: Text(item.description, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(
+                                'Cant: ${item.quantity} | Costo Unitario de Compra: \$${item.unitPrice.toStringAsFixed(2)}',
+                            ),
+                            trailing: isAlert ? const Icon(Icons.info_outline, color: Colors.red) : null,
+                        ),
+                        Padding(
+                            padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                    if (isAlert) 
+                                        Text(analyzedItem.alertMessage, style: const TextStyle(fontSize: 12, color: Colors.red, fontStyle: FontStyle.italic)),
+                                    
+                                    const SizedBox(height: 4),
+                                    
+                                    Text(analyzedItem.marginMessage, style: TextStyle(
+                                        fontSize: 13, 
+                                        color: analyzedItem.grossProfitMargin > 0.25 ? Colors.green : Colors.orange,
+                                        fontWeight: FontWeight.w600,
+                                    )),
+                                    Text('Costo Fijo Aplicado: \$${analyzedItem.fixedCostSnapshot.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                ],
+                            ),
+                        ),
+                        const Divider(height: 1),
+                    ],
+                ),
+            );
+        }), // ✅ CORRECCIÓN: Se eliminó .toList()
+        const SizedBox(height: 30),
+        ElevatedButton(
+          onPressed: _saveInvoice,
+          child: const Text('Confirmar y Guardar en Inventario'),
+        ),
+      ],
+    );
+  }
 }

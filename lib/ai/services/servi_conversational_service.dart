@@ -1,20 +1,19 @@
 // /lib/ai/services/servi_conversational_service.dart
 
-import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/model/intention_result_model.dart'; 
 import 'dart:async'; 
-import 'dart:convert'; 
 import 'package:flutter/foundation.dart'; // Para debugPrint
 
 // CLAVE: Importamos el conector dedicado con un prefijo para que el compilador lo distinga.
-import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart' as Connector; 
+// ✅ CORRECCIÓN: Se cambió 'Connector' a 'connector' (snake_case)
+import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart' as connector; 
 
 
 // --- CLASE SERVICIO CONVERSACIONAL (Paso 5: Mapeo Final) ---
 class ServiConversationalService {
     
     // El constructor espera el tipo del archivo dedicado (usando el prefijo).
-    final Connector.ServiApiConnectorService _apiConnector; 
+    final connector.ServiApiConnectorService _apiConnector; 
     
     ServiConversationalService(this._apiConnector);
 

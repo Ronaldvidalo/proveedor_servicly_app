@@ -61,13 +61,13 @@ class NotificationService {
               priority: Priority.high,
             ),
           ),
-          // Pasamos los datos para saber qué hacer si tocan esta notificación local
+          // Pasamos el tipo en el payload para manejar el tap local
           payload: message.data['type'], 
         );
       }
     });
 
-    // --- NUEVO: CONFIGURAR LA INTERACCIÓN (TAP) ---
+    // --- CONFIGURAR LA INTERACCIÓN (TAP) ---
     _setupInteractedMessage();
     
     debugPrint("✅ Sistema de Notificaciones Inicializado");
@@ -75,36 +75,58 @@ class NotificationService {
 
   // --- LÓGICA DE NAVEGACIÓN INTELIGENTE ---
   Future<void> _setupInteractedMessage() async {
-    // CASO 1: La app estaba CERRADA y el usuario tocó la notificación para abrirla
+    // CASO 1: La app estaba CERRADA
     RemoteMessage? initialMessage = await _firebaseMessaging.getInitialMessage();
     if (initialMessage != null) {
       _handleMessageNavigation(initialMessage);
     }
 
-    // CASO 2: La app estaba en SEGUNDO PLANO y el usuario tocó la notificación
+    // CASO 2: La app estaba en SEGUNDO PLANO
     FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageNavigation);
+    
+    // CASO 3: Tap en notificación LOCAL (Primer plano)
+    _localNotifications.initialize(
+        const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          if (response.payload != null) {
+             // Simulamos un RemoteMessage simple para reutilizar la lógica
+             _handleMessageNavigation(RemoteMessage(data: {'type': response.payload}));
+          }
+        }
+    );
   }
 
   void _handleMessageNavigation(RemoteMessage message) {
     final data = message.data;
-    final type = data['type']; // 'new_order', 'order_update', 'nueva_resena'
+    final type = data['type']; 
     
     debugPrint("🚀 Navegando por notificación tipo: $type");
 
+    // --- RUTEADOR DE NOTIFICACIONES ---
+
+    // 1. NUEVA VENTA (Para el Proveedor)
     if (type == 'new_order') {
-      // PROVEEDOR: Ir a sus pedidos recibidos
       navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => const ProviderOrdersScreen()),
       );
     } 
-    else if (type == 'order_update') {
-      // CLIENTE: Ir a sus compras
+    
+    // 2. ACTUALIZACIÓN PARA EL CLIENTE (En camino / Cancelado)
+    else if (type == 'order_update_client') {
       navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => const ClientOrdersScreen()),
       );
     } 
+    
+    // 3. ACTUALIZACIÓN PARA EL PROVEEDOR (Cliente confirmó recepción)
+    else if (type == 'order_update_provider') {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const ProviderOrdersScreen()),
+      );
+    }
+
+    // 4. NUEVA RESEÑA
     else if (type == 'nueva_resena') {
-      // PROVEEDOR: Ir a ver su perfil público (donde están las reseñas)
       final profileId = data['profileId'];
       if (profileId != null) {
         navigatorKey.currentState?.push(
@@ -122,7 +144,6 @@ class NotificationService {
     if (token == null || userId == null) return;
 
     try {
-      // Guardamos en subcolección 'tokens'
       await _db.collection('users').doc(userId).collection('tokens').doc(token).set({
         'token': token,
         'createdAt': FieldValue.serverTimestamp(),

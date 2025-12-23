@@ -16,6 +16,7 @@ class ProviderProfileModel {
   final String planType;
   final String? publicProfileTemplate; // Campo clave
   final String? primaryColor;
+  final String? mainCategory; // ✅ Campo clave para Servi
 
   // --- Campos Adicionales ---
   final String? slogan;
@@ -95,10 +96,10 @@ class ProviderProfileModel {
     this.showGiftCardModule = true,
     this.showBookingModule = true,
     this.showQuotesModule = false,
-    // ✅ AQUÍ ESTÁ EL PARÁMETRO REQUERIDO
     this.publicProfileTemplate,
     this.country,
     this.primaryColor,
+    this.mainCategory // ✅ Correcto en el constructor
   });
 
   /// Constructor factory inteligente para leer desde Firestore.
@@ -128,6 +129,7 @@ class ProviderProfileModel {
 
     return ProviderProfileModel(
       providerId: doc.id,
+      mainCategory: get('mainCategory') as String?, // ✅ Correcto: lee de la DB
       businessName: get('businessName') as String? ?? 'Nombre del Negocio',
       logoUrl: get('logoUrl') as String? ?? '',
       brandColor: _colorFromHex(get('primaryColor') as String?) ?? Colors.deepPurple,
@@ -177,6 +179,7 @@ class ProviderProfileModel {
       showGiftCardModule: giftCardModule['show'] as bool? ?? true,
       showBookingModule: bookingModule['show'] as bool? ?? true,
       showQuotesModule: quotesModule['show'] as bool? ?? false,
+      
     );
   }
 
@@ -222,6 +225,7 @@ class ProviderProfileModel {
     String? publicProfileTemplate,
     String? country,
     String? primaryColor,
+    String? mainCategory, // ✅ Agregado argumento
   }) {
     return ProviderProfileModel(
       providerId: providerId ?? this.providerId,
@@ -264,6 +268,7 @@ class ProviderProfileModel {
       publicProfileTemplate: publicProfileTemplate ?? this.publicProfileTemplate,
       country: country ?? this.country,
       primaryColor: primaryColor ?? this.primaryColor,
+      mainCategory: mainCategory ?? this.mainCategory, // ✅ Agregada asignación
     );
   }
 
@@ -297,6 +302,7 @@ class ProviderProfileModel {
       'longitude': longitude,
       'publicProfileTemplate': publicProfileTemplate,
       'isAvailable': isAvailable,
+      'mainCategory': mainCategory, // ✅ Agregado: CRÍTICO para que se guarde en DB
       'welcomeModule': {
         'show': showWelcomeModule,
         'type': welcomeModuleType,

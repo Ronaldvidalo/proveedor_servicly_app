@@ -83,10 +83,7 @@ final financialSummaryProvider = Provider.autoDispose<AsyncValue<FinancialSummar
     final presupuestos = presupuestosAsync.value!;
     
     // 1. Calcular KPIs Principales
-    final totalCobrado = cobros
-        .where((c) => c.estado == 'COBRADO')
-        .map((c) => c.monto)
-        .sum;
+    // ✅ CORRECCIÓN: Se eliminó la variable 'totalCobrado' que no se utilizaba.
     
     // Filtramos gastos solo del mes actual para el KPI de "Ingresos Netos"
     // (Esta es una decisión de negocio, asumimos que "Ingresos Netos" es mensual)
@@ -288,4 +285,3 @@ List<RecentTransaction> _calculateRecentTransactions(List<CobroModel> cobros, Li
   // Devolver solo el límite (ej. las 5 más recientes)
   return transacciones.take(limite).toList();
 }
-

@@ -127,7 +127,7 @@ class _StatTile extends StatelessWidget {
     
     return Container(
       decoration: BoxDecoration(
-        color: surfaceColor.withOpacity(0.8),
+        color: surfaceColor.withValues(alpha:0.8),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withAlpha(50)) // Borde sutil
       ),

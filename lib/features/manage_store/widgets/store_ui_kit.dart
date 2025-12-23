@@ -24,13 +24,13 @@ class SmallActionCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      splashColor: kCyberAccent.withOpacity(0.3),
+      splashColor: kCyberAccent.withValues(alpha: 0.3),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
             color: kCyberSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: kCyberAccent.withOpacity(0.3))),
+            border: Border.all(color: kCyberAccent.withValues(alpha: 0.3))),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -77,9 +77,9 @@ class DashedActionCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: kCyberAccent.withOpacity(0.3),
+          splashColor: kCyberAccent.withValues(alpha: 0.3),
           child: DottedBorder(
-            color: kCyberAccent.withOpacity(0.6),
+            color: kCyberAccent.withValues(alpha: 0.6),
             strokeWidth: 2,
             radius: const Radius.circular(16),
             borderType: BorderType.rRect,
@@ -122,9 +122,9 @@ class SeeAllCard extends StatelessWidget {
         width: 160,
         margin: const EdgeInsets.only(right: 12.0),
         decoration: BoxDecoration(
-          color: kCyberSurface.withOpacity(0.6),
+          color: kCyberSurface.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kCyberAccent.withOpacity(0.4)),
+          border: Border.all(color: kCyberAccent.withValues(alpha: 0.4)),
         ),
         child: const Center(
           child: Column(

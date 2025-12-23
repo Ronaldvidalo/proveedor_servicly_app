@@ -60,7 +60,8 @@ class _AllOrdersScreenState extends State<AllOrdersScreen> with SingleTickerProv
           indicatorColor: colors.primary, // Color de acento del tema
           indicatorWeight: 3,
           labelColor: colors.primary,
-          unselectedLabelColor: colors.onSurface.withOpacity(0.7),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          unselectedLabelColor: colors.onSurface.withValues(alpha: 0.7),
           tabs: const [
             Tab(text: 'PENDIENTES'),
             Tab(text: 'COMPLETADAS'),
@@ -185,11 +186,13 @@ class _CompactOrderItemCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     '+ ${order.items.length - 1} ${order.items.length - 1 == 1 ? 'item' : 'items'} más',
-                    style: TextStyle(color: colors.onSurface.withOpacity(0.7), fontStyle: FontStyle.italic, fontSize: 12),
+                    // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                    style: TextStyle(color: colors.onSurface.withValues(alpha: 0.7), fontStyle: FontStyle.italic, fontSize: 12),
                   ),
                 ),
               
-              Divider(color: colors.onSurface.withOpacity(0.1), height: 24),
+              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+              Divider(color: colors.onSurface.withValues(alpha: 0.1), height: 24),
 
               // Fila inferior: Cliente y Total
               Row(
@@ -202,7 +205,8 @@ class _CompactOrderItemCard extends StatelessWidget {
                       children: [
                         Text(
                           'Cliente',
-                          style: TextStyle(color: colors.onSurface.withOpacity(0.7), fontSize: 12),
+                          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                          style: TextStyle(color: colors.onSurface.withValues(alpha: 0.7), fontSize: 12),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -219,7 +223,8 @@ class _CompactOrderItemCard extends StatelessWidget {
                     children: [
                       Text(
                         'Total',
-                        style: TextStyle(color: colors.onSurface.withOpacity(0.7), fontSize: 12),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        style: TextStyle(color: colors.onSurface.withValues(alpha: 0.7), fontSize: 12),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -250,7 +255,7 @@ class _StatusBadge extends StatelessWidget {
     IconData icon;
 
     switch (status) {
-      case OrderStatus.pending_verification:
+      case OrderStatus.pendingVerification:
         text = 'Pendiente';
         color = Colors.orangeAccent;
         icon = Icons.hourglass_top_rounded;
@@ -306,12 +311,14 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.receipt_long_outlined, size: 80, color: colors.onSurface.withOpacity(0.2)),
+            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+            Icon(Icons.receipt_long_outlined, size: 80, color: colors.onSurface.withValues(alpha: 0.2)),
             const SizedBox(height: 24),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: colors.onSurface.withOpacity(0.6)),
+              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+              style: TextStyle(fontSize: 16, color: colors.onSurface.withValues(alpha: 0.6)),
             ),
           ],
         ),

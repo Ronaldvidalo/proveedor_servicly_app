@@ -5,7 +5,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 // --- IMPORTACIONES CLAVE ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+// Removed unused import: firestore_service.dart
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 
 // --- NUEVOS SERVICIOS UNIFICADOS ---
@@ -38,9 +38,10 @@ class _ServiChatScreenState extends State<ServiChatScreen> {
     
     // --- INICIALIZACIÓN DEL CEREBRO (Igual que en Dashboard) ---
     // Esto garantiza que el Chat y el Dashboard respondan IGUAL.
-    final firestoreService = context.read<FirestoreService>();
+    
     final geminiService = GeminiService(); // O Provider si lo tienes
-    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
+    // ✅ CORRECCIÓN: ServiApiConnectorService solo recibe geminiService ahora
+    final apiConnector = ServiApiConnectorService(geminiService);
     final conversationalService = ServiConversationalService(apiConnector);
     
     _serviBrain = ServiBrainService(advancedBrain: conversationalService);
@@ -189,7 +190,8 @@ class _ServiChatScreenState extends State<ServiChatScreen> {
                   bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
                 ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))
                 ],
               ),
               child: Text(

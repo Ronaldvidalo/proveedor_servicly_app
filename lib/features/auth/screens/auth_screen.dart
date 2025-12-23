@@ -157,7 +157,6 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() => _isLoading = true);
     final authService = context.read<AuthService>();
     final messenger = ScaffoldMessenger.of(context);
-    final firebaseAuth = FirebaseAuth.instance;
 
     try {
       if (_authMode == AuthMode.login) {
@@ -181,25 +180,34 @@ class _AuthScreenState extends State<AuthScreen>
       } else if (_authMode == AuthMode.forgotPassword) {
         // --- RECUPERACIÓN ---
         final email = _emailController.text.trim();
-        final signInMethods = await firebaseAuth.fetchSignInMethodsForEmail(email);
+        
+        // CORRECCIÓN: Se eliminó fetchSignInMethodsForEmail (deprecado).
+        // Se intenta enviar el correo directamente. Si el usuario no existe y la protección
+        // de enumeración está desactivada, lanzará 'user-not-found'.
+        
+        try {
+          await authService.sendPasswordResetEmail(email: email);
 
-        if (signInMethods.isEmpty) {
-          if (mounted) {
-             setState(() => _isLoading = false);
-             _showUserNotFoundDialog();
+          messenger.showSnackBar(SnackBar(
+            content: Text('✔ Enlace enviado. Revisa tu correo.', style: TextStyle(color: Colors.white)),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+          ));
+          
+          _switchAuthMode(AuthMode.login);
+
+        } on FirebaseAuthException catch (e) {
+          // Manejo específico para mostrar el diálogo de registro si el usuario no existe
+          // (Solo funciona si la enumeración de emails está permitida en Firebase Console)
+          if (e.code == 'user-not-found') {
+            if (mounted) {
+               setState(() => _isLoading = false);
+               _showUserNotFoundDialog();
+            }
+            return; 
           }
-          return;
+          rethrow; // Otros errores se manejan en el catch externo
         }
-
-        await authService.sendPasswordResetEmail(email: email);
-        
-        messenger.showSnackBar(SnackBar(
-          content: Text('✔ Enlace enviado. Revisa tu correo.', style: TextStyle(color: Colors.white)),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-        ));
-        
-        _switchAuthMode(AuthMode.login);
       }
     } on FirebaseAuthException catch (error) {
       if (error.code == 'wrong-password' && _authMode == AuthMode.login) {

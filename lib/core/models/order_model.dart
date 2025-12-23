@@ -4,8 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 // 1. Estados de la Orden (Flujo P2P)
 enum OrderStatus {
-  pending_payment,      // El cliente creó la orden pero no ha subido comprobante
-  pending_verification, // El cliente subió comprobante, proveedor revisa
+  pendingPayment,      // El cliente creó la orden pero no ha subido comprobante
+  pendingVerification, // El cliente subió comprobante, proveedor revisa
+  inProgress,
   completed,            // Proveedor confirmó pago y entregó producto
   cancelled,            // Cancelada por cualquiera de las partes
   disputed              // En disputa (futuro)
@@ -22,6 +23,7 @@ class OrderModel {
   final String id;
   final String providerId; 
   final String clientId;   
+  final String? providerNote;
 
   // --- Detalles del Cliente ---
   final String clientName;
@@ -67,6 +69,7 @@ class OrderModel {
     this.shippingAddress = '',
     this.shippingCost = 0.0,
     this.isRated = false, // Por defecto no está calificada
+    this.providerNote,
   });
 
   /// Factory: Desde Firestore -> Modelo Dart
@@ -82,7 +85,7 @@ class OrderModel {
     final String statusString = data['status'] as String? ?? 'pending_payment';
     final OrderStatus status = OrderStatus.values.firstWhere(
       (e) => e.name == statusString,
-      orElse: () => OrderStatus.pending_payment,
+      orElse: () => OrderStatus.pendingPayment,
     );
 
     // Conversión de DeliveryType (String -> Enum)
@@ -106,6 +109,7 @@ class OrderModel {
       paymentProofUrl: data['paymentProofUrl'] as String? ?? '',
       paymentMethodId: data['paymentMethodId'] as String? ?? '',
       clientNotes: data['clientNotes'] as String?,
+      providerNote: data['providerNote'],
       
       // Campos logísticos
       deliveryType: deliveryType,
@@ -132,6 +136,7 @@ class OrderModel {
       'paymentProofUrl': paymentProofUrl,
       'paymentMethodId': paymentMethodId,
       'clientNotes': clientNotes,
+      'providerNote': providerNote,
       
       // Campos logísticos
       'deliveryType': deliveryType.name,

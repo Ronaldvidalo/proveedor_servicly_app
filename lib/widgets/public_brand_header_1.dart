@@ -60,9 +60,11 @@ class PublicBrandHeader1 extends StatelessWidget {
         color: surfaceColor,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8)),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8)),
         ],
-        border: Border.all(color: accentColor.withOpacity(0.2)),
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        border: Border.all(color: accentColor.withValues(alpha: 0.2)),
       ),
       child: Stack(
         children: [
@@ -90,7 +92,8 @@ class PublicBrandHeader1 extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: accentColor, width: 3),
                     boxShadow: [
-                      BoxShadow(color: accentColor.withOpacity(0.3), blurRadius: 20, spreadRadius: 2)
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      BoxShadow(color: accentColor.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 2)
                     ],
                     image: profile.logoUrl.isNotEmpty
                         ? DecorationImage(image: NetworkImage(profile.logoUrl), fit: BoxFit.cover)
@@ -144,12 +147,15 @@ class PublicBrandHeader1 extends StatelessWidget {
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withOpacity(0.1), // Dorado translúcido
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.1), // Dorado translúcido
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFFFD700).withOpacity(0.1),
+                            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.1),
                             blurRadius: 10,
                           )
                         ]
@@ -171,7 +177,8 @@ class PublicBrandHeader1 extends StatelessWidget {
                             Text(
                               " ($count reseñas)",
                               style: TextStyle(
-                                color: const Color(0xFFFFD700).withOpacity(0.8),
+                                // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                                color: const Color(0xFFFFD700).withValues(alpha: 0.8),
                                 fontSize: 13,
                               ),
                             ),
@@ -200,12 +207,14 @@ class PublicBrandHeader1 extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.location_on, size: 14, color: accentColor.withOpacity(0.8)),
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      Icon(Icons.location_on, size: 14, color: accentColor.withValues(alpha: 0.8)),
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
                           profile.address!,
-                          style: TextStyle(color: accentColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                          style: TextStyle(color: accentColor.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -292,7 +301,8 @@ class _SocialIcon extends StatelessWidget {
       style: IconButton.styleFrom(
         backgroundColor: Colors.transparent,
         foregroundColor: brandColor,
-        side: BorderSide(color: brandColor.withOpacity(0.4), width: 1),
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        side: BorderSide(color: brandColor.withValues(alpha: 0.4), width: 1),
         padding: const EdgeInsets.all(10),
         minimumSize: const Size.square(48),
       ),

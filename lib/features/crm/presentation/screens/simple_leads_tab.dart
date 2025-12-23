@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui'; 
@@ -13,12 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // --- SERVICIOS DE IA ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
-import 'package:proveedor_servicly_app/ai/services/servi_brain_service.dart';
 import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
-import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 
 // Modelos y ViewModels
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
@@ -28,6 +24,8 @@ import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_
 
 // Pantallas
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart';
+import 'package:proveedor_servicly_app/features/budget/screens/quote_editor_screen.dart';
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart'; // Asegúrate que esta ruta sea correcta
 
 class SimpleLeadsTab extends StatefulWidget {
   const SimpleLeadsTab({super.key});
@@ -41,7 +39,6 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
   // --- IA SERVI INTEGRADA ---
   final ServiVoiceService _voiceService = ServiVoiceService();
   final stt.SpeechToText _speech = stt.SpeechToText();
-  late ServiBrainService _serviBrain;
   
   bool _isSpeaking = false;
   bool _isListening = false;
@@ -61,13 +58,6 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    // Inicialización del Cerebro IA
-    final firestoreService = FirestoreService(); 
-    final geminiService = GeminiService();
-    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
-    final conversationalService = ServiConversationalService(apiConnector);
-    _serviBrain = ServiBrainService(advancedBrain: conversationalService);
-    
     _initVoiceListeners();
   }
 
@@ -125,9 +115,11 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
   Future<void> _processVoiceCommand(String command) async {
     if (command.trim().isEmpty) return;
     
+    // 1. Estado "Pensando"
     setState(() => _isThinking = true);
     
-    if (command.split(' ').length > 2) {
+    // Filler para no dejar silencio si es largo
+    if (command.split(' ').length > 4) {
        _fillers.shuffle();
        _speak(_fillers.first);
     }
@@ -135,14 +127,74 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
     try {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-            String response = await _serviBrain.processCommand(command, userId);
             
+            // 2. Llamada al Cerebro (Api Connector)
+            final geminiService = GeminiService();
+            final apiConnector = ServiApiConnectorService(geminiService);
+
+            final responseMap = await apiConnector.callServiLLM(command, userId);
+            
+            // 3. Procesar Respuesta
+            String textoHablado = responseMap['TEXTO_VOZ'] ?? responseMap['TEXTO_ESCRITO'] ?? "Listo.";
+            
+            // Hablamos primero para dar feedback
+            await _speak(textoHablado);
+
+            // 4. DETECCIÓN DE COMANDO DE NAVEGACIÓN
+            
+            // --- CASO A: PRESUPUESTO ---
+            if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRESUPUESTO') {
+                
+                debugPrint("🚀 SERVI: Ejecutando navegación a Presupuesto...");
+                final datos = responseMap['DATOS_PRECARGA'] ?? {};
+                
+                // Pequeño delay para que termine de hablar antes de cambiar de pantalla
+                await Future.delayed(const Duration(milliseconds: 1500));
+
+                if (mounted) {
+                    Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => QuoteEditorScreen(
+                            isNew: true,
+                            initialClient: datos['cliente_nombre'],
+                            initialConcept: datos['concepto'],
+                            // Convertimos a String y luego a Double para evitar errores de tipo int/double
+                            initialPrice: double.tryParse(datos['precio_estimado']?.toString() ?? '0'),
+                            aiSuggestion: datos['sugerencia_ia']
+                        )
+                    ));
+                }
+            }
+            // --- CASO B: PRODUCTO (NUEVO BLOQUE 📦) ---
+            else if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRODUCTO') {
+                
+                debugPrint("📦 SERVI: Navegando a Nuevo Producto...");
+                final datos = responseMap['DATOS_PRECARGA'] ?? {};
+                
+                // Esperamos que termine de hablar
+                await Future.delayed(const Duration(milliseconds: 1500));
+
+                if (mounted) {
+                    Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => AddEditProductScreen(
+                            // OJO: Asegúrate que tu AddEditProductScreen acepte estos parámetros.
+                            // Si no, tendremos que actualizar ese archivo también.
+                            initialName: datos['nombre_producto'],
+                            initialPrice: double.tryParse(datos['precio']?.toString() ?? '0'),
+                            initialStock: double.tryParse(datos['stock']?.toString() ?? '0'),
+                            aiDescription: datos['descripcion_ia'], // O aviso_ia
+                        )
+                    ));
+                }
+            }
+            
+            // Terminamos de pensar
             if (mounted) setState(() => _isThinking = false);
-            _speak(response);
+
         }
     } catch (e) {
+        debugPrint("Error procesando voz: $e");
         if (mounted) setState(() => _isThinking = false);
-        _speak("Tuve un error al buscar clientes. Probá manual.");
+        _speak("Tuve un problema técnico. Intenta de nuevo.");
     }
   }
   
@@ -185,9 +237,7 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
 
     if (!hasSeenTour) {
       await _speak("Bienvenido al CRM. Acá gestionamos tus relaciones comerciales.");
-      if (mounted) {
-        // Iniciamos el tour. Si no hay elementos bloqueados, solo mostramos la lista.
-        // La lógica dinámica de keys se maneja mejor si siempre mostramos al menos la lista.
+      if (mounted && showcaseContext.mounted) {
         ShowCaseWidget.of(showcaseContext).startShowCase([_keyLeadList]);
         prefs.setBool(tourKey, true);
       }
@@ -277,11 +327,8 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
                 itemCount: leads.length, 
                 itemBuilder: (context, index) {
                   final cliente = leads[index];
-                  final bool hasAccess = LeadAccessHelper.canAccessLead(userPlan, cliente.source ?? '');
+                  final bool hasAccess = LeadAccessHelper.canAccessLead(userPlan, cliente.source);
 
-                  // El primer elemento recibe la Key del Tour General
-                  // Si encontramos un elemento bloqueado, le asignamos la Key de Bloqueado para el tour (solo al primero que aparezca)
-                  // Esto es un truco visual para el tour.
                   Widget card = _LeadCard(
                     lead: cliente, 
                     hasAccess: hasAccess, 
@@ -296,10 +343,6 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
                       child: card,
                     );
                   }
-                  
-                  // Si es el primer elemento bloqueado que encontramos (y no es el índice 0), le ponemos showcase
-                  // Nota: Para simplificar, en esta versión MVP solo mostramos el showcase en el primero.
-                  // Una implementación más compleja buscaría el índice del primer bloqueado.
                   
                   return card;
                 },
@@ -359,9 +402,7 @@ class _LeadCard extends StatelessWidget {
       statusText = 'Cliente';
     }
 
-    final dateStr = lead.fechaAlta != null 
-      ? DateFormat('dd MMM - HH:mm').format(lead.fechaAlta!)
-      : 'Fecha desconocida';
+    final dateStr = DateFormat('dd MMM - HH:mm').format(lead.fechaAlta);
 
     return Card(
       color: surfaceColor,
@@ -372,9 +413,9 @@ class _LeadCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () {
           if (hasAccess) {
-             Navigator.push(context, MaterialPageRoute(builder: (_) => LeadDetailScreen(lead: lead)));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => LeadDetailScreen(lead: lead)));
           } else {
-             _showUpgradeDialog(context, theme);
+              _showUpgradeDialog(context, theme);
           }
         },
         child: Stack(
@@ -383,51 +424,51 @@ class _LeadCard extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                   Container(
+                    Container(
                     width: 4, height: 40,
                     decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2)),
                   ),
-                   const SizedBox(width: 16),
-                   Expanded(
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         hasAccess 
-                           ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
-                           : ImageFiltered(
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          hasAccess 
+                            ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
+                            : ImageFiltered(
                                imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                                child: Text(displayName, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 16)),
                              ),
-                         const SizedBox(height: 4),
-                         Text(
-                           displaySource,
-                           style: TextStyle(
-                             color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
-                             fontSize: 13, 
-                             fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
-                           ),
-                         ),
-                         const SizedBox(height: 8),
-                         Row(
-                           children: [
-                             Container(
-                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                               decoration: BoxDecoration(
-                                 color: statusColor.withValues(alpha: 0.15),
-                                 borderRadius: BorderRadius.circular(4),
-                                 border: Border.all(color: statusColor.withValues(alpha: 0.5)),
-                               ),
-                               child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
-                             ),
-                             const Spacer(),
-                             Text(dateStr, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)),
-                           ],
-                         )
-                       ],
-                     ),
-                   ),
-                   if (hasAccess)
-                    Icon(Icons.arrow_forward_ios, color: colorScheme.onSurface.withValues(alpha: 0.3), size: 16),
+                          const SizedBox(height: 4),
+                          Text(
+                            displaySource,
+                            style: TextStyle(
+                              color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
+                              fontSize: 13, 
+                              fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                                ),
+                                child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                              ),
+                              const Spacer(),
+                              Text(dateStr, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)),
+                            ],
+                          )
+                        ],
+                      ),
+                    ),
+                    if (hasAccess)
+                     Icon(Icons.arrow_forward_ios, color: colorScheme.onSurface.withValues(alpha: 0.3), size: 16),
                 ],
               ),
             ),

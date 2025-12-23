@@ -1,6 +1,5 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously, dead_code
 import 'dart:io';
-// Eliminamos el import duplicado de cloud_firestore aquí
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -21,25 +20,45 @@ import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as cloud_firestore; 
 
 class AddEditProductScreen extends StatelessWidget {
-  final UserModel user;
+  final UserModel? user; // Puede ser null si viene de navegación rápida, lo obtenemos del context
   final ProductModel? productToEdit;
   final CategoryModel? preselectedCategory;
+  
+  // --- PARÁMETROS IA SERVI ---
+  final String? initialName;
+  final double? initialPrice;
+  final double? initialStock;
+  final String? aiDescription;
 
   const AddEditProductScreen({
     super.key,
-    required this.user,
+    this.user, // Opcional ahora, se busca en context si es null
     this.productToEdit,
     this.preselectedCategory,
+    this.initialName,
+    this.initialPrice,
+    this.initialStock,
+    this.aiDescription,
   });
 
   @override
   Widget build(BuildContext context) {
-    // CORRECCIÓN 1: En la versión 3.0.0+, builder recibe directamente (context)
+    // Si no pasaron el usuario, lo buscamos en el árbol de widgets (Provider)
+    final currentUser = user ?? context.read<UserModel?>();
+    
+    if (currentUser == null) {
+        return const Scaffold(body: Center(child: Text("Error: Usuario no identificado")));
+    }
+
     return ShowCaseWidget(
       builder: (context) => _AddEditProductContent(
-        user: user,
+        user: currentUser,
         productToEdit: productToEdit,
         preselectedCategory: preselectedCategory,
+        initialName: initialName,
+        initialPrice: initialPrice,
+        initialStock: initialStock,
+        aiDescription: aiDescription,
       ),
     );
   }
@@ -49,11 +68,21 @@ class _AddEditProductContent extends StatefulWidget {
   final UserModel user;
   final ProductModel? productToEdit;
   final CategoryModel? preselectedCategory;
+  
+  // Parámetros IA
+  final String? initialName;
+  final double? initialPrice;
+  final double? initialStock;
+  final String? aiDescription;
 
   const _AddEditProductContent({
     required this.user,
     this.productToEdit,
     this.preselectedCategory,
+    this.initialName,
+    this.initialPrice,
+    this.initialStock,
+    this.aiDescription,
   });
 
   @override
@@ -97,17 +126,58 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     _initializeControllers();
     
     // Iniciar el tour si es la primera vez
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAndStartShowCase());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndStartShowCase();
+        
+        // --- MOSTRAR AVISO DE IA SI EXISTE ---
+        if (widget.aiDescription != null && widget.aiDescription!.isNotEmpty) {
+             ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Row(children: [
+                        const Icon(Icons.auto_awesome, color: Colors.amber),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text("Servi: ${widget.aiDescription}")),
+                    ]),
+                    backgroundColor: const Color(0xFF2D2D5A),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 5),
+                )
+             );
+        }
+    });
   }
 
   void _initializeControllers() {
     final product = widget.productToEdit;
-    _nameController = TextEditingController(text: product?.name);
-    _descriptionController = TextEditingController(text: product?.description);
-    _priceController = TextEditingController(text: product?.price.toString());
+    
+    // PRIORIDAD: 1. Producto existente (Edit) -> 2. Datos de IA (Voz) -> 3. Vacío
+    
+    _nameController = TextEditingController(text: product?.name ?? widget.initialName);
+    
+    // Si viene de IA, podemos poner una descripción por defecto
+    String desc = product?.description ?? '';
+    if (desc.isEmpty && widget.aiDescription != null) {
+        // Opcional: Podríamos poner el mensaje de la IA como descripción temporal
+        // desc = widget.aiDescription!; 
+    }
+    _descriptionController = TextEditingController(text: desc);
+    
+    // Precios y Stock (Manejo seguro de nulls y tipos)
+    String priceText = product?.price.toString() ?? '';
+    if (priceText.isEmpty && widget.initialPrice != null && widget.initialPrice! > 0) {
+        priceText = widget.initialPrice.toString();
+    }
+    _priceController = TextEditingController(text: priceText);
+    
     _promoPriceController = TextEditingController(text: product?.promoPrice?.toString() ?? '');
     _promoTextController = TextEditingController(text: product?.promoText ?? '');
-    _quantityController = TextEditingController(text: product?.quantity?.toString() ?? '');
+    
+    String stockText = product?.quantity?.toString() ?? '';
+    if (stockText.isEmpty && widget.initialStock != null && widget.initialStock! > 0) {
+        stockText = widget.initialStock!.toInt().toString(); // Stock suele ser entero
+    }
+    _quantityController = TextEditingController(text: stockText);
+    
     _costController = TextEditingController(text: product?.cost.toString() ?? '0.0'); 
     _skuController = TextEditingController(text: product?.sku ?? '');
     _inventoryCategoryController = TextEditingController(text: product?.category ?? 'General');

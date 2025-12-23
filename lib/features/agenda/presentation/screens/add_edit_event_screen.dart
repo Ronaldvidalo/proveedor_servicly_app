@@ -48,7 +48,7 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
     } else {
       _titleController = TextEditingController();
       _descriptionController = TextEditingController();
-      _selectedType = EventType.personal_reminder;
+      _selectedType = EventType.personalReminder;
       
       final now = DateTime.now();
       final isToday = widget.selectedDay.year == now.year && 
@@ -114,9 +114,11 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
     final navigator = Navigator.of(context);
 
     if (_endTime.isBefore(_startTime)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: La hora de fin no puede ser anterior a la de inicio.'), backgroundColor: Colors.redAccent),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: La hora de fin no puede ser anterior a la de inicio.'), backgroundColor: Colors.redAccent),
+        );
+      }
       setState(() => _isLoading = false);
       return;
     }
@@ -143,9 +145,13 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
         await agendaRepo.addEvent(newEvent);
       }
       
+      // ✅ FIX: Check mounted before using navigator
+      if (!mounted) return;
       if (navigator.canPop()) navigator.pop();
       
     } catch (e) {
+      // ✅ FIX: Check mounted before using context
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.redAccent),
       );
@@ -178,6 +184,8 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
 
      if (confirm == true) {
        await agendaRepo.deleteEvent(widget.eventToEdit!.id!);
+       // ✅ FIX: Check mounted before using navigator
+       if (!mounted) return;
        if (navigator.canPop()) navigator.pop();
      }
   }
@@ -227,11 +235,11 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _TypeChoiceChip(label: 'Personal', icon: Icons.person, type: EventType.personal_reminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                _TypeChoiceChip(label: 'Personal', icon: Icons.person, type: EventType.personalReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
                 _TypeChoiceChip(label: 'Visita', icon: Icons.business_center, type: EventType.visit, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
                 _TypeChoiceChip(label: 'Cita', icon: Icons.video_call, type: EventType.appointment, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-                _TypeChoiceChip(label: 'Pago', icon: Icons.money_off, type: EventType.payment_reminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-                _TypeChoiceChip(label: 'Cobro', icon: Icons.attach_money, type: EventType.collection_reminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                _TypeChoiceChip(label: 'Pago', icon: Icons.money_off, type: EventType.paymentReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                _TypeChoiceChip(label: 'Cobro', icon: Icons.attach_money, type: EventType.collectionReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
               ],
             ),
             

@@ -11,7 +11,7 @@ import 'package:proveedor_servicly_app/core/services/product_service.dart';
 
 // --- Widgets y Pantallas ---
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
-import 'package:proveedor_servicly_app/widgets/ProductCardRefactor.dart'; 
+import 'package:proveedor_servicly_app/widgets/product_card_refactor.dart'; 
 
 class AllProductsScreen extends StatelessWidget {
   final UserModel user;

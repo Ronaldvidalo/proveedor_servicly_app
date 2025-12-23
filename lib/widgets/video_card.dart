@@ -18,9 +18,8 @@ class VideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const surfaceColor = Color(0xFF2D2D5A);
-    // Uso de withValues(alpha: ...) para consistencia con nuevas versiones de Flutter
-    // Si tu versión es anterior a 3.27, usa .withOpacity(0.6)
-    final borderColor = brandColor.withOpacity(0.6); 
+    // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+    final borderColor = brandColor.withValues(alpha: 0.6); 
 
     return GestureDetector(
       onTap: onPlayTap,
@@ -35,7 +34,8 @@ class VideoCard extends StatelessWidget {
           border: Border.all(color: borderColor, width: 1.5), 
           boxShadow: [
             BoxShadow(
-              color: borderColor.withOpacity(0.4),
+              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+              color: borderColor.withValues(alpha: 0.4),
               blurRadius: 10,
               spreadRadius: 1,
             )
@@ -57,7 +57,8 @@ class VideoCard extends StatelessWidget {
                       const Center(child: Icon(Icons.image_not_supported_outlined, color: Colors.white38, size: 40)),
                 )
               else
-                  Container(color: Colors.black.withOpacity(0.2)), 
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  Container(color: Colors.black.withValues(alpha: 0.2)), 
               
               // 2. Overlay Gradiente (para legibilidad del texto)
               Container(
@@ -67,8 +68,10 @@ class VideoCard extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.4), 
-                      Colors.black.withOpacity(0.8),
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      Colors.black.withValues(alpha: 0.4), 
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      Colors.black.withValues(alpha: 0.8),
                     ],
                     stops: const [0.0, 0.6, 1.0],
                   ),
@@ -79,11 +82,13 @@ class VideoCard extends StatelessWidget {
               Center(
                 child: Icon(
                   Icons.play_circle_fill_rounded,
-                  color: Colors.white.withOpacity(0.85), 
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  color: Colors.white.withValues(alpha: 0.85), 
                   size: 48,
                   shadows: [
                     BoxShadow(
-                      color: brandColor.withOpacity(0.5),
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      color: brandColor.withValues(alpha: 0.5),
                       blurRadius: 8,
                       spreadRadius: 2,
                     )

@@ -3,7 +3,7 @@ import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
-import 'package:proveedor_servicly_app/widgets/ProductCardRefactor.dart';
+import 'package:proveedor_servicly_app/widgets/product_card_refactor.dart';
 import 'package:proveedor_servicly_app/features/manage_store/widgets/store_ui_kit.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/all_products_screen.dart';

@@ -73,7 +73,7 @@ class _ClientQuoteRequestScreenState extends State<ClientQuoteRequestScreen> {
               // 1. Tipo de Solicitud
               _buildLabel(theme, "Tipo de requerimiento"),
               DropdownButtonFormField<String>(
-                value: _serviceType,
+                initialValue: _serviceType,
                 dropdownColor: theme.cardColor,
                 decoration: _inputDecoration(theme, Icons.category),
                 items: ['Servicio General', 'Producto', 'Instalación', 'Mantenimiento', 'Proyecto a Medida']

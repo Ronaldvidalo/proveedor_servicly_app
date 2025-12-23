@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
 import 'package:proveedor_servicly_app/features/orders/screens/rate_provider_screen.dart'; 
+import 'package:proveedor_servicly_app/features/orders/widgets/order_action_dialog.dart'; // Ajusta la ruta si es necesario
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
@@ -93,7 +94,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final colorScheme = theme.colorScheme;
     final currentUser = FirebaseAuth.instance.currentUser;
     
-    final isPending = _currentOrder.status == OrderStatus.pending_verification;
+    final isPending = _currentOrder.status == OrderStatus.pendingVerification;
     final isCompleted = _currentOrder.status == OrderStatus.completed;
     final isClient = currentUser?.uid == _currentOrder.clientId;
 
@@ -261,21 +262,59 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 
                 // PENDIENTE
                 if (isPending) ...[
-                  if (!isClient) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _updateStatus(OrderStatus.completed),
-                        icon: const Icon(Icons.check_circle),
-                        label: const Text("APROBAR Y FINALIZAR"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
+  if (!isClient) ...[
+    SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton.icon(
+        // CAMBIO: En lugar de _updateStatus directo, abrimos el diálogo
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (ctx) => OrderActionDialog(
+              orderType: _currentOrder.deliveryType == DeliveryType.delivery ? 'delivery' : 'pickup',
+              onConfirm: (message) async {
+                // 1. Cerramos el diálogo primero
+                // El diálogo ya hace pop al confirmar, así que aquí ejecutamos la lógica
+                
+                setState(() => _isUpdating = true);
+                try {
+                  // 2. Actualizamos a 'in_progress' y guardamos el mensaje
+                  await FirebaseFirestore.instance
+                      .collection('orders')
+                      .doc(_currentOrder.id)
+                      .update({
+                    'status': 'in_progress', // Estado intermedio
+                    'providerNote': message, // Guardamos "Llega el lunes..."
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  // 3. Recargar la orden localmente
+                   await _refreshOrder();
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Pago verificado. Cliente notificado."), backgroundColor: Colors.blue),
+                    );
+                  }
+                } catch (e) {
+                  // Manejo de errores
+                } finally {
+                  if (mounted) setState(() => _isUpdating = false);
+                }
+              },
+            ),
+          );
+        },
+        icon: const Icon(Icons.verified),
+        label: const Text("VERIFICAR PAGO Y PROGRAMAR"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blueAccent, // Color azul para indicar "Siguiente paso"
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -384,8 +423,8 @@ class _StatusChip extends StatelessWidget {
     Color color;
     String text;
     switch (status) {
-      case OrderStatus.pending_verification:
-      case OrderStatus.pending_payment:
+      case OrderStatus.pendingVerification:
+      case OrderStatus.pendingPayment:
         color = Colors.orange;
         text = "PENDIENTE";
         break;

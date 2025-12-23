@@ -11,7 +11,8 @@ class DashboardMetricsViewModel extends ChangeNotifier {
   StreamSubscription<int>? _leadSubscription;
 
   // --- Métrica de Visitas (Placeholder para futura implementación) ---
-  int _visitCount = 0; 
+  // ✅ CORRECCIÓN: Se marca como final ya que por ahora es constante (placeholder)
+  final int _visitCount = 0; 
   
   // --- GETTERS PÚBLICOS ---
   int get leadCount => _leadCount;
@@ -44,8 +45,8 @@ class DashboardMetricsViewModel extends ChangeNotifier {
   void _loadVisitCount() {
       // Ejemplo: si el repositorio tiene un Stream para visitas por semana
       // _visitSubscription = _crmRepository.getVisitCountStream().listen((count) {
-      //     _visitCount = count;
-      //     notifyListeners();
+      //    _visitCount = count;
+      //    notifyListeners();
       // });
   }
   */

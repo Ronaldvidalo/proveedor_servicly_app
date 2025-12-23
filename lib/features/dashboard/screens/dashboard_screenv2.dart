@@ -1,6 +1,7 @@
 // --- UX/UI Redesigned: Sandbox Implementation ---
 // Fixed: Removed unused elements and parameters.
 // Cleaned: Fixed sort order and unnecessary null checks.
+// Refactored: Updated deprecated members and removed redundant overrides.
 // ------------------------------------------------
 
 import 'package:flutter/material.dart';
@@ -98,7 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: colors.surface,
                   selectedItemColor: colors.primary,
-                  unselectedItemColor: colors.onSurface.withOpacity(0.6), // Corregido withAlpha
+                  unselectedItemColor: colors.onSurface.withValues(alpha: 0.6),
                   items: const <BottomNavigationBarItem>[
                     BottomNavigationBarItem(
                       icon: Icon(Icons.flash_on_rounded),
@@ -260,7 +261,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
           future: _modulesFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              // CORRECCIÓN 1: Se asegura que se llame al constructor del widget _LoadingSkeleton
               return const _LoadingSkeleton(); 
             }
 
@@ -333,7 +333,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             key: _keyPublicProfile,
             title: 'Perfil Público',
             description: 'Gestiona tu presencia online.',
-            // CORRECCIÓN 2: Se llama al widget como una clase, no como un método.
             child: _PublicProfileButton(userModel: userModel), 
           ),
           const SizedBox(height: 32),
@@ -433,7 +432,7 @@ class _ProviderHomeTabRedesigned extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Bienvenido,', style: TextStyle(color: colors.onSurface.withOpacity(0.6), fontSize: 14)),
+                                Text('Bienvenido,', style: TextStyle(color: colors.onSurface.withValues(alpha: 0.6), fontSize: 14)),
                                 Text(
                                   userModel.displayName ?? 'Proveedor',
                                   style: TextStyle(color: colors.onSurface, fontSize: 20, fontWeight: FontWeight.bold),
@@ -492,7 +491,7 @@ class _ProviderHomeTabRedesigned extends StatelessWidget {
                         label: const Text('Ver todas las herramientas'),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 56),
-                          side: BorderSide(color: colors.outline.withOpacity(0.3)),
+                          side: BorderSide(color: colors.outline.withValues(alpha: 0.3)),
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
@@ -544,7 +543,7 @@ class DevNavigationButton extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: (foregroundColor ?? colors.onTertiaryContainer).withOpacity(0.2),
+                color: (foregroundColor ?? colors.onTertiaryContainer).withValues(alpha: 0.2),
                 width: 1,
               ),
             ),
@@ -577,13 +576,13 @@ class _ProfileIconAction extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(0.4), // Fix surfaceVariant
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.4),
         shape: BoxShape.circle,
       ),
       child: IconButton(
         icon: Icon(
             Icons.share_outlined,
-            color: isCreated ? colors.primary : colors.onSurface.withOpacity(0.4)
+            color: isCreated ? colors.primary : colors.onSurface.withValues(alpha: 0.4)
         ),
         onPressed: () {
           if (isCreated && userModel != null) {
@@ -609,7 +608,7 @@ class _MetricAlertCard extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [colors.secondaryContainer, colors.secondaryContainer.withOpacity(0.8)],
+          colors: [colors.secondaryContainer, colors.secondaryContainer.withValues(alpha: 0.8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -620,7 +619,7 @@ class _MetricAlertCard extends StatelessWidget {
           Positioned(
             right: -20,
             top: -20,
-            child: Icon(Icons.leaderboard, size: 120, color: colors.onSecondaryContainer.withOpacity(0.1)),
+            child: Icon(Icons.leaderboard, size: 120, color: colors.onSecondaryContainer.withValues(alpha: 0.1)),
           ),
           Padding(
             padding: const EdgeInsets.all(24.0),
@@ -630,7 +629,7 @@ class _MetricAlertCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: colors.surface.withOpacity(0.8),
+                    color: colors.surface.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -651,9 +650,9 @@ class _MetricAlertCard extends StatelessWidget {
                       height: 1.0
                   ),
                 ),
-                Text('Leads Potenciales Hoy', style: theme.textTheme.titleMedium?.copyWith(color: colors.onSecondaryContainer.withOpacity(0.8))),
+                Text('Leads Potenciales Hoy', style: theme.textTheme.titleMedium?.copyWith(color: colors.onSecondaryContainer.withValues(alpha: 0.8))),
                 const SizedBox(height: 16),
-                Divider(color: colors.onSecondaryContainer.withOpacity(0.2)),
+                Divider(color: colors.onSecondaryContainer.withValues(alpha: 0.2)),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -685,9 +684,9 @@ class _ModuleTileCompact extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(0.3), // surfaceContainerLow replacement
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outline.withOpacity(0.1)),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.1)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -707,7 +706,7 @@ class _ModuleTileCompact extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: colors.primary.withOpacity(0.1),
+                    color: colors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(iconData, color: colors.primary, size: 24),
@@ -756,9 +755,9 @@ class _ProfileCompletionBanner extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: colors.surface.withOpacity(0.7),
+            color: colors.surface.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.primary.withOpacity(0.5)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.5)),
           ),
           child: Row(
             children: [
@@ -777,8 +776,8 @@ class _ProfileCompletionBanner extends StatelessWidget {
 // --- WIDGET DE MÉTRICAS (Refactorizado) ---
 class _MetricsSection extends StatelessWidget {
   final UserModel userModel;
-  // CORRECCIÓN 3: Constructor corregido
-  const _MetricsSection({super.key, required this.userModel}); 
+  // CORRECCIÓN: Eliminado super.key para evitar warning de parámetro no usado
+  const _MetricsSection({required this.userModel}); 
 
   @override
   Widget build(BuildContext context) {
@@ -791,10 +790,10 @@ class _MetricsSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.primary.withOpacity(0.3), width: 1),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -808,11 +807,11 @@ class _MetricsSection extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: colors.primary.withOpacity(0.5), width: 1),
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.5), width: 1),
                 ),
                 child: CircleAvatar(
                   radius: 20,
-                  backgroundColor: colors.primary.withOpacity(0.1),
+                  backgroundColor: colors.primary.withValues(alpha: 0.1),
                   backgroundImage: photoURL != null && photoURL.isNotEmpty ? NetworkImage(photoURL) : null,
                   child: photoURL == null || photoURL.isEmpty ? Icon(Icons.person, color: colors.primary) : null,
                 ),
@@ -850,7 +849,7 @@ class _MetricsSection extends StatelessWidget {
               ),
             ],
           ),
-          Divider(height: 24, color: colors.onSurface.withOpacity(0.1)),
+          Divider(height: 24, color: colors.onSurface.withValues(alpha: 0.1)),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -884,7 +883,7 @@ class _MetricItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: colors.primary.withOpacity(0.8), size: 24),
+        Icon(icon, color: colors.primary.withValues(alpha: 0.8), size: 24),
         const SizedBox(height: 4),
         Text(
           value,
@@ -896,7 +895,7 @@ class _MetricItem extends StatelessWidget {
         Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colors.onSurface.withOpacity(0.6)
+            color: colors.onSurface.withValues(alpha: 0.6)
           )
         ),
       ],
@@ -906,7 +905,8 @@ class _MetricItem extends StatelessWidget {
 
 class _PublicProfileButton extends StatelessWidget {
   final UserModel userModel;
-  const _PublicProfileButton({super.key, required this.userModel}); // CORRECCIÓN 2: Se asegura la llamada con argumentos
+  // CORRECCIÓN: Eliminado super.key para evitar warning de parámetro no usado
+  const _PublicProfileButton({required this.userModel}); 
 
   @override
   Widget build(BuildContext context) {
@@ -926,17 +926,15 @@ class _PublicProfileButton extends StatelessWidget {
 
 // --- Skeleton Loading ---
 class _LoadingSkeleton extends StatefulWidget {
-  // CORRECCIÓN 1: Se agrega super.key al constructor
-  const _LoadingSkeleton({super.key}); 
+  // CORRECCIÓN: Eliminado super.key para evitar warning de parámetro no usado
+  const _LoadingSkeleton(); 
 
   @override
   State<_LoadingSkeleton> createState() => _LoadingSkeletonState();
 }
 
 class _LoadingSkeletonState extends State<_LoadingSkeleton> with SingleTickerProviderStateMixin {
-  // El controller y su lógica se dejó simplificada en la corrección anterior,
-  // por lo que solo mantengo la estructura básica del State.
-
+  
   @override
   void initState() {
     super.initState();

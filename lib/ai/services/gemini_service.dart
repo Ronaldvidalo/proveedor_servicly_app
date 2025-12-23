@@ -3,10 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // <--- IMPORTAR
 
 // --- CONFIGURACIÓN ---
 // Mantenemos tu API Key y tu modelo preferido
-const String _kApiKey = "AIzaSyAE0EYo632PQ6hxscpFsSqBrTn_O_y19T8"; 
+final String apiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
 const String _kModelName = 'gemini-2.5-flash'; 
 
 class GeminiService {
@@ -17,14 +18,14 @@ class GeminiService {
     // 1. Modelo Estándar (Texto general)
     _model = GenerativeModel(
       model: _kModelName,
-      apiKey: _kApiKey,
+      apiKey: apiKey,
     );
 
     // 2. Modelo Configurado para JSON (Para el asistente contextual y OCR)
     // Esto asegura que la IA responda siempre con JSON válido.
     _jsonModel = GenerativeModel(
       model: _kModelName,
-      apiKey: _kApiKey,
+      apiKey: apiKey,
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json', 
         temperature: 0.4,

@@ -2,7 +2,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:uuid/uuid.dart'; // <-- ¡IMPORTACIÓN AÑADIDA! (Para Uuid().v4())
+import 'package:uuid/uuid.dart'; 
+import 'package:flutter/foundation.dart'; // ✅ AÑADIDO: Para usar debugPrint
 
 // Importamos el alias de cloud_firestore para referenciar cloud_firestore.Timestamp
 import 'package:cloud_firestore/cloud_firestore.dart' as cloud_firestore; 
@@ -104,7 +105,8 @@ class InventoryRepository {
       }
       return count > 0 ? totalCost / count : 0.0;
     } catch (e) {
-      print("Error al calcular costo histórico: $e");
+      // ✅ CORRECCIÓN: debugPrint
+      debugPrint("Error al calcular costo histórico: $e");
       return 0.0;
     }
   }
@@ -127,7 +129,8 @@ Future<double> getCurrentFixedCostSnapshot() async {
     }
     return 0.0;
   } catch (e) {
-    print("Error al leer el costo fijo actual: $e");
+    // ✅ CORRECCIÓN: debugPrint
+    debugPrint("Error al leer el costo fijo actual: $e");
     return 0.0;
   }
 }
@@ -193,7 +196,8 @@ Future<double> getCurrentFixedCostSnapshot() async {
 
     await auditRef.add(invoice.toFirestore());
 
-    print("Factura ${invoice.invoiceNumber} guardada en auditoría y productos cargados.");
+    // ✅ CORRECCIÓN: debugPrint
+    debugPrint("Factura ${invoice.invoiceNumber} guardada en auditoría y productos cargados.");
     
     // 4. ¡NUEVO! Monitoreo Inteligente de Agenda (MVP 1.3)
     // Analizamos cada nuevo producto para generar tareas de reabastecimiento/caducidad
@@ -238,14 +242,16 @@ Future<double> getCurrentFixedCostSnapshot() async {
     final snapshot = await oldCollectionRef.get();
     
     if (snapshot.docs.isEmpty) {
-      print("No hay productos antiguos para migrar.");
+      // ✅ CORRECCIÓN: debugPrint
+      debugPrint("No hay productos antiguos para migrar.");
       return;
     }
 
     final batch = _firestore.batch();
     final newCollectionRef = _firestore.collection('products');
 
-    print("Migrando ${snapshot.docs.length} productos a la raíz...");
+    // ✅ CORRECCIÓN: debugPrint
+    debugPrint("Migrando ${snapshot.docs.length} productos a la raíz...");
 
     for (var doc in snapshot.docs) {
       final data = doc.data();
@@ -256,6 +262,7 @@ Future<double> getCurrentFixedCostSnapshot() async {
     }
 
     await batch.commit();
-    print("¡Migración completada con éxito!");
+    // ✅ CORRECCIÓN: debugPrint
+    debugPrint("¡Migración completada con éxito!");
   }
 }

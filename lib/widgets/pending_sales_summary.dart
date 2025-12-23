@@ -134,7 +134,7 @@ class PendingSalesSummary extends StatelessWidget {
                       ? 'Todo al día'
                       : 'Accede para confirmar o rechazar',
                   style: TextStyle(
-                    color: colors.onSurface.withOpacity(0.7),
+                    color: colors.onSurface.withValues(alpha:0.7),
                     fontSize: 14,
                   ),
                 ),
@@ -143,7 +143,7 @@ class PendingSalesSummary extends StatelessWidget {
           ),
 
           // Icono de flecha
-          Icon(Icons.arrow_forward_ios_rounded, color: colors.onSurface.withOpacity(0.5), size: 18),
+          Icon(Icons.arrow_forward_ios_rounded, color: colors.onSurface.withValues(alpha: 0.5), size: 18),
         ],
       ),
     );

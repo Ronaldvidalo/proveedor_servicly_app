@@ -4,6 +4,7 @@
 // Fixes:
 // 1. Lógica de borrado seguro: Solo borradores, rechazadas, aceptadas o enviadas VENCIDAS.
 // 2. Feedback visual en el menú de opciones si la cotización está bloqueada.
+// 3. Conexión de menú de opciones (onLongPress).
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -150,22 +151,25 @@ class _QuotesTab extends StatelessWidget {
         final quote = quotes[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
-          child: QuoteCard(
-            quote: quote,
-            // Acción al tocar la tarjeta
-            onTap: () => _navigateToPreview(context, quote),
-            
-            // Acción Botón Editar
-            onEdit: () {
-              context.read<QuoteProvider>().editQuote(quote);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const QuoteEditorScreen(isNew: false)),
-              );
-            },
-            
-            // Acción Botón Enviar
-            onPreviewSend: () => _navigateToPreview(context, quote),
+          child: GestureDetector(
+            onLongPress: () => _showOptionsSheet(context, quote, provider),
+            child: QuoteCard(
+              quote: quote,
+              // Acción al tocar la tarjeta
+              onTap: () => _navigateToPreview(context, quote),
+              
+              // Acción Botón Editar
+              onEdit: () {
+                context.read<QuoteProvider>().editQuote(quote);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const QuoteEditorScreen(isNew: false)),
+                );
+              },
+              
+              // Acción Botón Enviar
+              onPreviewSend: () => _navigateToPreview(context, quote),
+            ),
           ),
         );
       },
@@ -201,7 +205,7 @@ class _QuotesTab extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border(top: BorderSide(color: theme.colorScheme.primary.withOpacity(0.2))),
+          border: Border(top: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.2))),
         ),
         child: SafeArea(
           child: Wrap(
@@ -211,7 +215,7 @@ class _QuotesTab extends StatelessWidget {
                   margin: const EdgeInsets.only(top: 12, bottom: 8),
                   width: 40, height: 4,
                   decoration: BoxDecoration(
-                    color: theme.disabledColor.withOpacity(0.3),
+                    color: theme.disabledColor.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -325,7 +329,7 @@ class _QuotesTab extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          color: isSelected ? color.withValues(alpha: 0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isSelected ? Border.all(color: color) : Border.all(color: Colors.transparent),
         ),
@@ -500,9 +504,9 @@ class _LeadCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withOpacity(0.15),
+                  color: colorScheme.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+                  border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   lead.serviceType.toUpperCase(),
@@ -530,13 +534,13 @@ class _LeadCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             lead.description,
-            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
 
           const SizedBox(height: 20),
-          Divider(height: 1, color: Colors.white.withOpacity(0.1)),
+          Divider(height: 1, color: Colors.white.withValues(alpha: 0.1)),
           const SizedBox(height: 16),
 
           Row(
@@ -550,7 +554,7 @@ class _LeadCard extends StatelessWidget {
                     label: const Text("Chat"),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF25D366),
-                      side: BorderSide(color: const Color(0xFF25D366).withOpacity(0.5)),
+                      side: BorderSide(color: const Color(0xFF25D366).withValues(alpha: 0.5)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
@@ -621,7 +625,7 @@ Widget _buildEmptyState(BuildContext context, String title, String subtitle, Ico
             subtitle,
             style: TextStyle(
               fontSize: 14,
-              color: colorScheme.onSurface.withOpacity(0.6),
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
               height: 1.5,
             ),
             textAlign: TextAlign.center,
@@ -664,7 +668,7 @@ class _CyberSkeletonState extends State<_CyberSkeleton> with SingleTickerProvide
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
       ),
     );

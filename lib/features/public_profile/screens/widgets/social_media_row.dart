@@ -50,8 +50,7 @@ class SocialMediaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<ProviderProfileModel>();
 
-    // Definimos el color de fondo para los iconos si no es transparente (opcional)
-    final Color surfaceColor = Theme.of(context).colorScheme.surface;
+    // ✅ CORRECCIÓN: Se eliminó la variable 'surfaceColor' no utilizada.
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

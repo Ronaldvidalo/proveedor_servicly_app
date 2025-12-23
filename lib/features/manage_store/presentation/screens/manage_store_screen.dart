@@ -15,7 +15,7 @@ import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/widgets/brand_header_card.dart';
 import 'package:proveedor_servicly_app/widgets/provider_stats_panel.dart';
 import 'package:proveedor_servicly_app/widgets/pending_sales_summary.dart';
-import 'package:proveedor_servicly_app/widgets/VideoCard.dart';
+import 'package:proveedor_servicly_app/widgets/video_card.dart';
 import 'package:proveedor_servicly_app/features/manage_store/widgets/store_ui_kit.dart'; // NUESTRO KIT
 import 'package:proveedor_servicly_app/features/manage_store/widgets/category_product_row.dart'; // NUESTRO WIDGET DE CATEGORIA
 

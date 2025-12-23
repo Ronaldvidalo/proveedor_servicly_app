@@ -21,6 +21,6 @@ Color getRatingColor(int rating) {
 // Sombra para efecto Glow
 List<BoxShadow> getGlow(Color color) {
   return [
-    BoxShadow(color: color.withOpacity(0.6), blurRadius: 8, spreadRadius: 1),
+    BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8, spreadRadius: 1),
   ];
 }

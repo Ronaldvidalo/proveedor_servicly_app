@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
-import 'package:proveedor_servicly_app/core/services/order_service.dart';
+// ⚠️ AJUSTA ESTA IMPORTACIÓN SEGÚN DÓNDE TENGAS TU ARCHIVO DE DIÁLOGO
+import 'package:proveedor_servicly_app/features/orders/widgets/order_action_dialog.dart'; 
+// ⚠️ AJUSTA ESTA IMPORTACIÓN SEGÚN DÓNDE TENGAS TU PANTALLA DE CALIFICACIÓN
+import 'package:proveedor_servicly_app/features/orders/screens/rate_provider_screen.dart'; 
 
-/// Esta es la pantalla donde el proveedor verá los detalles de la orden,
-/// verá el comprobante de pago subido por el cliente,
-/// y aprobará o rechazará la orden.
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
 
@@ -16,316 +17,492 @@ class OrderDetailScreen extends StatefulWidget {
 }
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
-  bool _isLoading = false;
+  bool _isUpdating = false;
+  late OrderModel _currentOrder; 
 
-  /// Muestra un diálogo de confirmación antes de ejecutar una acción.
-  Future<void> _showConfirmationDialog(OrderStatus newStatus) async {
-    final bool didConfirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D5A),
-        title: Text(
-          newStatus == OrderStatus.completed ? 'Aprobar Pago' : 'Rechazar Orden',
-          style: const TextStyle(color: Colors.white)
-        ),
-        content: Text(
-          newStatus == OrderStatus.completed
-              ? '¿Estás seguro de que has recibido el pago y deseas marcar esta orden como completada?'
-              : '¿Estás seguro de que deseas rechazar esta orden? Esta acción no se puede deshacer.',
-          style: const TextStyle(color: Colors.white70)
-        ),
-        actions: [
-          TextButton(
-            child: const Text('Cancelar', style: TextStyle(color: Colors.white70)),
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          TextButton(
-            child: Text(
-              newStatus == OrderStatus.completed ? 'Aprobar' : 'Rechazar',
-              style: TextStyle(color: newStatus == OrderStatus.completed ? Colors.green : Colors.redAccent)
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    ) ?? false; // Si el usuario cierra el diálogo, es 'false'
-
-    if (didConfirm) {
-      _updateOrderStatus(newStatus);
-    }
+  @override
+  void initState() {
+    super.initState();
+    _currentOrder = widget.order;
   }
 
-  /// Función para manejar la actualización de estado (Aprobar o Rechazar)
-  Future<void> _updateOrderStatus(OrderStatus newStatus) async {
-    if (_isLoading) return; // Evitar doble-tap
-
-    setState(() => _isLoading = true);
-
-    final orderService = context.read<OrderService>();
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
+  // Función genérica para actualizar estados simples (Cancelado, etc)
+  Future<void> _updateStatus(OrderStatus newStatus) async {
+    setState(() => _isUpdating = true);
     try {
-      // 1. Llama al servicio para actualizar Firestore
-      await orderService.updateOrderStatus(widget.order.id, newStatus);
+      await FirebaseFirestore.instance
+          .collection('orders') 
+          .doc(_currentOrder.id)
+          .update({
+        'status': newStatus.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-      // 2. Muestra un mensaje de éxito
-      final successMessage = newStatus == OrderStatus.completed
-          ? '¡Venta aprobada con éxito!'
-          : 'La orden ha sido rechazada.';
-      
-      messenger.showSnackBar(SnackBar(
-        content: Text(successMessage),
-        backgroundColor: newStatus == OrderStatus.completed ? Colors.green : Colors.orangeAccent,
-      ));
+      // Refrescamos la orden localmente
+      await _refreshOrder();
 
-      // 3. Regresa a la pantalla anterior
-      navigator.pop();
-
-    } catch (e) {
-      // 4. Muestra un error si algo falla
-      messenger.showSnackBar(SnackBar(
-        content: Text('Error al actualizar la orden: $e'),
-        backgroundColor: Colors.redAccent,
-      ));
-    } finally {
-      // 5. Vuelve a habilitar los botones
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Estado actualizado a: ${newStatus.name}'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
     }
   }
-  
-  /// Muestra la imagen en un diálogo de pantalla completa
-  void _showFullImage(BuildContext context, String imageUrl) {
+
+  // --- NUEVA FUNCIÓN: APROBAR Y PROGRAMAR ---
+  Future<void> _approveAndSchedule(String message) async {
+    setState(() => _isUpdating = true);
+    try {
+      // 1. Actualizamos en Firebase
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(_currentOrder.id)
+          .update({
+        'status': 'inProgress', // Asegúrate de que tu Enum tenga inProgress o usa el string directo
+        'providerNote': message, // Guardamos el mensaje (ej: "Sale mañana")
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Recargar datos locales
+      await _refreshOrder();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Pago verificado. Cliente notificado de la entrega."), 
+            backgroundColor: Colors.blueAccent
+          ),
+        );
+        // Opcional: Volver atrás si prefieres
+        // Navigator.pop(context); 
+      }
+    } catch (e) {
+      debugPrint("Error al programar: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
+  }
+
+  // Recargar orden desde Firebase
+  Future<void> _refreshOrder() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('orders').doc(_currentOrder.id).get();
+      if (doc.exists) {
+        setState(() {
+          _currentOrder = OrderModel.fromFirestore(doc);
+        });
+      }
+    } catch (e) {
+      debugPrint("Error recargando orden: $e");
+    }
+  }
+
+  void _showFullImage(String imageUrl) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.8),
-      builder: (ctx) => Dialog(
+      builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(10),
-        child: GestureDetector(
-          onTap: () => Navigator.of(ctx).pop(),
-          child: InteractiveViewer( // Permite hacer zoom y pan
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.contain, // Asegura que se vea la imagen completa
-            ),
-          ),
+        child: InteractiveViewer(
+          child: Image.network(imageUrl, fit: BoxFit.contain),
         ),
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final currentUser = FirebaseAuth.instance.currentUser;
     
-    // --- NUEVO: Controla si los botones de acción deben mostrarse ---
-    final bool isPending = widget.order.status == OrderStatus.pending_verification;
+    // Estados para la lógica visual
+    final isPending = _currentOrder.status == OrderStatus.pendingVerification || 
+                      _currentOrder.status == OrderStatus.pendingPayment;
+    final isInProgress = _currentOrder.status == OrderStatus.inProgress; // Nuevo estado
+    final isCompleted = _currentOrder.status == OrderStatus.completed;
+    final isClient = currentUser?.uid == _currentOrder.clientId;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text('Verificar Orden #${widget.order.id.substring(0, 6)}...'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        title: const Text('Detalle del Pedido'),
+        actions: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: _StatusChip(status: _currentOrder.status),
+            ),
+          )
+        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // --- Tarjeta de Resumen de la Orden ---
-          _buildSectionCard(
-            context: context,
-            surfaceColor: surfaceColor,
-            title: 'Resumen de la Orden',
-            children: [
-              _buildDetailRow('Cliente:', widget.order.clientName),
-              _buildDetailRow('Email:', widget.order.clientEmail),
-              _buildDetailRow('Total Pagado:', '\$${widget.order.total.toStringAsFixed(2)}', isTotal: true),
-              const Divider(color: Colors.white24, height: 24),
-              // Lista de ítems comprados
-              ...widget.order.items.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
+      body: _isUpdating 
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                
+                // --- 1. DATOS ---
+                _SectionTitle(title: isClient ? 'PROVEEDOR' : 'CLIENTE', icon: Icons.person_outline),
+                Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
                       child: Text(
-                        '${item['quantity']}x ${item['name']}',
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        _currentOrder.clientName.isNotEmpty ? _currentOrder.clientName[0].toUpperCase() : '?',
+                        style: TextStyle(color: colorScheme.primary),
                       ),
                     ),
-                    Text(
-                      '\$${(item['price'] as num).toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
-                ),
-              )),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          // --- Tarjeta del Comprobante de Pago ---
-          _buildSectionCard(
-            context: context,
-            surfaceColor: surfaceColor,
-            title: 'Comprobante de Pago',
-            children: [
-              // --- MODIFICADO: Añadido GestureDetector ---
-              GestureDetector(
-                onTap: () => _showFullImage(context, widget.order.paymentProofUrl),
-                child: Container(
-                  height: 400, // Altura fija para la imagen
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(8),
+                    title: Text(_currentOrder.clientName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(_currentOrder.clientEmail),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      widget.order.paymentProofUrl,
-                      fit: BoxFit.contain, // contain para verla completa
-                      // Loader mientras carga la imagen
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(color: accentColor),
-                        );
-                      },
-                      // Error si la imagen no carga
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                ),
+                const SizedBox(height: 20),
+
+                // --- 2. LOGÍSTICA ---
+                _SectionTitle(title: 'MÉTODO DE ENTREGA', icon: Icons.local_shipping_outlined),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _currentOrder.deliveryType == DeliveryType.delivery 
+                        ? Colors.orange.withValues(alpha: 0.1)
+                        : Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _currentOrder.deliveryType == DeliveryType.delivery 
+                          ? Colors.orange.withValues(alpha: 0.5)
+                          : Colors.blue.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _currentOrder.deliveryType == DeliveryType.delivery ? Icons.delivery_dining : Icons.storefront,
+                            size: 28,
+                            color: _currentOrder.deliveryType == DeliveryType.delivery ? Colors.orange : Colors.blue,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _currentOrder.deliveryType == DeliveryType.delivery ? "ENVÍO A DOMICILIO" : "RETIRO EN TIENDA",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: _currentOrder.deliveryType == DeliveryType.delivery ? Colors.orange : Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_currentOrder.deliveryType == DeliveryType.delivery) ...[
+                        const Divider(height: 24),
+                        const Text("Dirección de entrega:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          _currentOrder.shippingAddress,
+                          style: TextStyle(fontSize: 16, color: colorScheme.onSurface),
+                        ),
+                      ],
+                      // Mostrar nota del proveedor si ya existe
+                      if (_currentOrder.providerNote != null && _currentOrder.providerNote!.isNotEmpty) ...[
+                        const Divider(height: 24),
+                        const Text("Instrucciones de entrega (Proveedor):", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          _currentOrder.providerNote!,
+                          style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // --- 3. ITEMS ---
+                _SectionTitle(title: 'PRODUCTOS', icon: Icons.shopping_bag_outlined),
+                Card(
+                  child: Column(
+                    children: [
+                      ..._currentOrder.items.map((item) => ListTile(
+                        leading: Container(
+                          width: 40, height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                            image: item['imageUrl'] != null 
+                                ? DecorationImage(image: NetworkImage(item['imageUrl']), fit: BoxFit.cover)
+                                : null,
+                          ),
+                        ),
+                        title: Text(item['name']),
+                        subtitle: Text('${item['quantity']} x \$${item['price']}'),
+                        trailing: Text(
+                          '\$${(item['price'] * item['quantity']).toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      )),
+                      const Divider(),
+                      ListTile(
+                        title: const Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold)),
+                        trailing: Text(
+                          '\$${_currentOrder.total.toStringAsFixed(2)}',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // --- 4. COMPROBANTE ---
+                _SectionTitle(title: 'COMPROBANTE DE PAGO', icon: Icons.receipt),
+                if (_currentOrder.paymentProofUrl.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _showFullImage(_currentOrder.paymentProofUrl),
+                    child: Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                        image: DecorationImage(
+                          image: NetworkImage(_currentOrder.paymentProofUrl),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
-                              SizedBox(height: 8),
-                              Text('No se pudo cargar el comprobante', style: TextStyle(color: Colors.redAccent)),
+                              Icon(Icons.zoom_in, color: Colors.white, size: 18),
+                              SizedBox(width: 4),
+                              Text("Ver Comprobante", style: TextStyle(color: Colors.white)),
                             ],
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+                  )
+                else
+                  const Text("No hay comprobante disponible."),
+                const SizedBox(height: 40),
 
-          const SizedBox(height: 32),
+                // --- 5. ACCIONES ---
+                
+                // CASO 1: PENDIENTE (Acción del Proveedor)
+                if (isPending) ...[
+                  if (!isClient) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        // AQUÍ ABRE EL DIÁLOGO EN LUGAR DE FINALIZAR DIRECTAMENTE
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => OrderActionDialog(
+                              orderType: _currentOrder.deliveryType == DeliveryType.delivery ? 'delivery' : 'pickup',
+                              onConfirm: (message) {
+                                // Llamamos a la función de aprobación con el mensaje
+                                _approveAndSchedule(message);
+                              },
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.verified_user),
+                        label: const Text("VERIFICAR Y PROGRAMAR"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _updateStatus(OrderStatus.cancelled),
+                        icon: const Icon(Icons.cancel),
+                        label: const Text("RECHAZAR PEDIDO"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    // Vista Cliente esperando
+                    const Center(child: Text("Esperando verificación del proveedor...", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))),
+                  ]
+                ] 
+                
+                // CASO 2: EN PROGRESO (Esperando confirmación del Cliente)
+                else if (isInProgress) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue),
+                    ),
+                    child: const Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.local_shipping, color: Colors.blue),
+                            SizedBox(width: 8),
+                            Text("En proceso de entrega", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text("Esperando que el cliente confirme la recepción.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ]
 
-          // --- MODIFICADO: Botones de Acción Condicionales ---
-          // Solo muestra los botones si la orden está pendiente
-          if (isPending)
-            Row(
-              children: [
-                // Botón de Rechazar
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : () => _showConfirmationDialog(OrderStatus.cancelled),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                // CASO 3: COMPLETADO
+                else if (isCompleted) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green),
                     ),
-                    child: _isLoading 
-                        ? const SizedBox.shrink() // Se oculta si está cargando
-                        : const Text('Rechazar Pago'),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Botón de Aprobar
-                Expanded(
-                  flex: 2,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : () => _showConfirmationDialog(OrderStatus.completed),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.green, // Verde para "Aprobar"
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text("Orden Completada Exitosamente", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                      ],
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                          )
-                        : const Text('Aprobar Pago', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
-                ),
+
+                  // BOTÓN DE CALIFICAR (Solo Cliente)
+                  if (isClient && !_currentOrder.isRated) ...[
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => RateProviderScreen(order: _currentOrder)),
+                          );
+                          if (result == true) {
+                             _refreshOrder();
+                          }
+                        },
+                        icon: const Icon(Icons.star, color: Colors.white),
+                        label: const Text("CALIFICAR EXPERIENCIA", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber[700],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 4,
+                        ),
+                      ),
+                    ),
+                  ] else if (isClient && _currentOrder.isRated) ...[
+                    const SizedBox(height: 20),
+                    const Center(child: Text("⭐ ¡Gracias por tu calificación!", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))),
+                  ],
+                ],
+                const SizedBox(height: 40),
               ],
-            )
-          else
-            // Muestra el estado actual si ya no está pendiente
-            Center(
-              child: Chip(
-                label: Text(
-                  widget.order.status == OrderStatus.completed ? 'Orden Completada' : 'Orden Cancelada',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-                ),
-                backgroundColor: widget.order.status == OrderStatus.completed ? Colors.green : Colors.redAccent,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
             ),
-        ],
-      ),
     );
   }
+}
 
-  // --- Widgets Auxiliares ---
+// --- WIDGETS AUXILIARES ---
 
-  /// Un widget reutilizable para las tarjetas de sección
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required Color surfaceColor,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20.0),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          ...children,
-        ],
-      ),
-    );
-  }
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  const _SectionTitle({required this.title, required this.icon});
 
-  /// Un widget reutilizable para las filas de detalle
-  Widget _buildDetailRow(String label, String value, {bool isTotal = false}) {
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: isTotal ? const Color(0xFF00BFFF) : Colors.white,
-              fontSize: isTotal ? 18 : 16,
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
+          Icon(icon, size: 18, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text(title, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
         ],
       ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final OrderStatus status;
+  const _StatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String text;
+    switch (status) {
+      case OrderStatus.pendingVerification:
+      case OrderStatus.pendingPayment:
+        color = Colors.orange;
+        text = "PENDIENTE";
+        break;
+      case OrderStatus.inProgress: // Nuevo estado
+        color = Colors.indigoAccent;
+        text = "EN CAMINO";
+        break;
+      case OrderStatus.completed:
+        color = Colors.green;
+        text = "COMPLETADA";
+        break;
+      case OrderStatus.cancelled:
+        color = Colors.red;
+        text = "CANCELADA";
+        break;
+      default:
+        color = Colors.grey;
+        text = status.name.toUpperCase();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color),
+      ),
+      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 }

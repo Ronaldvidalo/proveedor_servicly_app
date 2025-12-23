@@ -34,7 +34,7 @@ import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
 import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart'; 
+// Removed unused import: firestore_service.dart
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -79,9 +79,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     super.initState();
     
     // Inicialización del Cerebro IA
-    final firestoreService = FirestoreService(); 
     final geminiService = GeminiService();
-    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
+    // ✅ CORRECCIÓN: Eliminado FirestoreService y actualizado constructor
+    final apiConnector = ServiApiConnectorService(geminiService);
     final conversationalService = ServiConversationalService(apiConnector);
     _serviBrain = ServiBrainService(advancedBrain: conversationalService);
     
@@ -223,7 +223,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       // Saludo inicial antes de arrancar los pasos
       await _speak("Bienvenido a tu depósito digital. Vamos a organizar tu stock.");
       
-      if (mounted) {
+      // ✅ CORRECCIÓN: Verificación de mounted del contexto de showcase
+      if (mounted && showcaseContext.mounted) {
         ShowCaseWidget.of(showcaseContext).startShowCase([ 
            _keyImportBtn,
            _keyAddBtn,
@@ -288,11 +289,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                // ignore: deprecated_member_use
-                color: Colors.orangeAccent.withOpacity(0.1),
+                // ✅ CORRECCIÓN: withValues
+                color: Colors.orangeAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                // ignore: deprecated_member_use
-                border: Border.all(color: Colors.orangeAccent.withOpacity(0.3))
+                // ✅ CORRECCIÓN: withValues
+                border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3))
               ),
               child: const Row(
                 children: [
@@ -600,8 +601,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // ignore: deprecated_member_use
-                            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.white.withOpacity(0.2)),
+                            // ✅ CORRECCIÓN: withValues
+                            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.white.withValues(alpha: 0.2)),
                             const SizedBox(height: 16),
                             const Text("Inventario Vacío", style: TextStyle(color: Colors.white54, fontSize: 18)),
                             const SizedBox(height: 8),
@@ -657,8 +658,8 @@ class _FilterChip extends StatelessWidget {
       selected: isSelected,
       onSelected: onSelected,
       backgroundColor: const Color(0xFF2D2D5A),
-      // ignore: deprecated_member_use
-      selectedColor: const Color(0xFF00BFFF).withOpacity(0.3),
+      // ✅ CORRECCIÓN: withValues
+      selectedColor: const Color(0xFF00BFFF).withValues(alpha: 0.3),
       checkmarkColor: const Color(0xFF00BFFF),
       labelStyle: TextStyle(
         color: isSelected ? const Color(0xFF00BFFF) : Colors.white70,

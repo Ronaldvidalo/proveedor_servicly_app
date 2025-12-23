@@ -24,7 +24,7 @@ class StatsSummaryCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       decoration: BoxDecoration(
-        color: surfaceColor.withOpacity(0.8), // Ligeramente más sutil
+        color: surfaceColor.withValues(alpha:0.8), // Ligeramente más sutil
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

@@ -54,14 +54,15 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
            businessName: widget.user.displayName ?? 'Nuevo Negocio',
            logoUrl: '', 
            brandColor: Colors.deepPurple, 
-           activeModules: widget.user.activeModules ?? [], 
+           // ✅ CORRECCIÓN: Eliminado operador ?? [] ya que activeModules no es nullable
+           activeModules: widget.user.activeModules, 
            profileType: 'catalog',
            contactEmail: widget.user.email ?? '', 
            welcomeMessage: '¡Bienvenido a mi negocio!', 
             showWelcomeModule: true, welcomeModuleType: 'text',
-            showPortfolioModule: true, showReviewsModule: true,
-            showPromotionsModule: false, showGiftCardModule: false,
-            showBookingModule: true, showQuotesModule: false,
+           showPortfolioModule: true, showReviewsModule: true,
+           showPromotionsModule: false, showGiftCardModule: false,
+           showBookingModule: true, showQuotesModule: false,
          );
          await firestoreService.setCatalogData(widget.user.uid, profile.toMap());
       }
@@ -118,7 +119,7 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                     Text(
+                      Text(
                       'No se pudo cargar la configuración del catálogo.\n${snapshot.error != null ? "Error: ${snapshot.error}" : ""}',
                       textAlign: TextAlign.center,
                       // Texto de error visible en ambos modos

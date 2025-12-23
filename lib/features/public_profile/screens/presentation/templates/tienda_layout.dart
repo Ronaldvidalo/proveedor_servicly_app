@@ -12,12 +12,12 @@ import 'package:proveedor_servicly_app/core/models/category_model.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
 
 // --- Widgets Reutilizables ---
-import 'package:proveedor_servicly_app/widgets/VideoCard.dart';
+import 'package:proveedor_servicly_app/widgets/video_card.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/video_player_screen.dart';
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/cart/screens/cart_screen.dart';
 import 'package:proveedor_servicly_app/widgets/public_brand_header_1.dart';
-import 'package:proveedor_servicly_app/widgets/ProductCardRefactor.dart';
+import 'package:proveedor_servicly_app/widgets/product_card_refactor.dart';
 
 // --- NUEVO WIDGET DE DETALLE ---
 import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/product_detail_dialog.dart'; // <--- IMPORTA ESTO
@@ -228,7 +228,7 @@ class _CategorySelector extends StatelessWidget {
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
         final categories = snapshot.data!;
-        final theme = Theme.of(context);
+        // ✅ CORRECCIÓN: Variable 'theme' no utilizada eliminada.
         return SliverToBoxAdapter(child: SizedBox(height: 60, child: ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), scrollDirection: Axis.horizontal, itemCount: categories.length + 1, itemBuilder: (context, index) {
           if (index == 0) return _buildChip(context, 'Ver Todos', selectedCategoryId == null, () => onCategorySelected(null));
           return _buildChip(context, categories[index - 1].name, selectedCategoryId == categories[index - 1].id, () => onCategorySelected(categories[index - 1].id));

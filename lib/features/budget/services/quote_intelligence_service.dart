@@ -3,6 +3,7 @@
 // Ubicación: lib/features/budget/services/quote_intelligence_service.dart
 // Responsabilidad: Utilizar Gemini para profesionalizar textos de cotizaciones.
 
+import 'package:flutter/foundation.dart'; // Import para debugPrint
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 
 class QuoteIntelligenceService {
@@ -36,7 +37,7 @@ class QuoteIntelligenceService {
       
       return response ?? rawText; // Si falla, devolvemos el original
     } catch (e) {
-      print("Error en IA: $e");
+      debugPrint("Error en IA: $e"); // ✅ CORRECCIÓN: Usar debugPrint
       return rawText; // Fallback seguro
     }
   }

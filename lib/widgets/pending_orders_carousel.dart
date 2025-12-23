@@ -154,7 +154,7 @@ class _EmptyOrdersCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        color: surfaceColor.withOpacity(0.5), // Más sutil
+        color: surfaceColor.withValues(alpha: 0.5), // Más sutil
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white12), // Borde tenue
       ),

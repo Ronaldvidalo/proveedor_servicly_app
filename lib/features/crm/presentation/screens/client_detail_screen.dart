@@ -29,9 +29,11 @@ class ProFeatureLock extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         // Fondo sutil en ambos modos
-        color: baseColor.withOpacity(isDark ? 0.1 : 0.15),
+        // ✅ Fix: withValues
+        color: baseColor.withValues(alpha: isDark ? 0.1 : 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: baseColor.withOpacity(0.5)),
+        // ✅ Fix: withValues
+        border: Border.all(color: baseColor.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [

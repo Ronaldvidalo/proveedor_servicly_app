@@ -14,7 +14,8 @@ class PermissionsService {
   PermissionsService(this._user);
 
   /// El tipo de plan actual del usuario.
-  String get planType => _user.planType ?? _planConecta; // Default 'conecta' (free)
+  // ✅ CORRECCIÓN: Eliminado operador ?? redundante (el linter indica que planType no es nulo)
+  String get planType => _user.planType; 
 
   // --- PERMISOS DE MÓDULOS DE CATÁLOGO ---
 
@@ -39,8 +40,8 @@ class PermissionsService {
      // Por ahora, sigamos tu mockup: requiere Optimiza.
      // Si "conecta" SÍ puede, cambia esto a 'return true;'
      return planType == _planOptimiza || 
-           planType == _planExpande || 
-           planType == _planFundador;
+            planType == _planExpande || 
+            planType == _planFundador;
   }
 
   /// ¿Puede MOSTRAR el módulo de Gift Cards?

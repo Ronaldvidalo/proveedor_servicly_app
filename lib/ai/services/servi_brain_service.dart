@@ -14,7 +14,7 @@ class ServiBrainService {
       : _advancedBrain = advancedBrain;
 
   /// Analiza el texto y decide si usa el cerebro RÁPIDO (Local) o el AVANZADO (Gemini).
-  /// Retorna un Future<String> porque la llamada avanzada es asíncrona.
+  /// Retorna un `Future<String>` porque la llamada avanzada es asíncrona.
   Future<String> processCommand(String command, String userId) async {
     debugPrint("🧠 Servi Brain (Router Híbrido) procesando: $command");
     
@@ -54,8 +54,8 @@ class ServiBrainService {
         final IntentionResultModel result = await _advancedBrain!.processQueryAndRespond(command, userId);
         
         // Devolvemos el texto hablado (TTS) que genera tu servicio avanzado
-        // Si viene nulo, usamos un fallback genérico.
-        return result.ttsText ?? "Procesé los datos, pero no estoy segura de cómo decirlo. Revisá la pantalla.";
+        // ✅ CORRECCIÓN: Se eliminó el operador '??' porque ttsText no es nullable
+        return result.ttsText;
         
       } catch (e) {
         debugPrint("❌ Error en cerebro avanzado: $e");

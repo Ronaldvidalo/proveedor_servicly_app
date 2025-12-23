@@ -7,7 +7,7 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/services/video_service.dart';
-import 'package:path/path.dart' as p; // Para obtener la extensión del archivo
+import 'package:path/path.dart' as p;
 
 /// Pantalla para que el proveedor suba un nuevo video o edite uno existente.
 class AddEditVideoScreen extends StatefulWidget {
@@ -29,6 +29,7 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
   late final TextEditingController _titleController;
   bool _isPromoted = false;
   bool _isLoading = false;
+  double _uploadProgress = 0.0; // Progreso de subida (0.0 a 1.0)
 
   // Archivos locales seleccionados por el usuario
   XFile? _thumbnailFile;
@@ -72,8 +73,18 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
   Future<void> _pickVideo() async {
     final ImagePicker picker = ImagePicker();
     final XFile? video = await picker.pickVideo(source: ImageSource.gallery);
+    
     if (video != null) {
-      // TODO: Validar el tamaño del video aquí si es necesario
+      // Validación de tamaño (Máx 50MB)
+      final file = File(video.path);
+      final sizeInBytes = await file.length();
+      final sizeInMb = sizeInBytes / (1024 * 1024);
+
+      if (sizeInMb > 50) {
+        _showSnackbar('El video es demasiado pesado (Máx 50MB).', isError: true);
+        return;
+      }
+
       setState(() => _videoFile = video);
     }
   }
@@ -92,7 +103,10 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _uploadProgress = 0.0;
+    });
 
     final storageService = context.read<StorageService>();
     final videoService = context.read<VideoService>();
@@ -110,7 +124,10 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
         newThumbnailUrl = await storageService.uploadFileWithProgress(
           File(_thumbnailFile!.path),
           thumbPath,
-          (progress) {}, // TODO: Implementar un indicador de progreso
+          (progress) {
+             // Asignamos una pequeña parte del progreso total a la miniatura (ej. 10%)
+             if (mounted) setState(() => _uploadProgress = progress * 0.1);
+          }, 
         );
       }
 
@@ -121,7 +138,10 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
         newVideoUrl = await storageService.uploadFileWithProgress(
           File(_videoFile!.path),
           videoPath,
-          (progress) {}, // TODO: Implementar un indicador de progreso
+          (progress) {
+             // El video representa el 90% restante del progreso
+             if (mounted) setState(() => _uploadProgress = 0.1 + (progress * 0.9));
+          }, 
         );
       }
 
@@ -228,6 +248,27 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
 
             const SizedBox(height: 48),
 
+            // --- Barra de Progreso (si está cargando) ---
+            if (_isLoading)
+               Padding(
+                 padding: const EdgeInsets.only(bottom: 16.0),
+                 child: Column(
+                   children: [
+                     LinearProgressIndicator(
+                       value: _uploadProgress,
+                       backgroundColor: surfaceColor,
+                       color: accentColor,
+                       borderRadius: BorderRadius.circular(4),
+                     ),
+                     const SizedBox(height: 8),
+                     Text(
+                       "Subiendo... ${(_uploadProgress * 100).toInt()}%",
+                       style: const TextStyle(color: Colors.white70, fontSize: 12),
+                     )
+                   ],
+                 ),
+               ),
+
             // --- Botón de Guardar ---
             FilledButton.icon(
               onPressed: _isLoading ? null : _saveVideo,
@@ -264,14 +305,43 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
           _isPromoted
               ? 'Este video aparecerá en la sección "Descubrir". (Requiere pago)'
               : 'Solo tus seguidores lo verán en su feed.',
-          style: TextStyle(color: _isPromoted ? accentColor.withAlpha(200) : Colors.white70),
+          style: TextStyle(color: _isPromoted ? accentColor.withValues(alpha: 200) : Colors.white70),
         ),
         value: _isPromoted,
-        onChanged: (newValue) {
-          setState(() => _isPromoted = newValue);
-          // TODO: Si newValue es true, mostrar un pop-up de confirmación de pago.
+        onChanged: (newValue) async {
+          if (newValue) {
+            // Mostrar diálogo de confirmación
+            final bool? confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: surfaceColor,
+                title: const Text("Confirmar Promoción", style: TextStyle(color: Colors.white)),
+                content: const Text(
+                  "Promocionar este video tiene un costo de \$5.00 USD. ¿Deseas continuar a la pasarela de pago?",
+                  style: TextStyle(color: Colors.white70),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text("Cancelar", style: TextStyle(color: Colors.white54)),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: FilledButton.styleFrom(backgroundColor: accentColor),
+                    child: const Text("Aceptar y Pagar", style: TextStyle(color: Colors.black)),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirm == true) {
+              setState(() => _isPromoted = true);
+            }
+          } else {
+            setState(() => _isPromoted = false);
+          }
         },
-        activeColor: accentColor,
+        activeTrackColor: accentColor,
       ),
     );
   }
@@ -336,7 +406,7 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
               decoration: BoxDecoration(
                 color: surfaceColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: accentColor.withAlpha(150), width: 2),
+                border: Border.all(color: accentColor.withValues(alpha: 150), width: 2),
                 image: image != null ? DecorationImage(image: image, fit: BoxFit.cover) : null,
               ),
               child: image == null
@@ -351,7 +421,7 @@ class _AddEditVideoScreenState extends State<AddEditVideoScreen> {
                   : Stack(
                     children: [
                       // Velo para el botón de editar
-                      Container(decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), borderRadius: BorderRadius.circular(12))),
+                      Container(decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(12))),
                       const Center(
                         child: Icon(Icons.edit, color: Colors.white, size: 40),
                       ),

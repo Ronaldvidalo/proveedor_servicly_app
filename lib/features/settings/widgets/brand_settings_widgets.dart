@@ -155,7 +155,8 @@ class ColorSelector extends StatelessWidget {
         Wrap(
           spacing: 16, runSpacing: 16,
           children: predefinedColors.map((color) {
-            bool isSelected = selectedColor.value == color.value;
+            // ✅ CORRECCIÓN: 'value' deprecated, usamos toARGB32() para comparación segura
+            bool isSelected = selectedColor.toARGB32() == color.toARGB32();
             return GestureDetector(
               onTap: () => onColorSelected(color),
               child: AnimatedContainer(

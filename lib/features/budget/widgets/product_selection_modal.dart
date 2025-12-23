@@ -35,7 +35,7 @@ class _ProductSelectionModalState extends State<ProductSelectionModal> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    // Removed unused variable 'isDark'
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85, // 85% de la pantalla

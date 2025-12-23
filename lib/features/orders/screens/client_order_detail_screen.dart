@@ -7,9 +7,6 @@ import 'package:proveedor_servicly_app/core/services/payment_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:proveedor_servicly_app/features/orders/screens/rate_provider_screen.dart';
 
-// Import del sistema de Reviews
-import 'package:proveedor_servicly_app/features/reviews/index.dart';
-
 class ClientOrderDetailScreen extends StatelessWidget {
   final OrderModel order;
 
@@ -18,7 +15,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
   void _showFullImage(BuildContext context, String imageUrl) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.8),
+      barrierColor: Colors.black.withValues(alpha: 0.8),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(10),
@@ -39,7 +36,12 @@ class ClientOrderDetailScreen extends StatelessWidget {
     const surfaceColor = Color(0xFF2D2D5A);
     
     final paymentService = context.read<PaymentService>();
+    
+    // Estados lógicos
     final isCompleted = order.status == OrderStatus.completed;
+    // Asumimos que agregaste inProgress al Enum como acordamos. 
+    // Si tu Enum usa snake_case (in_progress), ajusta esto.
+    final isInProgress = order.status == OrderStatus.inProgress; 
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -53,21 +55,115 @@ class ClientOrderDetailScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         children: [
           
-          // --- 1. BOTÓN DE CALIFICAR (Solo si completado) ---
+          // --- 0. NUEVO: CONFIRMACIÓN DE RECEPCIÓN (Solo si está en progreso) ---
+          if (isInProgress) 
+            Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.local_shipping_outlined, color: Colors.orange, size: 28),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "¡Tu pedido está en camino!", 
+                          style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Mensaje del proveedor (Provider Note)
+                  const Text(
+                    "Mensaje del Proveedor:",
+                    style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      // Usamos providerNote si existe, sino un fallback
+                      (order.providerNote != null && order.providerNote!.isNotEmpty) 
+                          ? order.providerNote! 
+                          : "Revisa los detalles acordados. Pronto recibirás tu pedido.", 
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Botón de Confirmar Recepción
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          // Actualizamos a 'completed' en Firebase
+                          await FirebaseFirestore.instance.collection('orders').doc(order.id).update({
+                            'status': 'completed', 
+                            'completedAt': FieldValue.serverTimestamp(),
+                          });
+
+                          if (context.mounted) {
+                            Navigator.pop(context); // Salir para refrescar la lista
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("¡Entregado! Ahora puedes calificar el servicio."), 
+                                backgroundColor: Colors.green
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error al confirmar: $e"), backgroundColor: Colors.red),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange, 
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                      ),
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text("CONFIRMAR QUE YA LO RECIBÍ", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // --- 1. BOTÓN DE CALIFICAR (Solo si completado y aún no calificado) ---
           if (isCompleted) 
             Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [const Color(0xFF00E5FF).withOpacity(0.2), const Color(0xFF39FF14).withOpacity(0.1)],
+                    colors: [const Color(0xFF00E5FF).withValues(alpha: 0.2), const Color(0xFF39FF14).withValues(alpha: 0.1)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 1.5),
+                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 1.5),
                   boxShadow: [
-                    BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
+                    BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4)),
                   ],
                 ),
                 child: ListTile(
@@ -82,31 +178,30 @@ class ClientOrderDetailScreen extends StatelessWidget {
                     padding: EdgeInsets.only(top: 4.0),
                     child: Text("¿Qué te pareció el servicio? Tu opinión ayuda a otros.", style: TextStyle(color: Colors.white70, fontSize: 13)),
                   ),
-                  trailing: ElevatedButton(
-  style: ElevatedButton.styleFrom(
-    backgroundColor: const Color(0xFF00E5FF), 
-    foregroundColor: Colors.black
-  ),
-  
-  // --- REEMPLAZA EL ONPRESSED POR ESTO: ---
-  onPressed: () async {
-    // Importante: Asegúrate de importar rate_provider_screen.dart arriba
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RateProviderScreen(order: order),
-      ),
-    );
+                  trailing: order.isRated 
+                    ? const Chip(
+                        label: Text("Calificado", style: TextStyle(color: Colors.white)), 
+                        backgroundColor: Colors.black26
+                      )
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF), 
+                          foregroundColor: Colors.black
+                        ),
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RateProviderScreen(order: order),
+                            ),
+                          );
 
-    // Si calificó exitosamente (devuelve true), podemos mostrar confirmación
-    if (result == true) {
-      // Opcional: Aquí podrías forzar una recarga si fuera necesario, 
-      // pero StreamBuilder suele encargarse de actualizar la UI automáticamente.
-    }
-  },
-  
-  child: const Text("CALIFICAR", style: TextStyle(fontWeight: FontWeight.bold)),
-),
+                          if (result == true) {
+                            // La UI se actualizará sola por el Stream, pero opcionalmente podríamos mostrar un snackbar
+                          }
+                        },
+                        child: const Text("CALIFICAR", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
                 ),
               ),
             ),
@@ -121,7 +216,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(_getStatusDescription(order.status), style: const TextStyle(color: Colors.white70, fontSize: 15)),
               const SizedBox(height: 16),
-              if (order.status == OrderStatus.pending_payment)
+              if (order.status == OrderStatus.pendingPayment)
                 Text('Creado el: ${DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt.toDate())}', style: const TextStyle(color: Colors.white54, fontSize: 14)),
             ],
           ),
@@ -129,7 +224,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ---------------------------------------------------------
-          // 🚚 3. NUEVA SECCIÓN: DATOS DE ENTREGA (Logística)
+          // 🚚 3. DATOS DE ENTREGA (Logística)
           // ---------------------------------------------------------
           _buildSectionCard(
             context: context,
@@ -164,7 +259,6 @@ class ClientOrderDetailScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          // ---------------------------------------------------------
 
           // --- 4. Resumen de Compra ---
           _buildSectionCard(
@@ -244,12 +338,12 @@ class ClientOrderDetailScreen extends StatelessWidget {
   // --- Helpers ---
   String _getStatusDescription(OrderStatus status) {
     switch (status) {
-      case OrderStatus.pending_payment: return 'Esperando confirmación de pago.';
-      case OrderStatus.pending_verification: return 'El proveedor está verificando tu pago.';
+      case OrderStatus.pendingPayment: return 'Esperando confirmación de pago.';
+      case OrderStatus.pendingVerification: return 'El proveedor está verificando tu pago.';
+      case OrderStatus.inProgress: return '¡Orden en camino! Revisa los detalles arriba.'; // Nuevo
       case OrderStatus.completed: return '¡Orden completada y entregada!';
       case OrderStatus.cancelled: return 'Orden cancelada.';
       case OrderStatus.disputed: return 'Orden en disputa.';
-      default: return '';
     }
   }
 
@@ -265,7 +359,7 @@ class ClientOrderDetailScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,17 +403,28 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String text; Color color; IconData icon;
+    String text; 
+    Color color; 
+    IconData icon;
+    
     switch (status) {
-      case OrderStatus.pending_payment: text = 'Pago Pendiente'; color = Colors.blue; icon = Icons.payment; break;
-      case OrderStatus.pending_verification: text = 'Verificando'; color = Colors.orange; icon = Icons.hourglass_top; break;
-      case OrderStatus.completed: text = 'Completado'; color = Colors.green; icon = Icons.check_circle; break;
-      case OrderStatus.cancelled: text = 'Cancelado'; color = Colors.red; icon = Icons.cancel; break;
-      default: text = 'Desconocido'; color = Colors.grey; icon = Icons.help;
+      case OrderStatus.pendingPayment: 
+        text = 'Pago Pendiente'; color = Colors.blue; icon = Icons.payment; break;
+      case OrderStatus.pendingVerification: 
+        text = 'Verificando'; color = Colors.orange; icon = Icons.hourglass_top; break;
+      case OrderStatus.inProgress: // ✅ ESTE FALTABA
+        text = 'En Camino'; color = Colors.indigoAccent; icon = Icons.local_shipping; break;
+      case OrderStatus.completed: 
+        text = 'Completado'; color = Colors.green; icon = Icons.check_circle; break;
+      case OrderStatus.cancelled: 
+        text = 'Cancelado'; color = Colors.red; icon = Icons.cancel; break;
+      case OrderStatus.disputed:
+        text = 'En Disputa'; color = Colors.purple; icon = Icons.gavel; break;
     }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(20), border: Border.all(color: color)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20), border: Border.all(color: color)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [Icon(icon, color: color, size: 14), const SizedBox(width: 6), Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold))],

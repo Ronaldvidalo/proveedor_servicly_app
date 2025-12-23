@@ -15,7 +15,7 @@ class InventoryProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const surfaceColor = Color(0xFF2D2D5A);
-    const accentColor = Color(0xFF00BFFF);
+    // Removed unused accentColor
 
     // Lógica de Semáforo de Stock
     Color stockColor = Colors.greenAccent;
@@ -37,7 +37,9 @@ class InventoryProductCard extends StatelessWidget {
     Color marginColor = Colors.green;
     if (margen < 0) {
       marginColor = Colors.red;
-    } else if (margen < 20) marginColor = Colors.orange;
+    } else if (margen < 20) {
+      marginColor = Colors.orange;
+    }
 
     final currencyFormat = NumberFormat.currency(locale: 'es_AR', symbol: '\$', decimalDigits: 0);
 
@@ -51,12 +53,14 @@ class InventoryProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: product.isLowStock || product.isOutOfStock 
-                ? stockColor.withOpacity(0.5) 
+                // ✅ Fix: withValues
+                ? stockColor.withValues(alpha: 0.5) 
                 : Colors.transparent,
             width: 1,
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))
+            // ✅ Fix: withValues
+            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2))
           ],
         ),
         child: Row(
@@ -103,9 +107,11 @@ class InventoryProductCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: stockColor.withOpacity(0.2),
+                    // ✅ Fix: withValues
+                    color: stockColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: stockColor.withOpacity(0.5)),
+                    // ✅ Fix: withValues
+                    border: Border.all(color: stockColor.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     stockText,

@@ -56,7 +56,7 @@ class QuoteProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        print("Error escuchando cotizaciones: $error");
+        debugPrint("Error escuchando cotizaciones: $error");
         _isLoading = false;
         notifyListeners();
       },
@@ -178,7 +178,7 @@ class QuoteProvider extends ChangeNotifier {
       // Nos aseguramos de que todos los datos estén sincronizados
       await _repository.saveQuote(_userId, _currentQuote!);
     } catch (e) {
-      print("Error guardando cotización: $e");
+      debugPrint("Error guardando cotización: $e");
       rethrow;
     }
   }
@@ -188,7 +188,7 @@ class QuoteProvider extends ChangeNotifier {
     try {
       await _repository.deleteQuote(_userId, quoteId);
     } catch (e) {
-       print("Error eliminando: $e");
+       debugPrint("Error eliminando: $e");
     }
   }
 
@@ -203,7 +203,7 @@ class QuoteProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print("Error actualizando estado: $e");
+      debugPrint("Error actualizando estado: $e");
       rethrow;
     }
   }

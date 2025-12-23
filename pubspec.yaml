@@ -69,6 +69,7 @@ dependencies:
   crypto: ^3.0.3
   font_awesome_flutter: ^10.12.0
   flutter_local_notifications: ^17.0.0
+  flutter_dotenv: ^6.0.0
 
 
 dev_dependencies:
@@ -83,6 +84,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - .env  # <--- AGREGA ESTA LÍNEA (Respeta los espacios/identación)
     - assets/images/
     - assets/prompts/
 

@@ -1,14 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 // --- Modelos y Servicios ---
-import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/payment_method_model.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/core/services/payment_service.dart';
 
 // --- IMPORTACIONES NECESARIAS ---
@@ -41,19 +36,17 @@ class _ManagePaymentMethodsScreenState extends State<ManagePaymentMethodsScreen>
 
   Future<void> _setAsPrimary(String methodId) async {
     setState(() => _isLoading = true);
-    final messenger = ScaffoldMessenger.of(context);
-    final bool isMounted = mounted;
 
     try {
       await _paymentService.setPrimaryMethod(widget.user.uid, methodId);
-      if (!isMounted) return;
-      messenger.showSnackBar(const SnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Método de pago actualizado.'),
         backgroundColor: Colors.green,
       ));
     } catch (e) {
-      if (!isMounted) return;
-      messenger.showSnackBar(SnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Error: $e'),
         backgroundColor: Colors.redAccent,
       ));
@@ -70,19 +63,17 @@ class _ManagePaymentMethodsScreenState extends State<ManagePaymentMethodsScreen>
     if (didConfirm != true) return;
 
     setState(() => _isLoading = true);
-    final messenger = ScaffoldMessenger.of(context);
-    final bool isMounted = mounted;
 
     try {
       await _paymentService.deletePaymentMethod(widget.user.uid, methodId);
-      if (!isMounted) return;
-      messenger.showSnackBar(const SnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Método eliminado.'),
         backgroundColor: Colors.redAccent,
       ));
     } catch (e) {
-      if (!isMounted) return;
-      messenger.showSnackBar(SnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Error al eliminar: $e'),
         backgroundColor: Colors.redAccent,
       ));
@@ -100,10 +91,6 @@ class _ManagePaymentMethodsScreenState extends State<ManagePaymentMethodsScreen>
       ),
     );
 
-    // Guardar contexto antes del Await
-    final messenger = ScaffoldMessenger.of(context);
-    final bool isMounted = mounted;
-
     if (result != null) {
       setState(() => _isLoading = true);
       try {
@@ -119,14 +106,14 @@ class _ManagePaymentMethodsScreenState extends State<ManagePaymentMethodsScreen>
           await _paymentService.addPaymentMethod(widget.user.uid, result);
         }
 
-        if (!isMounted) return;
-        messenger.showSnackBar(SnackBar(
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(methodToEdit != null ? 'Método actualizado' : 'Método añadido'),
           backgroundColor: Colors.green,
         ));
       } catch (e) {
-        if (!isMounted) return;
-        messenger.showSnackBar(SnackBar(
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error al guardar: $e'),
           backgroundColor: Colors.redAccent,
         ));
@@ -265,7 +252,7 @@ class _ManagePaymentMethodsScreenState extends State<ManagePaymentMethodsScreen>
           ),
           if (_isLoading)
             Container(
-              color: Colors.black.withAlpha(128),
+              color: Colors.black.withValues(alpha: 128),
               child: const Center(child: CircularProgressIndicator(color: accentColor)),
             ),
         ],
@@ -312,8 +299,8 @@ class _PaymentMethodCard extends StatelessWidget {
         icon = Icons.currency_bitcoin_outlined; // Icono para cripto
         break;
       case PaymentMethodType.other:
-      default:
         icon = Icons.credit_card_outlined;
+        break;
     }
 
     // --- Lógica de Datos a Mostrar Actualizada ---
@@ -349,7 +336,7 @@ class _PaymentMethodCard extends StatelessWidget {
           ),
           Container(
             height: 1,
-            color: Colors.black.withAlpha(51),
+            color: Colors.black.withValues(alpha: 51),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,

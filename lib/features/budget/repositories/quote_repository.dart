@@ -10,7 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // 1. Importamos el modelo principal 'Quote' (Esto solucionará los errores de "Undefined class Quote")
 import 'package:proveedor_servicly_app/features/budget/models/quote_model.dart';
 // 2. Importamos los ítems (ya lo tenías, lo mantenemos)
-import 'package:proveedor_servicly_app/features/budget/models/quote_item_model.dart';
+
 
 class QuoteRepository {
   final FirebaseFirestore _firestore;

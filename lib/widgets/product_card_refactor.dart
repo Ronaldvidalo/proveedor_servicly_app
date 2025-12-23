@@ -49,10 +49,12 @@ class ProductCardRefactor extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF2D2D5A),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: brandColor.withOpacity(0.5), width: 1),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          border: Border.all(color: brandColor.withValues(alpha: 0.5), width: 1),
           boxShadow: [
             BoxShadow(
-              color: brandColor.withOpacity(0.1),
+              // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+              color: brandColor.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -86,7 +88,8 @@ class ProductCardRefactor extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        const Color(0xFF1A1A2E).withOpacity(0.9),
+                        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                        const Color(0xFF1A1A2E).withValues(alpha: 0.9),
                       ],
                     ),
                   ),
@@ -161,7 +164,8 @@ class ProductCardRefactor extends StatelessWidget {
         child: Icon(
           Icons.shopping_bag_outlined,
           size: 40,
-          color: Colors.white.withOpacity(0.2),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          color: Colors.white.withValues(alpha: 0.2),
         ),
       ),
     );
@@ -191,7 +195,8 @@ class ProductCardRefactor extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E).withOpacity(0.7),
+        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+        color: const Color(0xFF1A1A2E).withValues(alpha: 0.7),
         shape: BoxShape.circle,
       ),
       child: const Icon(Icons.edit, color: Colors.white, size: 16),
@@ -205,7 +210,8 @@ class ProductCardRefactor extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E).withOpacity(0.7),
+          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+          color: const Color(0xFF1A1A2E).withValues(alpha: 0.7),
           shape: BoxShape.circle,
         ),
         child: Icon(

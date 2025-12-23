@@ -44,9 +44,13 @@ class _VideoManagerScreenState extends State<VideoManagerScreen> {
 
     if (didConfirm != true) return; // El usuario canceló
 
+    // ✅ CORRECCIÓN: Verificar mounted después del await del diálogo
+    if (!mounted) return;
+
     // 2. Mostrar loader
     setState(() => _isDeleting = true);
 
+    // Capturamos los servicios y el messenger ANTES del await para evitar usar el context en un gap asíncrono
     final videoService = context.read<VideoService>();
     final storageService = context.read<StorageService>();
     final messenger = ScaffoldMessenger.of(context);
@@ -66,22 +70,26 @@ class _VideoManagerScreenState extends State<VideoManagerScreen> {
       }
       if (video.videoUrl.isNotEmpty) {
          try {
-          await storageService.deleteFileByUrl(video.videoUrl);
+           await storageService.deleteFileByUrl(video.videoUrl);
          } catch (e) {
             debugPrint('No se pudo borrar el video (quizás ya estaba borrado): $e');
          }
       }
 
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Video eliminado con éxito.'),
-        backgroundColor: Colors.green,
-      ));
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Video eliminado con éxito.'),
+          backgroundColor: Colors.green,
+        ));
+      }
 
     } catch (e) {
-      messenger.showSnackBar(SnackBar(
-        content: Text('Error al eliminar el video: $e'),
-        backgroundColor: Colors.redAccent,
-      ));
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Error al eliminar el video: $e'),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
     } finally {
       if (mounted) {
         setState(() => _isDeleting = false);
@@ -182,7 +190,7 @@ class _VideoManagerScreenState extends State<VideoManagerScreen> {
           // Loader global de borrado
           if (_isDeleting)
             Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

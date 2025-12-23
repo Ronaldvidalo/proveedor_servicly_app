@@ -1,3 +1,12 @@
+// --- UX/UI Enhancement Comment ---
+// UX/UI Redesigned: 14/10/2025
+// Style: Cyber Glow (Adaptive Light/Dark)
+// QA FIX 26/11/2025: Theme Integration
+// UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
+// UPDATE: Integración Notificaciones Push (Cliente)
+// UPDATE: Servi AI Navigation Logic (Dashboard)
+// ---------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui'; 
@@ -22,7 +31,7 @@ import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/core/services/notification_service.dart'; // Importar servicio de notificaciones
+import 'package:proveedor_servicly_app/core/services/notification_service.dart';
 
 // --- Importaciones de Módulos ---
 import 'package:proveedor_servicly_app/features/catalogo/modules/modules_screen.dart';
@@ -38,6 +47,10 @@ import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart';
 import 'package:proveedor_servicly_app/ai/screens/servi_chat_screen.dart'; 
+
+// --- IMPORTS DE ACCIÓN (PARA NAVEGACIÓN IA) ---
+import 'package:proveedor_servicly_app/features/budget/screens/quote_editor_screen.dart';
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -141,12 +154,13 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   final ServiVoiceService _voiceService = ServiVoiceService();
   final stt.SpeechToText _speech = stt.SpeechToText();
   
-  late ServiBrainService _serviBrain; 
+  // Usamos el conector directo en lugar del BrainService antiguo para tener control total del JSON
+  late ServiApiConnectorService _apiConnector; 
   
   // Estados de la IA
   bool _isSpeaking = false; 
   bool _isListening = false;
-  bool _isThinking = false; // ESTADO NUEVO: Pensando
+  bool _isThinking = false; 
   
   bool _isTourCheckPending = true;
 
@@ -167,13 +181,11 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     final firestoreService = context.read<FirestoreService>();
     final geminiService = GeminiService(); 
     
-    final apiConnector = ServiApiConnectorService(geminiService, firestoreService);
-    final conversationalService = ServiConversationalService(apiConnector);
-    
-    _serviBrain = ServiBrainService(advancedBrain: conversationalService);
+    // Inicializamos el conector directo para acceder a la respuesta JSON cruda
+    _apiConnector = ServiApiConnectorService(geminiService);
 
     // --- Resto de inicializaciones ---
-    _modulesFuture = context.read<FirestoreService>().getAvailableModules();
+    _modulesFuture = firestoreService.getAvailableModules();
     
     _animationController = AnimationController(
       vsync: this,
@@ -188,8 +200,11 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
     // --- SOLICITUD DE NOTIFICACIONES (PROVEEDOR) ---
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-       await context.read<NotificationService>().init();
-       await context.read<NotificationService>().saveTokenToDatabase();
+       if (!mounted) return;
+       final notificationService = context.read<NotificationService>();
+       await notificationService.init();
+       if (!mounted) return;
+       await notificationService.saveTokenToDatabase();
        debugPrint("🔔 Notificaciones configuradas para el Dashboard de Proveedor");
     });
   }
@@ -207,8 +222,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 
   // --- LÓGICA DE ESCUCHA (STT) ---
-  Future<void> _listen() async {
-    if (_isListening || _isThinking) return; // No interrumpir si piensa
+  Future<void> _listen(UserModel user) async {
+    if (_isListening || _isThinking) return; 
 
     if (_isSpeaking) {
       await _voiceService.stop();
@@ -230,7 +245,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         onResult: (val) {
           if (val.finalResult) {
             setState(() => _isListening = false);
-            _processVoiceCommand(val.recognizedWords);
+            // ✅ Pasamos el usuario capturado
+            _processVoiceCommand(val.recognizedWords, user);
           }
         },
         localeId: 'es_AR', 
@@ -240,31 +256,75 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     }
   }
 
-  // --- CEREBRO: PROCESAMIENTO CON FEEDBACK ---
-  Future<void> _processVoiceCommand(String command) async {
+  // --- CEREBRO: PROCESAMIENTO CON FEEDBACK Y NAVEGACIÓN ---
+  Future<void> _processVoiceCommand(String command, UserModel user) async {
     if (command.trim().isEmpty) return;
 
     // 1. Activar Feedback Visual (Avatar girando)
     setState(() => _isThinking = true);
 
-    // 2. Feedback Auditivo (Muletilla) si la pregunta es compleja (> 2 palabras)
+    // 2. Feedback Auditivo (Muletilla)
     if (command.split(' ').length > 2) {
        _fillers.shuffle();
-       _speak(_fillers.first); // Habla sin esperar (async)
+       _speak(_fillers.first); 
     }
 
     try {
-        final user = context.read<UserModel>();
-        
-        // 3. Procesamiento Real (Puede tardar 2-4 seg)
-        String response = await _serviBrain.processCommand(command, user.uid);
+        // 3. Procesamiento Real usando el conector directo (devuelve JSON Map)
+        final responseMap = await _apiConnector.callServiLLM(command, user.uid);
         
         // 4. Apagar Feedback Visual
         if (mounted) setState(() => _isThinking = false);
         
-        // 5. Respuesta Final
-        _speak(response);
+        // 5. Procesar Respuesta
+        String textoHablado = responseMap['TEXTO_VOZ'] ?? responseMap['TEXTO_ESCRITO'] ?? "Listo.";
+        await _speak(textoHablado);
+
+        // --- 6. EJECUTAR ACCIONES DE NAVEGACIÓN ---
+        
+        // CASO A: PRESUPUESTO
+        if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRESUPUESTO') {
+            debugPrint("🚀 SERVI: Ejecutando navegación a Presupuesto (desde Dashboard)...");
+            final datos = responseMap['DATOS_PRECARGA'] ?? {};
+            
+            // Esperar que termine de hablar
+            await Future.delayed(const Duration(milliseconds: 1500));
+
+            if (mounted) {
+                Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => QuoteEditorScreen(
+                        isNew: true,
+                        initialClient: datos['cliente_nombre'],
+                        initialConcept: datos['concepto'],
+                        initialPrice: double.tryParse(datos['precio_estimado']?.toString() ?? '0'),
+                        aiSuggestion: datos['sugerencia_ia']
+                    )
+                ));
+            }
+        }
+        // CASO B: PRODUCTO (INVENTARIO)
+        else if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRODUCTO') {
+            debugPrint("📦 SERVI: Ejecutando navegación a Nuevo Producto (desde Dashboard)...");
+            final datos = responseMap['DATOS_PRECARGA'] ?? {};
+            
+            await Future.delayed(const Duration(milliseconds: 1500));
+
+            if (mounted) {
+                Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => AddEditProductScreen(
+                        // Pasamos el usuario explícitamente ya que lo tenemos aquí
+                        user: user, 
+                        initialName: datos['nombre_producto'],
+                        initialPrice: double.tryParse(datos['precio']?.toString() ?? '0'),
+                        initialStock: double.tryParse(datos['stock']?.toString() ?? '0'),
+                        aiDescription: datos['descripcion_ia'] ?? datos['aviso_ia'],
+                    )
+                ));
+            }
+        }
+
     } catch (e) {
+        debugPrint("Error Servi Dashboard: $e");
         if (mounted) setState(() => _isThinking = false);
         _speak("Me mareé un poco con los datos. ¿Me preguntás de nuevo?");
     }
@@ -275,7 +335,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
       return user.displayName!.trim().split(' ')[0];
     }
-    // NOTA: Como borramos personalization, esto podría ser null, aseguramos fallback
     return "Campeón"; 
   }
 
@@ -291,6 +350,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 
   void _onShowcaseStepStart(int? index, GlobalKey key) {
+    // Aquí podemos seguir usando context.read porque es un evento síncrono de UI
     final user = context.read<UserModel>();
     String script = _getScriptForStep(key, user);
     if (key.currentContext != null) {
@@ -303,16 +363,19 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     }
   }
 
-  Future<void> _checkIfFirstTime(BuildContext showcaseContext) async {
+  // ✅ CORRECCIÓN: Recibe UserModel y BuildContext (valido) para evitar usar context.read tras un await
+  Future<void> _checkIfFirstTime(BuildContext showcaseContext, UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
-    final user = context.read<UserModel>();
+    // Ya no hacemos context.read aquí
     final String tourKey = 'hasSeenDashboardTour_v12_${user.uid}'; 
     final bool hasSeenTour = prefs.getBool(tourKey) ?? false;
 
     if (!hasSeenTour) {
       String name = _getUserName(user);
       await _speak("Hola $name. Soy Servi. Ahora tengo oídos. Tocá mi avatar abajo para hablarme.");
-      if (mounted) {
+      
+      // Verificamos si el contexto del showcase sigue montado
+      if (mounted && showcaseContext.mounted) {
         ShowCaseWidget.of(showcaseContext).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
         prefs.setBool(tourKey, true);
       }
@@ -325,16 +388,17 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 
   // --- GESTIÓN DEL BOTÓN FLOTANTE INTELIGENTE ---
+  // ✅ Recibe el usuario desde el build para pasarlo
   void _handleAvatarTap(UserModel user) {
-    if (_isThinking) return; // Si piensa, no interrumpir con toques
+    if (_isThinking) return; 
     
     if (_isListening) {
-      _listen(); 
+      _listen(user); 
     } else if (_isSpeaking) {
       _voiceService.stop(); 
     } else {
       _speak("Te escucho..."); 
-      Future.delayed(const Duration(milliseconds: 800), _listen);
+      Future.delayed(const Duration(milliseconds: 800), () => _listen(user));
     }
   }
 
@@ -360,7 +424,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
       builder: (context) { 
         if (_isTourCheckPending) {
           _isTourCheckPending = false;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _checkIfFirstTime(context));
+          // ✅ CORRECCIÓN: Pasamos el 'userModel' capturado en el build
+          WidgetsBinding.instance.addPostFrameCallback((_) => _checkIfFirstTime(context, userModel));
         }
 
         return Scaffold(
@@ -370,12 +435,13 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
           floatingActionButton: Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
             child: GestureDetector(
+              // ✅ Pasamos userModel al handler
               onTap: () => _handleAvatarTap(userModel),
               onLongPress: () => _manualTourStart(context),
               child: ServiAvatar(
                 isSpeaking: _isSpeaking,
                 isListening: _isListening, 
-                isThinking: _isThinking, // <--- Estado Conectado
+                isThinking: _isThinking, 
                 size: 65, 
               ),
             ),
@@ -556,14 +622,11 @@ class _PublicProfileButton extends StatelessWidget {
     final IconData buttonIcon = isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline;
 
     void onPressedAction() {
-      // CORRECCIÓN: Si el perfil está creado, intentamos ver el PublicProfile.
-      // El PublicProfileScreen deberá buscar en 'brandProfiles' usando el UID.
       if (isProfileCreated) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => PublicProfileScreen(providerId: userModel.uid),
         ));
       } else {
-        // Si no está creado, vamos a seleccionar plantilla (que llevará a BrandSettings)
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => SelectProfileTemplateScreen(user: userModel),
         ));
@@ -584,8 +647,7 @@ class _PublicProfileButton extends StatelessWidget {
 
 class _LoadingSkeleton extends StatelessWidget {
   final String? userName;
-  final String? businessName;
-  const _LoadingSkeleton({this.userName, this.businessName});
+  const _LoadingSkeleton({this.userName});
   @override
   Widget build(BuildContext context) {
     return const Center(child: CircularProgressIndicator());

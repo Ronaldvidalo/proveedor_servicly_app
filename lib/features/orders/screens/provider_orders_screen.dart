@@ -116,7 +116,7 @@ class _ProviderOrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isPending = order.status == OrderStatus.pending_verification;
+    final isPending = order.status == OrderStatus.pendingVerification;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

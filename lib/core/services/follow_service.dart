@@ -70,8 +70,7 @@ class FollowService {
   }
 
   /// Verifica si el cliente actual ya está siguiendo al proveedor.
-  /// Devuelve un Stream<bool> para que la UI reaccione en tiempo real.
-  Stream<bool> isFollowing(String clientId, String providerId) {
+    Stream<bool> isFollowing(String clientId, String providerId) {
     return _usersCollection()
         .doc(clientId)
         .collection('following')
@@ -81,8 +80,7 @@ class FollowService {
   }
 
   /// Obtiene el conteo de seguidores para el proveedor.
-  /// Devuelve un Stream<int> para el StatsSummaryCard.
-  Stream<int> getFollowersCount(String providerId) {
+    Stream<int> getFollowersCount(String providerId) {
     return _brandProfilesCollection()
         .doc(providerId)
         .collection('followers')

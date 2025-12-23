@@ -81,7 +81,8 @@ class _ServiAvatarState extends State<ServiAvatar> with SingleTickerProviderStat
                   // Efecto de gradiente para que se note el giro
                   gradient: SweepGradient(
                     colors: [
-                      thinkingColor.withOpacity(0.1),
+                      // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                      thinkingColor.withValues(alpha: 0.1),
                       thinkingColor,
                     ],
                   ),
@@ -107,11 +108,14 @@ class _ServiAvatarState extends State<ServiAvatar> with SingleTickerProviderStat
               ),
               boxShadow: [
                 if (widget.isSpeaking)
-                  BoxShadow(color: primaryColor.withOpacity(0.5), blurRadius: 15, spreadRadius: 2)
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  BoxShadow(color: primaryColor.withValues(alpha: 0.5), blurRadius: 15, spreadRadius: 2)
                 else if (widget.isListening)
-                  BoxShadow(color: listeningColor.withOpacity(0.5), blurRadius: 15, spreadRadius: 2)
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  BoxShadow(color: listeningColor.withValues(alpha: 0.5), blurRadius: 15, spreadRadius: 2)
                 else if (widget.isThinking)
-                  BoxShadow(color: thinkingColor.withOpacity(0.5), blurRadius: 20, spreadRadius: 2)
+                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  BoxShadow(color: thinkingColor.withValues(alpha: 0.5), blurRadius: 20, spreadRadius: 2)
               ],
             ),
             child: Stack(

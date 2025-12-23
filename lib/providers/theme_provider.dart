@@ -141,7 +141,7 @@ class ThemeProvider with ChangeNotifier {
     ),
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.8),
+        color: Colors.black.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(8),
       ),
       textStyle: const TextStyle(color: Colors.white),

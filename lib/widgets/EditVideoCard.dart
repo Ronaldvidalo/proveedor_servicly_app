@@ -68,7 +68,7 @@ class EditVideoCard extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     // Más oscuro en la parte inferior
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
                     stops: const [0.5, 1.0],
                   ),
                 ),

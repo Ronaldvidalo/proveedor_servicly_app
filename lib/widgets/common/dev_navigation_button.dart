@@ -35,7 +35,7 @@ class DevNavigationButton extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: (foregroundColor ?? colors.onTertiaryContainer).withOpacity(0.2),
+                color: (foregroundColor ?? colors.onTertiaryContainer).withValues(alpha: 0.2),
                 width: 1,
               ),
             ),

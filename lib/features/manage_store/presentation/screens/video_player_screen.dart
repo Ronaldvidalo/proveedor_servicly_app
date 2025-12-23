@@ -174,7 +174,7 @@ child: VideoPlayer(_controller),
                         child: AppBar(
                           title: Text(widget.videoShowcase.title,
                               style: const TextStyle(color: Colors.white, fontSize: 16)),
-                          backgroundColor: Colors.black.withOpacity(0.5), 
+                          backgroundColor: Colors.black.withValues(alpha: 0.5), 
                           elevation: 0,
                           foregroundColor: Colors.white,
                         ),

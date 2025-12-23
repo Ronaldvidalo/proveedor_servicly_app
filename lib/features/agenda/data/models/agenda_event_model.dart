@@ -3,10 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // --- ACTUALIZACIÓN: NUEVOS TIPOS DE EVENTOS ---
 enum EventType { 
   visit,              // Visita técnica / Cita presencial
-  personal_reminder,  // Recordatorio personal
+  personalReminder,  // Recordatorio personal
   appointment,        // Reunión virtual / Llamada
-  payment_reminder,   // Cuentas por Pagar (Facturas)
-  collection_reminder // Cuentas por Cobrar (A clientes)
+  paymentReminder,   // Cuentas por Pagar (Facturas)
+  collectionReminder // Cuentas por Cobrar (A clientes)
 }
 
 enum EventStatus { pending, confirmed, completed, cancelled }
@@ -79,7 +79,7 @@ class AgendaEvent {
       // Mapeo robusto de Enum
       eventType: EventType.values.firstWhere(
           (e) => e.name == data['eventType'], 
-          orElse: () => EventType.personal_reminder
+          orElse: () => EventType.personalReminder
       ),
       eventStatus: EventStatus.values.firstWhere(
           (e) => e.name == data['eventStatus'], 

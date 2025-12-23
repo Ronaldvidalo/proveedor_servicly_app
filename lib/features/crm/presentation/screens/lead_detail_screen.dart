@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
-// import 'dart:ui'; // Eliminado: Innecesario
+import 'dart:ui'; // Necesario para ImageFilter
 
 // Modelos y Servicios CRM
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
@@ -174,7 +174,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     // 1. VERIFICACIÓN DE SEGURIDAD
     const String userPlan = 'free'; 
     
-    if (!LeadAccessHelper.canAccessLead(userPlan, widget.lead.source ?? '')) {
+    // ✅ CORRECCIÓN: Se eliminó el operador ?? '' ya que widget.lead.source no es nullable
+    if (!LeadAccessHelper.canAccessLead(userPlan, widget.lead.source)) {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(title: const Text('Acceso Restringido'), backgroundColor: theme.scaffoldBackgroundColor, foregroundColor: colorScheme.onSurface),
@@ -197,7 +198,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     final friendlySource = _getFriendlySource(lead.source);
     final friendlyName = _getFriendlyName(lead.nombreCompleto);
     
-    final dateStr = DateFormat('dd/MM/yyyy - HH:mm').format(lead.fechaAlta!);
+    // ✅ CORRECCIÓN: Se eliminó el operador ! ya que lead.fechaAlta no es nullable
+    final dateStr = DateFormat('dd/MM/yyyy - HH:mm').format(lead.fechaAlta);
 
     // CORRECCIÓN: Variable 'isQuoteRelevant' eliminada si no se usa, o usada para lógica visual.
     // Aquí la usamos para darle prioridad visual al botón.
@@ -291,8 +293,8 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                     Expanded(child: _ActionButton(icon: Icons.phone, label: 'Llamar', color: Colors.blue, onTap: _launchCall, theme: theme)),
                   ],
                   if (lead.email.isNotEmpty) ...[
-                     const SizedBox(width: 12),
-                     Expanded(child: _ActionButton(icon: Icons.email, label: 'Email', color: Colors.orange, onTap: _launchEmail, theme: theme)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _ActionButton(icon: Icons.email, label: 'Email', color: Colors.orange, onTap: _launchEmail, theme: theme)),
                   ]
                 ],
               ),

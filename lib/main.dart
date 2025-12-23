@@ -60,6 +60,7 @@ import 'package:proveedor_servicly_app/features/budget/repositories/quote_reposi
 import 'package:proveedor_servicly_app/features/budget/providers/quote_provider.dart';
 import 'package:proveedor_servicly_app/features/budget/services/quote_intelligence_service.dart'; 
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart'; 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // ---------------------------------------------------------------------------
 // --- MANEJADOR DE FONDO (BACKGROUND HANDLER) ---
@@ -77,6 +78,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_ES', null);
+
+  await dotenv.load(fileName: ".env");
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
