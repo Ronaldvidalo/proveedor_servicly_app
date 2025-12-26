@@ -1,18 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-// Usamos alias para evitar conflictos con clases internas o externas
 import 'package:provider/provider.dart' as provider_pkg; 
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 
-// --- IMPORTS DE LOS WIDGETS (TARJETAS) ---
+// IMPORTS DE TARJETAS Y PANTALLAS
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/daily_sales_card.dart';
-// Nota: Verifica que el nombre del archivo sea lowercase en tu disco (financial_health_card.dart)
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/FinancialHealthCard.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/inventory_alert_card.dart';
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/next_appointment_card.dart';
-
-
-// --- IMPORTS DE LAS PANTALLAS (PARA NAVEGACIÓN) ---
 import 'package:proveedor_servicly_app/features/sales/screens/sales_history_screen.dart';
 import 'package:proveedor_servicly_app/features/finance/presentation/screens/advanced_finance_screen.dart';
 import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
@@ -26,11 +21,9 @@ class DashboardSummaryCards extends StatefulWidget {
 }
 
 class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
-  final PageController _pageController = PageController(viewportFraction: 0.5);
+  final PageController _pageController = PageController(viewportFraction: 0.85);
   int _currentPage = 0;
   Timer? _timer;
-
-  // Lista de widgets para iterar
   late List<Widget> _pages;
 
   @override
@@ -42,41 +35,35 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Construimos las páginas aquí para tener acceso al context si fuera necesario
     _pages = [
-      // 1. Ventas
-      GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesHistoryScreen())),
-        child: const Center(child: DailySalesCard()),
-      ),
-      // 2. Finanzas
-      GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdvancedFinanceScreen())),
-        child: const Center(child: FinancialHealthCard()),
-      ),
-      // 3. Inventario
-      GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen())),
-        child: const Center(child: InventoryAlertCard()),
-      ),
-      // 4. Agenda
-      GestureDetector(
+      _buildNavWrapper(child: const DailySalesCard(), destination: const SalesHistoryScreen()),
+      _buildNavWrapper(child: const FinancialHealthCard(), destination: const AdvancedFinanceScreen()),
+      _buildNavWrapper(child: const InventoryAlertCard(), destination: const InventoryScreen()),
+      _buildNavWrapper(
         onTap: () {
-           // QA FIX: Uso correcto del alias del provider para obtener el UserModel
-           // Listen: false porque estamos en un callback, no reconstruyendo UI
-           final user = provider_pkg.Provider.of<UserModel?>(context, listen: false);
-           
-           if (user != null) {
-             Navigator.push(context, MaterialPageRoute(builder: (_) => AgendaScreen(user: user)));
-           } else {
-             ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content: Text("Error: Usuario no identificado"), backgroundColor: Colors.redAccent)
-             );
-           }
+            final user = provider_pkg.Provider.of<UserModel?>(context, listen: false);
+            if (user != null) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => AgendaScreen(user: user)));
+            }
         },
-        child: const Center(child: NextAppointmentCard()),
+        child: const NextAppointmentCard(),
       ),
     ];
+  }
+
+  Widget _buildNavWrapper({required Widget child, Widget? destination, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap ?? () {
+        if (destination != null) Navigator.push(context, MaterialPageRoute(builder: (_) => destination));
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        // 🛡️ SOLUCIÓN OVERFLOW: Clip evita que sombras o transformaciones salgan del área
+        clipBehavior: Clip.none, 
+        // ⚠️ IMPORTANTE: No ponemos width fijo aquí, dejamos que el PageView controle.
+        child: child,
+      ),
+    );
   }
 
   @override
@@ -87,58 +74,65 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
   }
 
   void _startAutoScroll() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
-      if (_currentPage < _pages.length - 1) {
-        _currentPage++;
-      } else {
-        _currentPage = 0;
-      }
-
       if (_pageController.hasClients) {
+        if (_currentPage < _pages.length - 1) {
+          _currentPage++;
+        } else {
+          _currentPage = 0;
+        }
         _pageController.animateToPage(
           _currentPage,
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeInOutCubic,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOutQuint,
         );
       }
     });
   }
 
-  void _onPageChanged(int index) {
-    setState(() {
-      _currentPage = index;
-    });
-    _timer?.cancel();
-    _startAutoScroll();
-  }
-
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema para los indicadores (dots)
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: 160,
+          height: 180, 
           child: PageView.builder(
             controller: _pageController,
             itemCount: _pages.length,
-            onPageChanged: _onPageChanged,
+            onPageChanged: (index) {
+                if(mounted) setState(() => _currentPage = index);
+            },
             physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
               return AnimatedBuilder(
                 animation: _pageController,
                 builder: (context, child) {
-                  double value = 1.0;
+                  double value = 0.0;
                   if (_pageController.position.haveDimensions) {
                     value = _pageController.page! - index;
-                    value = (1 - (value.abs() * 0.3)).clamp(0.0, 1.0);
+                  } else {
+                     value = (_currentPage - index).toDouble();
                   }
-                  return Transform.scale(
-                    scale: Curves.easeOut.transform(value),
-                    child: child,
+                  
+                  double delta = (1 - (value.abs() * 0.3)).clamp(0.0, 1.0);
+                  final double scale = Curves.easeOutCubic.transform(delta);
+                  final double opacity = Curves.easeIn.transform(delta);
+
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.001)
+                      ..scale(scale, scale),
+                    child: Opacity(
+                      // 🛡️ SOLUCIÓN: Clamp estricto para evitar valores negativos
+                      opacity: opacity.clamp(0.0, 1.0),
+                      child: child,
+                    ),
                   );
                 },
                 child: _pages[index],
@@ -146,31 +140,33 @@ class _DashboardSummaryCardsState extends State<DashboardSummaryCards> {
             },
           ),
         ),
-        
-        const SizedBox(height: 12),
-
-        // Indicadores de página (Dots)
+        const SizedBox(height: 16),
+        // INDICADORES (DOTS)
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            _pages.length,
-            (index) => AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              height: 6,
-              width: _currentPage == index ? 20 : 6,
-              decoration: BoxDecoration(
-                // QA FIX: Colores dinámicos para los puntos
-                // Color activo: Primario (Azul/Rosa/Verde)
-                // Color inactivo: DividerColor (Gris visible en ambos modos)
-                color: _currentPage == index 
-                    ? colorScheme.primary 
-                    : theme.dividerColor, 
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-        ),
+          children: List.generate(_pages.length, (index) {
+             return AnimatedContainer(
+               // 🛡️ SOLUCIÓN CRÍTICA: Cambiado easeOutBack por easeOut.
+               // easeOutBack causaba el error de "Negative Blur Radius".
+               duration: const Duration(milliseconds: 400),
+               curve: Curves.easeOut, 
+               margin: const EdgeInsets.symmetric(horizontal: 4),
+               height: 6,
+               width: _currentPage == index ? 24 : 8,
+               decoration: BoxDecoration(
+                 color: _currentPage == index ? colorScheme.primary : theme.dividerColor,
+                 borderRadius: BorderRadius.circular(10),
+                 boxShadow: _currentPage == index ? [
+                   BoxShadow(
+                     color: colorScheme.primary.withValues(alpha: 0.3),
+                     blurRadius: 4,
+                     offset: const Offset(0, 2),
+                   )
+                 ] : [],
+               ),
+             );
+          }),
+        )
       ],
     );
   }

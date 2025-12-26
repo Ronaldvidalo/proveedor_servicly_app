@@ -8,6 +8,7 @@ import '../models/category_model.dart'; // Para categorías de PRODUCTOS
 import '../models/portfolio_category_model.dart'; // Para categorías de PORTAFOLIO
 import '../models/portfolio_item_model.dart'; // Para ítems de PORTAFOLIO
 import '../models/provider_profile_model.dart'; // NECESARIO PARA getCatalogData
+import '../../features/reviews/models/review_model.dart'; // IMPORT PARA REVIEWS
 
 /// Servicio central para manejar Firestore (CRUD, streams, etc.)
 class FirestoreService {
@@ -27,7 +28,6 @@ class FirestoreService {
       : _db = firestore ?? FirebaseFirestore.instance {
     _usersCollection = _db.collection('users');
     _modulesCollection = _db.collection('modules');
-    // --- ¡NUEVA! ---
     _catalogsCollection = _db.collection('catalogs');
   }
 
@@ -35,7 +35,6 @@ class FirestoreService {
   // MÉTODOS USUARIOS
   // ------------------------------
 
-  /// Crea un nuevo documento de usuario en Firestore.
   Future<void> createUser(UserModel user) async {
     try {
       await _usersCollection.doc(user.uid).set(user.toJson());
@@ -57,7 +56,6 @@ class FirestoreService {
     }
   }
 
-  /// Obtiene un stream con los datos del perfil de un usuario en tiempo real.
   Stream<UserModel?> getUserStream(String uid) {
     if (kDebugMode) {
       debugPrint("[FirestoreService] Iniciando getUserStream para UID: $uid");
@@ -98,7 +96,6 @@ class FirestoreService {
     });
   }
 
-  /// Obtiene una única instantánea (snapshot) del documento del usuario.
   Future<DocumentSnapshot<Map<String, dynamic>>> getUserDocument(String uid) {
     if (kDebugMode) {
       debugPrint(
@@ -107,7 +104,6 @@ class FirestoreService {
     return _usersCollection.doc(uid).get();
   }
 
-  /// Actualiza los datos de un documento de usuario existente.
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     if (kDebugMode) {
       debugPrint(
@@ -369,6 +365,35 @@ class FirestoreService {
         debugPrint('[FirestoreService] Error al guardar token FCM: $e');
       }
     }
+  }
+
+  // ================================================================
+  // === SECCIÓN DE MÉTODOS PARA REVIEWS ===
+  // ================================================================
+
+  /// Obtiene un Stream de las reseñas de un proveedor específico
+  Stream<List<ReviewModel>> getProviderReviews(String providerId) {
+    if (kDebugMode) {
+      debugPrint("[FirestoreService] Escuchando reviews para provider: $providerId");
+    }
+    return _db
+        .collection('reviews')
+        .where('providerId', isEqualTo: providerId)
+        .snapshots()
+        .map((snapshot) {
+          if (kDebugMode) {
+            debugPrint("[FirestoreService] ${snapshot.docs.length} reviews recibidas para provider: $providerId");
+          }
+          return snapshot.docs
+              .map((doc) => ReviewModel.fromFirestore(doc))
+              .toList();
+        })
+        .handleError((error) {
+          if (kDebugMode) {
+            debugPrint('[FirestoreService] !! ERROR en getProviderReviews: $error');
+          }
+          return <ReviewModel>[];
+        });
   }
 
   // ================================================================
@@ -678,18 +703,14 @@ class FirestoreService {
     });
   }
 
-  // --- ¡MÉTODO NUEVO: ACTUALIZAR DISPONIBILIDAD! ---
-  /// Actualiza la disponibilidad del proveedor para recibir trabajos.
+  // --- ACTUALIZAR DISPONIBILIDAD ---
   Future<void> updateProviderAvailability(String uid, bool isAvailable) async {
     if (kDebugMode) {
       debugPrint(
           "[FirestoreService] Actualizando disponibilidad (isAvailable: $isAvailable) para UID: $uid");
     }
     try {
-      // 1. Actualizar en 'users' (para lógica interna)
       await _usersCollection.doc(uid).update({'isAvailable': isAvailable});
-
-      // 2. Actualizar en 'brandProfiles' (para el mapa público)
       await _db.collection('brandProfiles').doc(uid).set(
           {'isAvailable': isAvailable}, SetOptions(merge: true));
     } catch (e) {
@@ -700,21 +721,14 @@ class FirestoreService {
   // Obtener el perfil público (brandProfiles)
   Future<ProviderProfileModel?> getProviderPublicProfile(String providerId) async {
     try {
-      // 1. Buscamos en la colección correcta: brandProfiles
-      // CORREGIDO: Uso de _db en lugar de _firestore
       final doc = await _db.collection('brandProfiles').doc(providerId).get();
-      
       if (doc.exists) {
         return ProviderProfileModel.fromFirestore(doc);
       } 
-      
-      // 2. Fallback (Opcional): Si no existe, intentar leer de users
-      // CORREGIDO: Uso de _db en lugar de _firestore
       final userDoc = await _db.collection('users').doc(providerId).get();
       if (userDoc.exists) {
          return ProviderProfileModel.fromFirestore(userDoc);
       }
-      
       return null;
     } catch (e) {
       debugPrint("Error obteniendo perfil público: $e");
@@ -724,18 +738,16 @@ class FirestoreService {
 
   Future<void> updateOrderStatus({
     required String orderId,
-    required String newStatus, // 'confirmed', 'preparing', 'ready', 'shipping', 'completed'
-    String? logisticMessage,   // Ej: "Retira de 10 a 18hs" o "Llega el Martes"
+    required String newStatus,
+    String? logisticMessage,
   }) async {
     final Map<String, dynamic> updates = {
       'status': newStatus,
       'updatedAt': FieldValue.serverTimestamp(),
     };
-
     if (logisticMessage != null) {
       updates['logisticMessage'] = logisticMessage;
     }
-
     await _db.collection('orders').doc(orderId).update(updates);
   }
 }

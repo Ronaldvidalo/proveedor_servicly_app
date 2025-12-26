@@ -3,6 +3,7 @@
 // Style: Cyber Glow Integration
 // Update: Integración completa de Módulos Presupuesto (Quotes), Inventario e IA
 // Update: Integración de Notificaciones Push (Firebase Messaging) + Navegación Global
+// FIX: GeminiService Singleton Injection
 // ---------------------------------
 
 // Ocultamos conflictos de nombres entre Riverpod y Provider
@@ -79,6 +80,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_ES', null);
 
+  // Carga de variables de entorno
   await dotenv.load(fileName: ".env");
 
   await Firebase.initializeApp(
@@ -126,9 +128,12 @@ class MyApp extends StatelessWidget {
         Provider<FollowService>(create: (_) => FollowService()),
         Provider<PaymentService>(create: (_) => PaymentService()),
         Provider<FirestoreService>(create: (_) => FirestoreService()),
-        
+        Provider(create: (_) => FirestoreService()),
+        // --- ✅ CORRECCIÓN: GEMINI SERVICE COMO SINGLETON ---
+        // Esto asegura que la instancia (y la API Key) se cree una sola vez
+        Provider<GeminiService>(create: (_) => GeminiService()),
+
         // --- Inyectamos NotificationService ---
-        // Lo usamos en Home y Dashboard para inicializar
         Provider<NotificationService>(create: (_) => NotificationService()),
 
         // --- AUTH SERVICE ---
@@ -172,9 +177,10 @@ class MyApp extends StatelessWidget {
         Provider<QuoteRepository>(create: (_) => QuoteRepository()),
 
         // --- SERVICIO DE INTELIGENCIA DE COTIZACIONES ---
+        // ✅ CORRECCIÓN: Inyectamos la instancia única de GeminiService
         Provider<QuoteIntelligenceService>(
           create: (context) => QuoteIntelligenceService(
-            GeminiService(), 
+            context.read<GeminiService>(), 
           ),
         ),
 

@@ -7,7 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart'; // <--- IMPORTAR
 
 // --- CONFIGURACIÓN ---
 // Mantenemos tu API Key y tu modelo preferido
-final String apiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
+final String apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
 const String _kModelName = 'gemini-2.5-flash'; 
 
 class GeminiService {

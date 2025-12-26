@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'; // Para vibración (HapticFeedback)
+import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
 import 'package:provider/provider.dart';
-
 
 // --- IMPORTACIÓN DEL SERVICIO DE VOZ ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
@@ -11,10 +9,10 @@ import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 // --- Importaciones de Modelos ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
-import 'package:proveedor_servicly_app/core/models/order_model.dart'; // Necesario para el Stream
+import 'package:proveedor_servicly_app/core/models/order_model.dart';
 
 // --- Importaciones de Servicios ---
-import 'package:proveedor_servicly_app/core/services/order_service.dart'; // Necesario para contar pedidos
+import 'package:proveedor_servicly_app/core/services/order_service.dart';
 
 // --- Importaciones de Pantallas ---
 import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
@@ -28,7 +26,6 @@ import 'package:proveedor_servicly_app/features/cost_structure/screen/business_c
 import 'package:proveedor_servicly_app/features/inventory/screens/inventory_screen.dart';
 import 'package:proveedor_servicly_app/features/budget/screens/quote_list_screen.dart';
 import 'package:proveedor_servicly_app/features/orders/screens/provider_orders_screen.dart';
-// --- NUEVO: PANTALLA DE MIS COMPRAS (CLIENTE) ---
 import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart';
 
 // --- Mapa de Iconos ---
@@ -46,13 +43,8 @@ const Map<String, IconData> _iconMap = {
   'extension_outlined': Icons.extension_outlined, 
   'quotes': Icons.description_outlined,
   'receipt_long_outlined': Icons.receipt_long_outlined,
-  // --- NUEVO ICONO PARA MIS COMPRAS ---
   'shopping_bag_outlined': Icons.shopping_bag_outlined,
 };
-
-// ----------------------------------------------------------------------
-// WIDGET PRINCIPAL: La Cuadrícula de Módulos (AHORA STATEFUL)
-// ----------------------------------------------------------------------
 
 class ModulesGrid extends StatefulWidget {
   final List<ModuleModel> activeModules;
@@ -70,149 +62,112 @@ class ModulesGrid extends StatefulWidget {
   State<ModulesGrid> createState() => _ModulesGridState();
 }
 
-class _ModulesGridState extends State<ModulesGrid> {
-  // --- IA SERVI ---
+class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin {
   final ServiVoiceService _voiceService = ServiVoiceService();
+  late AnimationController _listController;
+
+  @override
+  void initState() {
+    super.initState();
+    _listController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _listController.forward();
+  }
 
   @override
   void dispose() {
     _voiceService.dispose();
+    _listController.dispose();
     super.dispose();
   }
 
-  /// Función para explicar el módulo (Exploración Activa)
   void _explainModule(String moduleId) {
-    // Feedback Táctil (Vibración suave)
-    HapticFeedback.mediumImpact();
-
+    HapticFeedback.heavyImpact();
     String script = "";
     
-    // --- GUIONES ARGENTINOS DE SERVI ---
     switch (moduleId) {
-      case 'store_template':
-        script = "Tu Vidriera Digital. Cargá tus productos, poneles precio y vendé las 24 horas, incluso mientras dormís.";
-        break;
-      case 'catalog_template':
-        script = "Tu Portafolio Profesional. Mostrá tus mejores trabajos y dejá que los clientes te pidan presupuesto por WhatsApp.";
-        break;
-      case 'agenda':
-        script = "Tu secretaria personal. Agendá turnos y mandá recordatorios automáticos para que no te dejen plantado.";
-        break;
-      case 'client-management':
-      case 'clients':
-        script = "Tu mina de oro. Guardá los datos de tus clientes y mimalos para que vuelvan siempre.";
-        break;
-      case 'finance':
-      case 'advanced-finance':
-        script = "Cuidá el mango. Anotá lo que entra y lo que sale para saber si el negocio es rentable de verdad.";
-        break;
-      case 'inventory':
-        script = "Controlá tu stock. Que nunca te quedes sin mercadería justo cuando hay venta.";
-        break;
-      case 'pos_system':
-      case 'fast_sales':
-        script = "Tu caja registradora. Cobrá en el mostrador rápido y fácil, y dale el ticket a tu cliente.";
-        break;
-      case 'quotes':
-        script = "Presupuestos que venden. Hacé cotizaciones formales en PDF y mandalas por WhatsApp al toque. Quedás re prolijo.";
-        break;
-      case 'cost_structure':
-        script = "Tus costos fijos. Calculá cuánto te cuesta abrir la persiana cada día para no perder plata.";
-        break;
-      case 'orders-module':
-        script = "Tus Ventas. Acá te llegan los pedidos de la app. Revisá el pago y aprobá la entrega al toque.";
-        break;
-      // --- GUIÓN PARA MIS COMPRAS ---
-      case 'module_client_orders':
-        script = "Tus Compras. Acá podés ver el estado de los pedidos que le hiciste a otros proveedores.";
-        break;
-      case 'add_module':
-        script = "Más poder para vos. Tocá acá para activar nuevas herramientas y potenciar tu negocio.";
-        break;
-      default:
-        script = "Esta es una herramienta clave para tu operación. Tocá para abrirla.";
+      case 'store_template': script = "Tu Vidriera Digital. Cargá tus productos y vendé las 24 horas."; break;
+      case 'catalog_template': script = "Tu Portafolio Profesional. Mostrá tus trabajos y recibí pedidos."; break;
+      case 'agenda': script = "Tu secretaria personal. Agendá turnos y recordatorios."; break;
+      case 'clients': script = "Tu mina de oro. Gestioná los datos de tus clientes."; break;
+      case 'advanced-finance': script = "Cuidá el mango. Controlá ingresos y egresos."; break;
+      case 'inventory': script = "Controlá tu stock. No te quedes sin mercadería."; break;
+      case 'fast_sales': script = "Tu caja registradora. Cobrá rápido en el mostrador."; break;
+      case 'quotes': script = "Presupuestos profesionales en PDF para WhatsApp."; break;
+      case 'cost_structure': script = "Tus costos fijos. Sabé cuánto te cuesta abrir cada día."; break;
+      case 'orders-module': script = "Gestión de Pedidos. Revisá ventas y coordiná entregas."; break;
+      case 'add_module': script = "Expandí tu potencial. Activá nuevas herramientas."; break;
+      default: script = "Esta herramienta optimiza tu flujo de trabajo.";
     }
-
     _voiceService.speak(script);
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- STREAM BUILDER: Escucha pedidos pendientes en tiempo real ---
+    final theme = Theme.of(context);
+    
     return StreamBuilder<List<OrderModel>>(
-      // Solo escuchamos si el usuario tiene ID válido
       stream: widget.user.uid.isNotEmpty 
           ? context.read<OrderService>().getPendingOrders(widget.user.uid)
           : const Stream.empty(),
       builder: (context, snapshot) {
-        
-        // Calculamos cantidad de pendientes
-        int pendingOrdersCount = 0;
-        if (snapshot.hasData) {
-          pendingOrdersCount = snapshot.data!.length;
-        }
+        int pendingCount = snapshot.hasData ? snapshot.data!.length : 0;
 
-        return GridView.count(
-          crossAxisCount: 4, 
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Botón "Gestionar Tienda"
+            // --- SECCIÓN: PERFIL PÚBLICO (Destacado arriba) ---
+            _buildSectionHeader(context, "Mi presencia online"),
             if (widget.user.publicProfileTemplate == 'store') 
-              _ModuleCard(
-                title: 'Tienda', 
-                icon: _iconMap['storefront_outlined'] ?? Icons.storefront_outlined,
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ManageStoreScreen(user: widget.user),
-                  ));
-                },
+              _buildLargeTile(
+                title: 'Mi Tienda Digital',
+                subtitle: 'Tu vidriera abierta 24/7',
+                icon: _iconMap['storefront_outlined']!,
+                color: theme.primaryColor,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ManageStoreScreen(user: widget.user))),
                 onLongPress: () => _explainModule('store_template'),
               ),
-            
-            // Botón "Gestionar Catálogo"
-            if (widget.user.publicProfileTemplate == 'catalog') 
-              _ModuleCard(
-                title: 'Catálogo', 
-                icon: _iconMap['auto_stories_outlined'] ?? Icons.auto_stories_outlined,
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => CatalogEditorScreen(user: widget.user),
-                  ));
-                },
+            if (widget.user.publicProfileTemplate == 'catalog')
+              _buildLargeTile(
+                title: 'Catálogo Pro',
+                subtitle: 'Servicios de alto impacto',
+                icon: _iconMap['auto_stories_outlined']!,
+                color: Colors.deepPurpleAccent,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CatalogEditorScreen(user: widget.user))),
                 onLongPress: () => _explainModule('catalog_template'),
               ),
 
-            // Módulos activos mapeados desde Firebase
-            ...widget.activeModules.map((module) {
-              int badgeCount = 0;
-              
-              // --- LÓGICA DE BADGES ---
-              if (module.moduleId == 'orders-module') {
-                badgeCount = pendingOrdersCount; // BADGE REAL
-              } else if (module.moduleId == 'quotes') {
-                badgeCount = 0; // Aquí podrías conectar otro stream
-              }
-
-              return _ModuleCard(
-                title: module.name,
-                icon: _iconMap[module.icon] ?? Icons.extension_outlined,
-                notificationCount: badgeCount,
-                onTap: () {
-                  // Centralizamos la navegación en la función dedicada
-                  _navigateToModule(context, module.moduleId, widget.user);
-                },
-                // AQUÍ LA MAGIA: Mantener presionado para que Servi explique
-                onLongPress: () => _explainModule(module.moduleId),
-              );
-            }),
-
-            // Tarjeta para añadir módulo
-            _AddModuleCard(
-              onTap: widget.onAddModule,
-              onLongPress: () => _explainModule('add_module'),
+            const SizedBox(height: 24),
+            
+            // --- SECCIÓN: HERRAMIENTAS (Grid de 2 columnas) ---
+            _buildSectionHeader(context, "Gestión del negocio"),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: 110,
+              ),
+              itemCount: widget.activeModules.length + 1,
+              itemBuilder: (context, index) {
+                if (index == widget.activeModules.length) {
+                  return _buildAddModuleCard();
+                }
+                
+                final module = widget.activeModules[index];
+                int badge = (module.moduleId == 'orders-module') ? pendingCount : 0;
+                
+                return _buildGridItem(
+                  module: module,
+                  index: index,
+                  badge: badge,
+                );
+              },
             ),
           ],
         );
@@ -220,271 +175,309 @@ class _ModulesGridState extends State<ModulesGrid> {
     );
   }
 
-  /// Lógica de navegación
-  void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
-    
-    // --- LÓGICA ESPECIAL PARA MÓDULOS NATIVOS ---
-    if (moduleId == 'module_client_orders') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ClientOrdersScreen()),
-      );
-      return; 
-    }
-
-    Widget? destination;
-    
-    switch (moduleId) {
-      case 'agenda':
-        destination = AgendaScreen(user: user);
-        break;
-      case 'client-management':
-        destination = Provider<CrmRepository>( 
-          create: (_) => CrmRepository(),
-          child: const ClientManagementScreen(),
-        );
-        break;
-      case 'finance':
-      case 'advanced-finance':
-        destination = const AdvancedFinanceScreen();
-        break;
-      case 'cost_structure':
-        destination = const BusinessConfigScreen();
-        break;
-      case 'inventory':
-        destination = const InventoryScreen();
-        break;
-      case 'pos_system':
-        destination = const PosScreen();
-        break;
-      case 'quotes':
-        destination = const QuoteListScreen(); 
-        break;
-      case 'orders-module':
-        destination = const ProviderOrdersScreen();
-        break;
-      // No necesitamos default aquí para 'module_client_orders' porque lo manejamos con el if arriba
-    }
-
-    if (destination != null) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
-    } else {
-      // Si no es ninguno de los anteriores y no es el de compras
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Navegación para "$moduleId" no implementada.')));
-    }
-  }
-}
-
-// ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta de Módulo Individual (CON BADGE Y LONG PRESS)
-// ----------------------------------------------------------------------
-
-class _ModuleCard extends StatefulWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress; // Nuevo Callback
-  final int notificationCount; 
-
-  const _ModuleCard({
-    required this.title, 
-    required this.icon, 
-    required this.onTap,
-    this.onLongPress,
-    this.notificationCount = 0,
-  });
-
-  @override
-  State<_ModuleCard> createState() => _ModuleCardState();
-}
-
-class _ModuleCardState extends State<_ModuleCard> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    final primaryColor = colorScheme.primary; 
-    final cardColor = theme.cardTheme.color;  
-    final textColor = colorScheme.onSurface;  
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Stack(
-        clipBehavior: Clip.none, 
-        children: [
-          // --- TARJETA PRINCIPAL ---
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                if (isDark)
-                  BoxShadow(
-                    color: _isHovered
-                        ? primaryColor.withValues(alpha: 0.5)
-                        : primaryColor.withValues(alpha: 0.25),
-                    blurRadius: _isHovered ? 12 : 8,
-                    spreadRadius: 1,
-                  )
-                else
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-              ],
-            ),
-            child: Material(
-              color: cardColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: !isDark 
-                    ? BorderSide(color: theme.dividerColor.withValues(alpha: 0.5))
-                    : BorderSide.none,
-              ),
-              child: InkWell(
-                onTap: widget.onTap,
-                onLongPress: widget.onLongPress, // Conectamos el gesto
-                borderRadius: BorderRadius.circular(12),
-                splashColor: primaryColor.withValues(alpha: 0.3),
-                highlightColor: primaryColor.withValues(alpha: 0.1),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Icon(widget.icon, size: 32, color: primaryColor), 
-                    const SizedBox(height: 8), 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0), 
-                      child: Text(
-                        widget.title,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: textColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // --- BADGE DE NOTIFICACIÓN ---
-          if (widget.notificationCount > 0)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent, 
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.redAccent.withValues(alpha: 0.4),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                  border: Border.all(color: cardColor ?? Colors.white, width: 1.5),
-                ),
-                constraints: const BoxConstraints(
-                  minWidth: 20,
-                  minHeight: 20,
-                ),
-                child: Center(
-                  child: Text(
-                    widget.notificationCount > 99 ? '99+' : widget.notificationCount.toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ),
-        ],
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          letterSpacing: 1.5,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.7),
+        ),
       ),
     );
   }
+
+  // Tarjeta grande para Tienda/Catálogo
+  Widget _buildLargeTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required VoidCallback onLongPress,
+  }) {
+    return _InnovationCard(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      accentColor: color,
+      isLarge: true,
+      onTap: onTap,
+      onLongPress: onLongPress,
+    );
+  }
+
+  // Item de la cuadrícula
+  Widget _buildGridItem({
+    required ModuleModel module,
+    required int index,
+    int badge = 0,
+  }) {
+    // Colores por categoría sugeridos
+    Color categoryColor = _getCategoryColor(module.moduleId);
+
+    return AnimatedBuilder(
+      animation: _listController,
+      builder: (context, child) {
+        final start = index * 0.08;
+        final end = (start + 0.5).clamp(0.0, 1.0);
+        final curve = CurvedAnimation(
+          parent: _listController,
+          curve: Interval(start, end, curve: Curves.easeOutBack),
+        );
+        return Transform.scale(
+          scale: curve.value,
+          child: Opacity(opacity: curve.value.clamp(0.0, 1.0), child: child),
+        );
+      },
+      child: _InnovationCard(
+        title: module.name,
+        subtitle: _getModuleSubtitle(module.moduleId),
+        icon: _iconMap[module.icon] ?? Icons.extension_outlined,
+        accentColor: categoryColor,
+        isLarge: false,
+        badge: badge,
+        onTap: () => _navigateToModule(context, module.moduleId, widget.user),
+        onLongPress: () => _explainModule(module.moduleId),
+      ),
+    );
+  }
+
+  Color _getCategoryColor(String id) {
+    switch (id) {
+      case 'fast_sales':
+      case 'orders-module': return Colors.orangeAccent; // Ventas
+      case 'advanced-finance':
+      case 'cost_structure': return Colors.tealAccent; // Finanzas
+      case 'agenda':
+      case 'clients': return Colors.blueAccent; // CRM/Agenda
+      case 'inventory': return Colors.purpleAccent; // Logística
+      default: return Colors.blueGrey;
+    }
+  }
+
+  String _getModuleSubtitle(String id) {
+    switch (id) {
+      case 'agenda': return 'Turnos';
+      case 'clients': return 'Base CRM';
+      case 'advanced-finance': return 'Finanzas';
+      case 'inventory': return 'Stock';
+      case 'fast_sales': return 'Caja';
+      case 'quotes': return 'PDFs';
+      case 'cost_structure': return 'Costos';
+      case 'orders-module': return 'Pedidos';
+      default: return 'Gestión';
+    }
+  }
+
+  Widget _buildAddModuleCard() {
+    return GestureDetector(
+      onTap: widget.onAddModule,
+      child: DottedBorder(
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+        strokeWidth: 2,
+        radius: const Radius.circular(20),
+        borderType: BorderType.rRect,
+        dashPattern: const [8, 4],
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_to_photos_rounded, color: Theme.of(context).primaryColor, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                'Más herramientas',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
+    Widget? destination;
+    switch (moduleId) {
+      case 'agenda': destination = AgendaScreen(user: user); break;
+      case 'clients': destination = Provider<CrmRepository>(create: (_) => CrmRepository(), child: const ClientManagementScreen()); break;
+      case 'advanced-finance': destination = const AdvancedFinanceScreen(); break;
+      case 'cost_structure': destination = const BusinessConfigScreen(); break;
+      case 'inventory': destination = const InventoryScreen(); break;
+      case 'fast_sales': destination = const PosScreen(); break;
+      case 'quotes': destination = const QuoteListScreen(); break;
+      case 'orders-module': destination = const ProviderOrdersScreen(); break;
+      case 'module_client_orders': destination = const ClientOrdersScreen(); break;
+    }
+    if (destination != null) Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
+  }
 }
 
-// ----------------------------------------------------------------------
-// WIDGET AUXILIAR: Tarjeta para Añadir Módulo
-// ----------------------------------------------------------------------
-
-class _AddModuleCard extends StatelessWidget {
+class _InnovationCard extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accentColor;
+  final bool isLarge;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback onLongPress;
+  final int badge;
 
-  const _AddModuleCard({
+  const _InnovationCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accentColor,
+    required this.isLarge,
     required this.onTap,
-    this.onLongPress,
+    required this.onLongPress,
+    this.badge = 0,
   });
+
+  @override
+  State<_InnovationCard> createState() => _InnovationCardState();
+}
+
+class _InnovationCardState extends State<_InnovationCard> {
+  bool _isTapDown = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-    final textColor = theme.colorScheme.onSurface;
+    final isDark = theme.brightness == Brightness.dark;
 
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress, // Conectamos gesto
-        borderRadius: BorderRadius.circular(12), 
-        splashColor: primaryColor.withValues(alpha: 0.3),
-        highlightColor: primaryColor.withValues(alpha: 0.1),
-        child: DottedBorder(
-          color: primaryColor.withValues(alpha: 0.6),
-          strokeWidth: 2,
-          radius: const Radius.circular(12), 
-          borderType: BorderType.rRect,
-          dashPattern: const [8, 6],
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add_rounded, size: 32, color: primaryColor),
-                const SizedBox(height: 8), 
-                Text(
-                  'Añadir\nMódulo', 
-                  textAlign: TextAlign.center, 
-                  style: TextStyle(
-                    color: textColor.withValues(alpha: 0.8),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isTapDown = true),
+      onTapUp: (_) => setState(() => _isTapDown = false),
+      onTapCancel: () => setState(() => _isTapDown = false),
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
+      child: AnimatedScale(
+        scale: _isTapDown ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white,
+                isDark ? Colors.white.withValues(alpha: 0.04) : Colors.grey.shade50,
               ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: widget.accentColor.withValues(alpha: isDark ? 0.1 : 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border.all(
+              color: _isTapDown ? widget.accentColor : widget.accentColor.withValues(alpha: 0.15),
+              width: 1.5,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Padding(
+                padding: EdgeInsets.all(widget.isLarge ? 16 : 12),
+                child: widget.isLarge ? _buildLargeLayout(isDark) : _buildGridLayout(isDark),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+
+  Widget _buildLargeLayout(bool isDark) {
+    return Row(
+      children: [
+        _buildIconContainer(48, 48, 24),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.title.toUpperCase(), style: _titleStyle(isDark, 14)),
+              Text(widget.subtitle, style: _subtitleStyle(isDark)),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+      ],
+    );
+  }
+
+  Widget _buildGridLayout(bool isDark) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildIconContainer(36, 36, 20),
+        const SizedBox(height: 8),
+        Text(widget.title, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStyle(isDark, 11)),
+        const SizedBox(height: 2),
+        Text(widget.subtitle, textAlign: TextAlign.center, style: _subtitleStyle(isDark, 9)),
+      ],
+    );
+  }
+
+  Widget _buildIconContainer(double w, double h, double iconSize) {
+    return Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        color: widget.accentColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(widget.icon, color: widget.accentColor, size: iconSize),
+          if (widget.badge > 0)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                child: Text('${widget.badge}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  TextStyle _titleStyle(bool isDark, double size) => TextStyle(
+    fontWeight: FontWeight.w900,
+    fontSize: size,
+    letterSpacing: 0.5,
+    color: isDark ? Colors.white : Colors.black87,
+  );
+
+  TextStyle _subtitleStyle(bool isDark, [double size = 11]) => TextStyle(
+    fontSize: size,
+    color: isDark ? Colors.white54 : Colors.black45,
+    fontStyle: FontStyle.italic,
+  );
 }
 
-
 // ----------------------------------------------------------------------
-// UTILIDAD: DottedBorder (SIN CAMBIOS)
+// UTILIDAD: DottedBorder (Efecto Dash)
 // ----------------------------------------------------------------------
-
 enum BorderType { rect, rRect }
 
 class DottedBorder extends StatelessWidget {
@@ -528,11 +521,11 @@ class _DottedPainter extends CustomPainter {
   final List<double> dashPattern;
 
   _DottedPainter({
-    this.color = Colors.black,
-    this.strokeWidth = 1,
-    this.radius = const Radius.circular(0),
-    this.borderType = BorderType.rect,
-    this.dashPattern = const <double>[3, 1],
+    required this.color,
+    required this.strokeWidth,
+    required this.radius,
+    required this.borderType,
+    required this.dashPattern,
   });
 
   @override
@@ -542,51 +535,32 @@ class _DottedPainter extends CustomPainter {
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke;
 
-    Path path;
+    Path path = Path();
     if (borderType == BorderType.rRect) {
-      final validRadius = Radius.elliptical(radius.x.abs(), radius.y.abs());
-      path = Path()
-        ..addRRect(RRect.fromRectAndRadius(
-            Rect.fromLTWH(0, 0, size.width, size.height), validRadius));
+      path.addRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        radius,
+      ));
     } else {
-      path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+      path.addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     }
 
     Path dashPath = Path();
-
-    if (dashPattern.isNotEmpty && dashPattern[0] > 0) {
-      final double dashLength = dashPattern[0];
-      final double gapLength = dashPattern.length > 1 ? dashPattern[1] : 0;
-      final double totalDashPatternLength = dashLength + gapLength;
-
-      if (totalDashPatternLength > 0) {
-        for (ui.PathMetric pathMetric in path.computeMetrics()) {
-          double distance = 0.0; 
-          while (distance < pathMetric.length) {
-            final double end =
-                (distance + dashLength).clamp(0.0, pathMetric.length);
-            dashPath.addPath(
-              pathMetric.extractPath(distance, end),
-              Offset.zero,
-            );
-            distance += totalDashPatternLength;
-          }
+    for (ui.PathMetric pathMetric in path.computeMetrics()) {
+      double distance = 0.0;
+      bool draw = true;
+      while (distance < pathMetric.length) {
+        double len = dashPattern[draw ? 0 : 1];
+        if (draw) {
+          dashPath.addPath(pathMetric.extractPath(distance, distance + len), Offset.zero);
         }
-      } else {
-        dashPath = path;
+        distance += len;
+        draw = !draw;
       }
-    } else {
-      dashPath = path;
     }
-
     canvas.drawPath(dashPath, paint);
   }
 
   @override
-  bool shouldRepaint(_DottedPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.strokeWidth != strokeWidth ||
-      oldDelegate.radius != radius ||
-      oldDelegate.borderType != borderType ||
-      !listEquals(oldDelegate.dashPattern, dashPattern); 
+  bool shouldRepaint(_DottedPainter old) => old.color != color || old.strokeWidth != strokeWidth;
 }

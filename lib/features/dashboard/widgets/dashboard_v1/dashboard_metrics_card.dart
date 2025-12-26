@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 // Modelos y ViewModels
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'package:proveedor_servicly_app/features/dashboard/models/dashboard_metrics_viewmodel.dart'; // Importación requerida
+import 'package:proveedor_servicly_app/features/dashboard/models/dashboard_metrics_viewmodel.dart';
 
+/// Tarjeta de métricas reactiva que muestra el pulso del negocio.
+/// Diseñada para vivir en la parte superior del Dashboard, antes del Grid de Módulos.
 class DashboardMetricsCard extends StatelessWidget {
   final UserModel userModel;
 
@@ -18,116 +20,117 @@ class DashboardMetricsCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     
+    // Obtenemos el logo/avatar desde la personalización del usuario
     final String? photoURL = userModel.personalization['logoUrl'] as String?;
 
-    // CRÍTICO: Leer el ViewModel aquí para obtener métricas reactivas
+    // Suscripción al ViewModel para obtener cambios en tiempo real (Visitas, Leads, etc.)
     final metricsModel = context.watch<DashboardMetricsViewModel>();
     final String leadCount = metricsModel.leadCount.toString();
-    // CRÍTICO: Usamos el valor real del ViewModel para Visitas
     final String visitCount = metricsModel.visitCount.toString();
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: colors.surface, // Fondo oscuro del tema
-        borderRadius: BorderRadius.circular(16),
-        // Borde sutil brillante
-        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
-        border: Border.all(color: colors.primary.withValues(alpha: 0.3), width: 1),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(20), // Un poco más redondeado para el look moderno
+        border: Border.all(
+          color: colors.primary.withValues(alpha: 0.2), 
+          width: 1.5
+        ),
         boxShadow: [
           BoxShadow(
-            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         children: [
-          // --- Encabezado de la Tarjeta ---
+          // --- Encabezado: Identidad y Acceso a Detalles ---
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Avatar con borde brillante
               Container(
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
-                  border: Border.all(color: colors.primary.withValues(alpha: 0.5), width: 1),
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.4), width: 1),
                 ),
                 child: CircleAvatar(
-                  radius: 20,
-                  // ✅ CORRECCIÓN: withValues en lugar de withOpacity
+                  radius: 22,
                   backgroundColor: colors.primary.withValues(alpha: 0.1),
-                  backgroundImage: photoURL != null && photoURL.isNotEmpty 
-                      ? NetworkImage(photoURL) 
+                  backgroundImage: (photoURL != null && photoURL.isNotEmpty)
+                      ? NetworkImage(photoURL)
                       : null,
-                  child: photoURL == null || photoURL.isEmpty 
-                      ? Icon(Icons.person, color: colors.primary) 
+                  child: (photoURL == null || photoURL.isEmpty)
+                      ? Icon(Icons.person, color: colors.primary)
                       : null,
                 ),
               ),
               const SizedBox(width: 12),
-              // Título
-              Text(
-                'Actividad Reciente',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: colors.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Actividad Reciente',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    'Últimos 30 días',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
               ),
               const Spacer(),
-              // Botón de Detalles
-              SizedBox(
-                height: 30,
-                child: TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Pantalla de métricas detalladas (Próximamente).'))
-                    );
-                  },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    foregroundColor: colors.primary,
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Detalles', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_ios_rounded, size: 10),
-                    ],
-                  ),
+              // Botón de expansión a métricas detalladas
+              IconButton.filledTonal(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Métricas detalladas próximamente'),
+                      behavior: SnackBarBehavior.floating,
+                    )
+                  );
+                },
+                icon: const Icon(Icons.analytics_outlined, size: 20),
+                style: IconButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
                 ),
               ),
             ],
           ),
           
-          // ✅ CORRECCIÓN: withValues en lugar de withOpacity
-          Divider(height: 24, color: colors.onSurface.withValues(alpha: 0.1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: colors.onSurface.withValues(alpha: 0.05)),
+          ),
           
-          // --- Fila de Métricas (AHORA REACTIVA) ---
+          // --- Fila de Métricas Clave ---
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Métrica 1: Visitas -> Ahora usa el valor del ViewModel
               _MetricItem(
                 icon: Icons.visibility_outlined, 
                 label: 'Visitas', 
-                value: visitCount // <- ¡CORREGIDO! Valor del VM (actualmente '0')
+                value: visitCount,
+                color: Colors.blueAccent,
               ),
-              // Métrica 2: Contactos (Leads)
               _MetricItem(
-                icon: Icons.person_add_alt_1_outlined, 
-                label: 'Contactos', 
-                value: leadCount // <- VALOR REACTIVO DEL CRM
+                icon: Icons.bolt_rounded, 
+                label: 'Leads', 
+                value: leadCount,
+                color: Colors.orangeAccent,
               ),
-              // Métrica 3: Rating 
               const _MetricItem(
-                icon: Icons.star_border_rounded, 
+                icon: Icons.auto_graph_rounded, 
                 label: 'Rating', 
-                value: '4.8' 
+                value: '4.8',
+                color: Colors.greenAccent,
               ),
             ],
           ),
@@ -137,16 +140,17 @@ class DashboardMetricsCard extends StatelessWidget {
   }
 }
 
-// Sub-widget privado para uso interno de la tarjeta
 class _MetricItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Color color;
 
   const _MetricItem({
     required this.icon, 
     required this.label, 
-    required this.value
+    required this.value,
+    required this.color,
   });
 
   @override
@@ -155,23 +159,30 @@ class _MetricItem extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        // ✅ CORRECCIÓN: withValues en lugar de withOpacity
-        Icon(icon, color: colors.primary.withValues(alpha: 0.8), size: 24),
-        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(height: 8),
         Text(
           value, 
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colors.onSurface
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: colors.onSurface,
+            letterSpacing: -1,
           )
         ),
         Text(
-          label, 
-          style: theme.textTheme.bodySmall?.copyWith(
-            // ✅ CORRECCIÓN: withValues en lugar de withOpacity
-            color: colors.onSurface.withValues(alpha: 0.6)
+          label.toUpperCase(), 
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+            color: colors.onSurface.withValues(alpha: 0.4)
           )
         ),
       ],

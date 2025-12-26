@@ -44,8 +44,11 @@ import 'package:proveedor_servicly_app/features/settings/screens/settings_screen
 import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
-import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart';
-import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart';
+
+// ✅ CORRECCIÓN 1: Usamos 'as' para evitar conflictos de nombres
+import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart' as summary_widgets;
+import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart' as metric_widgets;
+
 import 'package:proveedor_servicly_app/ai/screens/servi_chat_screen.dart'; 
 
 // --- IMPORTS DE ACCIÓN (PARA NAVEGACIÓN IA) ---
@@ -509,13 +512,15 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
           Showcase(
             key: _keyMetrics, title: 'Métricas', description: 'Visitas y contactos recibidos.',
-            child: DashboardMetricsCard(userModel: userModel),
+            // ✅ CORRECCIÓN 2: Usamos el alias 'metric_widgets'
+            child: metric_widgets.DashboardMetricsCard(userModel: userModel),
           ),
           const SizedBox(height: 32),
           
           Showcase(
             key: _keySummaryCards, title: 'Estado de tu Negocio', description: 'Finanzas, Citas y Solicitudes.',
-            child: const DashboardSummaryCards(),
+            // ✅ CORRECCIÓN 3: Usamos el alias 'summary_widgets'
+            child: const summary_widgets.DashboardSummaryCards(),
           ),
           const SizedBox(height: 32),
           
@@ -549,10 +554,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 }
 
-// ===================================================================
-// --- WIDGETS AUXILIARES ---
-// ===================================================================
-
+// ... (Resto de widgets auxiliares se mantienen igual)
+// _ServiPromptBar, _PlaceholderScreen, _ProfileCompletionBanner, etc.
 class _ServiPromptBar extends StatelessWidget {
     const _ServiPromptBar();
     @override
