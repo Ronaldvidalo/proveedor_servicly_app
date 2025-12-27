@@ -135,7 +135,8 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
                 subtitle: 'Servicios de alto impacto',
                 icon: _iconMap['auto_stories_outlined']!,
                 color: Colors.deepPurpleAccent,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CatalogEditorScreen(user: widget.user))),
+                // CORRECCIÓN AQUÍ: Se cambia 'user: widget.user' por 'providerId: widget.user.uid'
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CatalogEditorScreen(providerId: widget.user.uid))),
                 onLongPress: () => _explainModule('catalog_template'),
               ),
 
@@ -215,7 +216,6 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     required int index,
     int badge = 0,
   }) {
-    // Colores por categoría sugeridos
     Color categoryColor = _getCategoryColor(module.moduleId);
 
     return AnimatedBuilder(

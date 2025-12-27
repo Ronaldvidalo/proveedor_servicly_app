@@ -7,14 +7,14 @@ import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart'; 
 
 // Widgets Reutilizables
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_hero_header.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_promotions_section.dart'; 
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_trust_signals.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_portfolio_section.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_services_section.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_gift_card_section.dart'; 
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_reviews_section.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/floating_appointment_bar.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_hero_header.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_promotions_section.dart'; 
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_trust_signals.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_portfolio_section.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_services_section.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_gift_card_section.dart'; 
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_reviews_section.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/floating_appointment_bar.dart';
 
 // Repositorios y Pantallas
 import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';

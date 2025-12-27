@@ -22,8 +22,13 @@ class CatalogHeroHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brandColor = profile.brandColor;
-    final String ratingText = profile.averageRating?.toStringAsFixed(1) ?? '5.0';
+    // Definimos el color de marca (fallback a un color oscuro si es nulo)
+    final brandColor = profile.brandColor ?? const Color(0xFF1A1A2E);
+    
+    // Lógica para el texto del Rating (ej: "4.8")
+    final double ratingValue = profile.averageRating ?? 5.0;
+    final String ratingText = ratingValue.toStringAsFixed(1);
+    final int reviewCount = profile.reviewCount ?? 0;
     
     // Altura extendida para contener toda la información sin scroll inicial
     const double headerHeight = 460.0;
@@ -113,21 +118,49 @@ class CatalogHeroHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Bloque de Calificación
+                  
+                  // --- BLOQUE DE CALIFICACIÓN (INTEGRADO AQUÍ) ---
                   Row(
                     children: [
-                      Text(ratingText, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+                      Text(
+                        ratingText, 
+                        style: const TextStyle(
+                          color: Colors.white, 
+                          fontSize: 26, 
+                          fontWeight: FontWeight.bold,
+                          shadows: [Shadow(blurRadius: 4, color: Colors.black45)]
+                        )
+                      ),
                       const SizedBox(width: 8),
-                      ...List.generate(5, (index) => Icon(
-                        index < (profile.averageRating ?? 5).floor() ? Icons.star : Icons.star_half,
-                        color: Colors.amber,
-                        size: 20,
-                      )),
+                      // Generación dinámica de estrellas
+                      ...List.generate(5, (index) {
+                        IconData icon;
+                        if (index < ratingValue.floor()) {
+                          icon = Icons.star; // Estrella llena
+                        } else if (index < ratingValue) {
+                          icon = Icons.star_half; // Media estrella
+                        } else {
+                          icon = Icons.star_border; // Estrella vacía
+                        }
+                        return Icon(
+                          icon,
+                          color: Colors.amber,
+                          size: 20,
+                        );
+                      }),
                       const SizedBox(width: 8),
-                      Text('(${profile.reviewCount ?? 0} Reviews)', style: const TextStyle(color: Colors.white60, fontSize: 13)),
+                      Text(
+                        '($reviewCount Reviews)', 
+                        style: const TextStyle(
+                          color: Colors.white70, 
+                          fontSize: 13,
+                          shadows: [Shadow(blurRadius: 4, color: Colors.black45)]
+                        )
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
+                  // ----------------------------------------------
 
                   // Filas de Información sutiles
                   _buildInfoRow(Icons.location_on_outlined, profile.address ?? "Consultar ubicación"),

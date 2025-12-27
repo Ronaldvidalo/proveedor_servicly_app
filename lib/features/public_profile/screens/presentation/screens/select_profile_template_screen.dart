@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,7 +6,7 @@ import 'package:audioplayers/audioplayers.dart'; // Audio control
 
 // --- Models and Services ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
-import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; // Import ProviderProfileModel
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; 
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 
 // --- Navigation ---
@@ -30,7 +31,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
   // --- AI AND STATE VARIABLES ---
   final ServiVoiceService _voiceService = ServiVoiceService();
   bool _isSpeaking = false;
-  String? _selectedTemplateId; // To know which one is selected
+  String? _selectedTemplateId; 
   bool _isLoading = false;
 
   @override
@@ -76,32 +77,29 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
 
     if (uid != null) {
       try {
-        // 1. We update the User in Firestore just in case
+        // 1. We update the User in Firestore
         await firestore.updateUser(uid, {
           'publicProfileTemplate': _selectedTemplateId,
           'publicProfileCreated': true, 
         });
 
-        // 2. CRITICAL: We fetch the FRESH data from the 'brandProfiles' or 'users' collection
-        // to make sure we have the businessName entered in Onboarding.
-        // Since Onboarding creates the brandProfile, we should try to fetch it.
+        // 2. Fetch data from DB
         ProviderProfileModel? currentProfile = await firestore.getProviderPublicProfile(uid);
         
-        // If it doesn't exist yet (edge case), we create a temporary one with the User data
-        // and the template we just selected.
+        // --- CORRECCIÓN AQUÍ: Se agrega el campo 'id' que es requerido ---
         currentProfile ??= ProviderProfileModel(
+            id: uid, // <--- ESTO SOLUCIONA EL ERROR
             providerId: uid,
-            businessName: widget.user.displayName ?? 'Mi Negocio', // Fallback to user name
+            businessName: widget.user.displayName ?? 'Mi Negocio', 
             logoUrl: '',
             brandColor: Colors.blue,
-            activeModules: [],
+            activeModules: const [],
             profileType: _selectedTemplateId!,
             contactEmail: widget.user.email ?? '',
             welcomeMessage: '¡Bienvenidos!',
-            publicProfileTemplate: _selectedTemplateId, // IMPORTANT: Pass the selection
+            publicProfileTemplate: _selectedTemplateId,
           );
         
-        // If the profile existed but didn't have the template set, we force it in the local object
         if (currentProfile.publicProfileTemplate != _selectedTemplateId) {
            currentProfile = currentProfile.copyWith(publicProfileTemplate: _selectedTemplateId);
         }
@@ -114,12 +112,12 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
 
         if (!mounted) return;
 
-        // 3. Navigate passing the PRE-FILLED profile object
+        // 3. Navigate
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => BrandSettingsScreen(
               user: widget.user,
-              brandProfile: currentProfile, // <--- THIS IS THE FIX. We pass the object with data.
+              brandProfile: currentProfile!, 
             ),
           ),
         );
@@ -174,7 +172,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
                 ),
                 const SizedBox(height: 24),
                 
-                // OPTION 1: PROFESSIONAL PROFILE
+                // CV
                 _TemplateOptionCard(
                   icon: Icons.person_outline,
                   title: 'Perfil Profesional (CV)',
@@ -187,7 +185,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
                   },
                 ),
 
-                // OPTION 2: STORE
+                // STORE
                 _TemplateOptionCard(
                   icon: Icons.store_outlined,
                   title: 'Tienda de Servicios',
@@ -200,7 +198,7 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
                   },
                 ),
 
-                // OPTION 3: CATALOG
+                // CATALOG
                 _TemplateOptionCard(
                   icon: Icons.collections_bookmark_outlined,
                   title: 'Catálogo de Servicios',
@@ -216,7 +214,6 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
             ),
           ),
           
-          // CONFIRMATION BUTTON
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -249,7 +246,6 @@ class _SelectProfileTemplateScreenState extends State<SelectProfileTemplateScree
   }
 }
 
-/// Widget for a template option card with selection state.
 class _TemplateOptionCard extends StatelessWidget {
   final IconData icon;
   final String title;

@@ -1,163 +1,172 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// Modelos y Servicios necesarios
-import 'package:proveedor_servicly_app/core/models/user_model.dart';
+
+// --- Modelos ---
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
+import 'package:proveedor_servicly_app/core/models/user_model.dart';
+
+// --- Servicios ---
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-import 'package:proveedor_servicly_app/core/services/permissions_service.dart';
-// Provider
-import 'package:proveedor_servicly_app/providers/catalog_editor_provider.dart';
-// Widgets
-import '../widgets/catalog_editor_layout.dart'; 
+
+// --- Widgets del Editor (Los que creamos hoy) ---
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_hero_header_editor.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_portfolio_section_editor.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_services_section_editor.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_trust_signals_editor.dart';
+
+// --- Widgets de Visualización (Reutilizados) ---
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_promotions_section.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_trust_signals.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_gift_card_section.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_reviews_section.dart';
 
 
 class CatalogEditorScreen extends StatefulWidget {
-  final UserModel user;
+  final String providerId;
 
-  const CatalogEditorScreen({super.key, required this.user});
+  const CatalogEditorScreen({
+    super.key, 
+    required this.providerId
+  });
 
   @override
   State<CatalogEditorScreen> createState() => _CatalogEditorScreenState();
 }
 
 class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
-  Future<ProviderProfileModel?>? _initialProfileFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-       if (mounted) {
-         setState(() {
-            _initialProfileFuture = _loadInitialProfile();
-         });
-       }
-    });
-  }
-
-  /// Carga el ProviderProfileModel inicial
-  Future<ProviderProfileModel?> _loadInitialProfile() async {
-    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    try {
-      var profile = await firestoreService.getCatalogData(widget.user.uid);
-      if (!mounted) return null;
-
-      if (profile == null) {
-         if(mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Creando nuevo perfil de catálogo...'), backgroundColor: Colors.green),
-          );
-         }
-         profile = ProviderProfileModel(
-           providerId: widget.user.uid,
-           businessName: widget.user.displayName ?? 'Nuevo Negocio',
-           logoUrl: '', 
-           brandColor: Colors.deepPurple, 
-           // ✅ CORRECCIÓN: Eliminado operador ?? [] ya que activeModules no es nullable
-           activeModules: widget.user.activeModules, 
-           profileType: 'catalog',
-           contactEmail: widget.user.email ?? '', 
-           welcomeMessage: '¡Bienvenido a mi negocio!', 
-            showWelcomeModule: true, welcomeModuleType: 'text',
-           showPortfolioModule: true, showReviewsModule: true,
-           showPromotionsModule: false, showGiftCardModule: false,
-           showBookingModule: true, showQuotesModule: false,
-         );
-         await firestoreService.setCatalogData(widget.user.uid, profile.toMap());
-      }
-      return profile; 
-    } catch (e) {
-      debugPrint("Error crítico al cargar/crear ProviderProfile: $e");
-      if (!mounted) return null;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fatal al cargar perfil: $e.'), backgroundColor: Colors.red),
-        );
-      }
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final firestoreService = context.read<FirestoreService>();
+    // Obtenemos el usuario actual para pasarlo a los editores que requieren navegar a BrandSettings
+    final currentUser = context.read<UserModel?>();
 
-    if (_initialProfileFuture == null) {
-       // Fondo dinámico
-       return Scaffold(
-         backgroundColor: theme.scaffoldBackgroundColor, 
-         body: Center(child: CircularProgressIndicator(color: colorScheme.primary))
-       );
+    if (currentUser == null) {
+      return const Scaffold(body: Center(child: Text("Error de sesión")));
     }
 
-    return FutureBuilder<ProviderProfileModel?>(
-      future: _initialProfileFuture!,
+    return StreamBuilder<ProviderProfileModel?>(
+      stream: firestoreService.getCatalogStream(widget.providerId), // Stream para cambios en tiempo real
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: theme.scaffoldBackgroundColor, 
-            appBar: null, 
-            body: Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          return const Scaffold(
+            backgroundColor: Color(0xFF1A1A2E),
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF00B2B2))),
           );
         }
 
-        if (snapshot.hasError || snapshot.data == null) {
-          return Scaffold(
-            backgroundColor: theme.scaffoldBackgroundColor,
-            appBar: AppBar(
-              title: const Text('Error al Cargar Perfil'), 
-              backgroundColor: theme.scaffoldBackgroundColor,
-              foregroundColor: colorScheme.onSurface,
-              elevation: 0,
-            ),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                      Text(
-                      'No se pudo cargar la configuración del catálogo.\n${snapshot.error != null ? "Error: ${snapshot.error}" : ""}',
-                      textAlign: TextAlign.center,
-                      // Texto de error visible en ambos modos
-                      style: TextStyle(color: colorScheme.error),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                       icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
-                       label: Text("Intentar de Nuevo", style: TextStyle(color: colorScheme.onPrimary)),
-                       style: ElevatedButton.styleFrom(
-                         backgroundColor: colorScheme.primary,
-                       ),
-                       onPressed: () => setState(() => _initialProfileFuture = _loadInitialProfile()),
-                    )
-                  ],
-                ),
+        final profile = snapshot.data;
+
+        if (profile == null) {
+          return const Scaffold(
+            body: Center(child: Text("No se encontró la configuración del catálogo")),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: const Color(0xFF1A1A2E),
+          body: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // 1. Header con edición de identidad (Redirige a Brand Settings)
+              CatalogHeroHeaderEditor(
+                profile: profile,
+                user: currentUser,
               ),
-            ),
-          );
-        }
 
-        final initialProfile = snapshot.data!;
-        final firestoreService = context.read<FirestoreService>();
-        final storageService = context.read<StorageService>();
-        final permissionsService = context.read<PermissionsService>();
+              // 2. Módulo de Promociones (Vista previa)
+              const CatalogPromotionsSection(),
 
-        return ChangeNotifierProvider<CatalogEditorProvider>(
-          create: (_) => CatalogEditorProvider(
-            initialProfile: initialProfile,
-            firestoreService: firestoreService,
-            storageService: storageService,
-            permissionsService: permissionsService,
+              // 3. Señales de confianza (Vista previa)
+              CatalogTrustSignalsEditor(profile: profile),
+
+              // 4. Portafolio con botones de Gestión (Subir fotos / Categorías)
+              CatalogPortfolioSectionEditor(
+                providerId: widget.providerId,
+                brandColor: profile.brandColor,
+              ),
+
+              // 5. Servicios con conexión a Inventario y Costos
+              CatalogServicesSectionEditor(
+                providerId: widget.providerId,
+                brandColor: profile.brandColor,
+              ),
+
+              // 6. Gift Cards (Configuración rápida)
+              const CatalogGiftCardSection(),
+
+              // 7. Reseñas (Interruptor de visibilidad)
+              _buildModuleToggle(
+                context,
+                title: "Opiniones de Clientes",
+                subtitle: "Mostrar testimonios reales en tu perfil",
+                isEnabled: profile.showReviewsModule,
+                onChanged: (val) => _updateModuleVisibility('showReviewsModule', val),
+              ),
+              
+              if (profile.showReviewsModule)
+                CatalogReviewsSection(profile: profile),
+
+              // Espacio final
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
           ),
-          child: CatalogEditorLayout( 
-            userId: widget.user.uid,
+          
+          // Botón de finalización / Guardado global
+          floatingActionButton: FloatingActionButton.extended(
+            backgroundColor: const Color(0xFF00B2B2),
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.check, color: Colors.white),
+            label: const Text("VISTA FINALIZADA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         );
       },
+    );
+  }
+
+  // --- LÓGICA DE CONFIGURACIÓN DEL EDITOR ---
+
+  Future<void> _updateModuleVisibility(String field, bool value) async {
+    await context.read<FirestoreService>().updateCatalogField(
+      widget.providerId, 
+      {field: value}
+    );
+  }
+
+  Widget _buildModuleToggle(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required bool isEnabled,
+    required Function(bool) onChanged,
+  }) {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isEnabled ? const Color(0xFF00B2B2).withValues(alpha: 0.3) : Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                ],
+              ),
+            ),
+            Switch(
+              value: isEnabled,
+              activeColor: const Color(0xFF00B2B2),
+              onChanged: onChanged,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

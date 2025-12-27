@@ -16,7 +16,7 @@ class FirestoreService {
   late final CollectionReference<Map<String, dynamic>> _usersCollection;
   late final CollectionReference<Map<String, dynamic>> _modulesCollection;
 
-  // --- ¡NUEVA COLECCIÓN! ---
+  // --- COLECCIÓN CATÁLOGOS ---
   late final CollectionReference<Map<String, dynamic>> _catalogsCollection;
 
   // --- Constantes para subcolecciones ---
@@ -134,7 +134,7 @@ class FirestoreService {
     }
     try {
       final snapshot =
-          await _modulesCollection.orderBy('defaultOrder').get(); 
+          await _modulesCollection.orderBy('defaultOrder').get();
 
       if (snapshot.docs.isEmpty) {
         if (kDebugMode) {
@@ -400,6 +400,27 @@ class FirestoreService {
   // === SECCIÓN DE MÉTODOS PARA LA COLECCIÓN 'catalogs' ===
   // ================================================================
 
+  /// Obtiene un flujo en tiempo real de la configuración del catálogo
+  Stream<ProviderProfileModel?> getCatalogStream(String providerId) {
+    return _catalogsCollection
+        .doc(providerId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      return ProviderProfileModel.fromFirestore(snapshot);
+    });
+  }
+
+  /// Actualiza campos específicos del catálogo (útil para visibilidad de módulos)
+  Future<void> updateCatalogField(String providerId, Map<String, dynamic> data) async {
+    try {
+      await _catalogsCollection.doc(providerId).update(data);
+    } catch (e) {
+      debugPrint("Error al actualizar campo del catálogo: $e");
+      rethrow;
+    }
+  }
+
   Future<void> setCatalogData(String userId, Map<String, dynamic> data) async {
     if (kDebugMode) {
       debugPrint("[FirestoreService] Guardando datos de catálogo para UID: $userId");
@@ -456,8 +477,7 @@ class FirestoreService {
 
   Future<void> addCatalogPortfolioCategory(String userId, String name) async {
     if (kDebugMode) {
-      debugPrint(
-          "[FirestoreService] Añadiendo categoría de PORTAFOLIO (catálogos) '$name' para UID: $userId");
+      debugPrint("[FirestoreService] Añadiendo categoría de PORTAFOLIO (catálogos) '$name' para UID: $userId");
     }
     try {
       final categoriesRef = _catalogsCollection
@@ -467,8 +487,7 @@ class FirestoreService {
           await categoriesRef.orderBy('order', descending: true).limit(1).get();
       int nextOrder = 0;
       if (querySnapshot.docs.isNotEmpty) {
-        nextOrder =
-            (querySnapshot.docs.first.data()['order'] as int? ?? -1) + 1;
+        nextOrder = (querySnapshot.docs.first.data()['order'] as num? ?? -1).toInt() + 1;
       }
       await categoriesRef.add({
         'name': name,
@@ -476,8 +495,9 @@ class FirestoreService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      debugPrint(
-          '[FirestoreService] Error al añadir categoría de portafolio (catálogos): $e');
+      if (kDebugMode) {
+        debugPrint('[FirestoreService] Error al añadir categoría de portafolio (catálogos): $e');
+      }
       rethrow;
     }
   }
@@ -575,11 +595,10 @@ class FirestoreService {
     required String categoryId,
     required PortfolioItemType type,
     required String url,
-    String? caption,
+    String? caption, 
   }) async {
     if (kDebugMode) {
-      debugPrint(
-          "[FirestoreService] addCatalogPortfolioItem UID: $userId CatID: $categoryId Type: $type");
+      debugPrint("[FirestoreService] addCatalogPortfolioItem UID: $userId CatID: $categoryId Type: $type");
     }
     final itemsRef = _catalogsCollection
         .doc(userId)
@@ -591,10 +610,10 @@ class FirestoreService {
           .orderBy('order', descending: true)
           .limit(1)
           .get();
+      
       int nextOrder = 0;
       if (querySnapshot.docs.isNotEmpty) {
-        nextOrder =
-            (querySnapshot.docs.first.data()['order'] as int? ?? -1) + 1;
+        nextOrder = (querySnapshot.docs.first.data()['order'] as num? ?? -1).toInt() + 1;
       }
 
       await itemsRef.add({
@@ -602,13 +621,12 @@ class FirestoreService {
         'type': type == PortfolioItemType.video ? 'video' : 'image',
         'url': url,
         'order': nextOrder,
-        'caption': caption,
+        'caption': caption, 
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       if (kDebugMode) {
-        debugPrint(
-            '[FirestoreService] !! ERROR addCatalogPortfolioItem UID: $userId CatID: $categoryId. Error: $e');
+        debugPrint('[FirestoreService] !! ERROR addCatalogPortfolioItem UID: $userId CatID: $categoryId. Error: $e');
       }
       rethrow;
     }
@@ -630,6 +648,71 @@ class FirestoreService {
         debugPrint(
             "[FirestoreService] !! ERROR deleteCatalogPortfolioItem ItemID: $itemId UID: $userId. Error: $e");
       }
+      rethrow;
+    }
+  }
+
+  // ==================================================================
+  // === SECCIÓN: INTERACCIÓN TÉCNICA DEL PORTAFOLIO ===
+  // ==================================================================
+
+  /// Maneja el "Me gusta" (Like) de forma atómica.
+  Future<void> togglePortfolioItemLike({
+    required String providerId,
+    required String itemId,
+    required String userId,
+    required bool isLiking,
+  }) async {
+    final itemRef = _catalogsCollection
+        .doc(providerId)
+        .collection(_portfolioItemsCollection)
+        .doc(itemId);
+
+    try {
+      if (isLiking) {
+        await itemRef.update({
+          'likeCount': FieldValue.increment(1),
+          'likedBy': FieldValue.arrayUnion([userId]),
+        });
+      } else {
+        await itemRef.update({
+          'likeCount': FieldValue.increment(-1),
+          'likedBy': FieldValue.arrayRemove([userId]),
+        });
+      }
+    } catch (e) {
+      debugPrint('[FirestoreService] Error en togglePortfolioItemLike: $e');
+      rethrow;
+    }
+  }
+
+  /// Incrementa el contador de vistas.
+  Future<void> incrementPortfolioItemView(String providerId, String itemId) async {
+    try {
+      await _catalogsCollection
+          .doc(providerId)
+          .collection(_portfolioItemsCollection)
+          .doc(itemId)
+          .update({'viewCount': FieldValue.increment(1)});
+    } catch (e) {
+      debugPrint('[FirestoreService] Error al incrementar vistas: $e');
+    }
+  }
+
+  /// Maneja la selección manual de ítems para el Reporte Técnico.
+  Future<void> toggleItemReportSelection({
+    required String providerId,
+    required String itemId,
+    required bool isSelected,
+  }) async {
+    final itemRef = _catalogsCollection
+        .doc(providerId)
+        .collection(_portfolioItemsCollection)
+        .doc(itemId);
+    try {
+      await itemRef.update({'selectedForReport': isSelected});
+    } catch (e) {
+      debugPrint('[FirestoreService] Error en toggleItemReportSelection: $e');
       rethrow;
     }
   }
@@ -681,7 +764,6 @@ class FirestoreService {
   }
 
   Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
-    // Apunta a la nueva colección 'brandProfiles'
     await _db
         .collection('brandProfiles')
         .doc(uid)
@@ -727,7 +809,7 @@ class FirestoreService {
       } 
       final userDoc = await _db.collection('users').doc(providerId).get();
       if (userDoc.exists) {
-         return ProviderProfileModel.fromFirestore(userDoc);
+          return ProviderProfileModel.fromFirestore(userDoc);
       }
       return null;
     } catch (e) {
