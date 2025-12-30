@@ -22,10 +22,12 @@ class Cliente {
   final String source; // Origen del lead
   final String? displayName;
 
-  // --- ¡NUEVOS CAMPOS INYECTADOS! ---
+  // --- NUEVOS CAMPOS ---
   final String? logoUrl;
   final String? location;
-  // ----------------------------------
+  
+  /// Campo comentario agregado para resolver errores de "undefined getter" en la UI.
+  final String comentario;
 
   const Cliente({
     required this.id,
@@ -40,9 +42,9 @@ class Cliente {
     required this.ultimaInteraccion,
     this.source = '',
     this.displayName,
-    // --- ¡NUEVO! ---
     this.logoUrl,
     this.location,
+    this.comentario = '',
   });
 
   // Constructor robusto para leer desde Firestore
@@ -52,25 +54,19 @@ class Cliente {
       throw Exception("Documento de cliente nulo");
     }
 
-    // --- LECTURA ROBUSTA DEL ESTADO (Tu lógica original intacta) ---
+    // Lógica de estado adaptada a tu enum (usa 'lead' por defecto si no se encuentra)
     final firestoreState = data['estadoCRM'] as String? ?? 'lead';
     final estadoStr = firestoreState.toLowerCase(); 
 
-    CrmEstado estado = CrmEstado.lead;
+    CrmEstado estado = CrmEstado.values.first; 
     try {
         estado = CrmEstado.values.firstWhere(
-            (e) => e.name.toLowerCase() == estadoStr,
-            orElse: () {
-              if (kDebugMode) {
-                debugPrint('Advertencia: Estado CRM desconocido "$estadoStr". Usando "lead".');
-              }
-              return CrmEstado.lead;
-            },
+            (e) => e.name.toLowerCase() == estadoStr || e.toString().split('.').last.toLowerCase() == estadoStr,
+            orElse: () => CrmEstado.values.first,
         );
     } catch (e) {
-        estado = CrmEstado.lead;
+        if (kDebugMode) debugPrint('Error parseando estado: $estadoStr');
     }
-    // --------------------------------------------------------------------------
 
     return Cliente(
       id: doc.id,
@@ -84,19 +80,42 @@ class Cliente {
       montoTotalFacturado: (data['montoTotalFacturado'] as num?)?.toDouble() ?? 0.0,
       notasInternas: data['notasInternas'] ?? '',
       etiquetas: List<String>.from(data['etiquetas'] ?? []),
-      ultimaInteraccion: (data['ultimaInteraccion'] as Timestamp?)?.toDate() ?? (data['fechaAlta'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      ultimaInteraccion: (data['ultimaInteraccion'] as Timestamp?)?.toDate() ?? 
+                         (data['fechaAlta'] as Timestamp?)?.toDate() ?? DateTime.now(),
       
       // Campos auxiliares
       source: data['source'] ?? '',
       displayName: data['displayName'] as String?,
       
-      // --- ¡LECTURA DE NUEVOS CAMPOS! ---
+      // Nuevos campos
       logoUrl: data['logoUrl'] as String?,
       location: data['location'] as String?,
+      
+      // Mapeamos 'comentario' desde Firestore o usamos 'notasInternas' como respaldo
+      comentario: data['comentario'] ?? data['notasInternas'] ?? '',
     );
   }
 
-  // Método de utilidad para simplificar la copia de objetos
+  // Método para convertir a Mapa (útil para guardar en Firestore)
+  Map<String, dynamic> toMap() {
+    return {
+      'nombreCompleto': nombreCompleto,
+      'email': email,
+      'telefono': telefono,
+      'estadoCRM': estadoCRM.name,
+      'fechaAlta': Timestamp.fromDate(fechaAlta),
+      'montoTotalFacturado': montoTotalFacturado,
+      'notasInternas': notasInternas,
+      'etiquetas': etiquetas,
+      'ultimaInteraccion': Timestamp.fromDate(ultimaInteraccion),
+      'source': source,
+      'displayName': displayName,
+      'logoUrl': logoUrl,
+      'location': location,
+      'comentario': comentario,
+    };
+  }
+
   Cliente copyWith({
     String? id,
     String? nombreCompleto,
@@ -110,9 +129,9 @@ class Cliente {
     DateTime? ultimaInteraccion,
     String? source,
     String? displayName,
-    // --- ¡NUEVO! ---
-    String? photoUrl,
+    String? logoUrl,
     String? location,
+    String? comentario,
   }) {
     return Cliente(
       id: id ?? this.id,
@@ -127,9 +146,9 @@ class Cliente {
       ultimaInteraccion: ultimaInteraccion ?? this.ultimaInteraccion,
       source: source ?? this.source,
       displayName: displayName ?? this.displayName,
-      // --- ¡ASIGNACIÓN DE NUEVOS CAMPOS! ---
-      logoUrl: logoUrl ?? logoUrl,
+      logoUrl: logoUrl ?? this.logoUrl,
       location: location ?? this.location,
+      comentario: comentario ?? this.comentario,
     );
   }
 }

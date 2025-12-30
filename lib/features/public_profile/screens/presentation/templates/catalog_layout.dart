@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_promo_section.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -8,7 +9,6 @@ import 'package:proveedor_servicly_app/core/models/product_model.dart';
 
 // Widgets Reutilizables
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_hero_header.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_promotions_section.dart'; 
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_trust_signals.dart';
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_portfolio_section.dart';
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_services_section.dart';
@@ -44,7 +44,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
   // Función para añadir o quitar servicios del borrador
   void _toggleService(ProductModel service) {
     setState(() {
-      // Usamos el ID para asegurar una comparación precisa en Firebase
+      // Usamos el ID para asegurar una comparación precisa
       if (_selectedServices.any((s) => s.id == service.id)) {
         _selectedServices.removeWhere((s) => s.id == service.id);
       } else {
@@ -62,7 +62,8 @@ class _CatalogLayoutState extends State<CatalogLayout> {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A2E),
-      shape: const RoundedRectangleBorder(
+      // CORRECCIÓN: BorderRadius.vertical no es constante, se quita el 'const' del widget padre si existiera
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
@@ -137,11 +138,29 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF00B2B2)
                     ),
-                    onPressed: () {
-                      Navigator.pop(context); // Cerramos el modal
-                      // Navegamos a la pantalla de reserva enviando el ID del proveedor
-                      Navigator.push(
-                        context, 
+                    onPressed: () async {
+                      // CAPTURA SEGURA: Navigator y Repo antes del await
+                      final navigator = Navigator.of(context);
+                      final crmRepo = context.read<CrmRepository>();
+
+                      // --- INTEGRACIÓN CRM: CAPTURA DE INTENCIÓN DE CITA ---
+                      try {
+                        final String servicesSummary = _selectedServices.map((s) => s.name).join(', ');
+                        
+                        await crmRepo.captureLeadFromPublicProfile(
+                          email: null, 
+                          nombreCompleto: 'Visitante (Interés en Cita)', 
+                          source: 'catalog_appointment: $servicesSummary',
+                          providerId: widget.providerId,
+                        );
+                      } catch (e) {
+                        debugPrint("Error capturando lead de cita: $e");
+                      }
+
+                      if (!mounted) return;
+                      navigator.pop(); // Cerramos el modal
+                      
+                      navigator.push(
                         MaterialPageRoute(
                           builder: (_) => BookingScreen(providerId: widget.providerId)
                         )
@@ -165,15 +184,24 @@ class _CatalogLayoutState extends State<CatalogLayout> {
   Future<void> _handleContact(Uri url, String source) async {
     try {
       final crmRepository = context.read<CrmRepository>();
+      
+      // Personalizamos el origen si hay servicios seleccionados
+      String finalSource = source;
+      if (source == 'whatsapp' && _selectedServices.isNotEmpty) {
+        final String services = _selectedServices.map((s) => s.name).join(', ');
+        finalSource = 'catalog_whatsapp: $services';
+      }
+
       await crmRepository.captureLeadFromPublicProfile(
         email: null, 
         nombreCompleto: 'Visitante Catálogo', 
-        source: source,
+        source: finalSource,
         providerId: widget.providerId,
       );
     } catch (e) {
       debugPrint("Error al capturar Lead: $e");
     }
+
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }
@@ -203,7 +231,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // 1. Header con identidad y botones de contacto
+          // 1. Header con identidad y contacto integrado
           CatalogHeroHeader(
             profile: profile,
             isEditor: false,
@@ -213,9 +241,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
           ),
 
           // 2. Sección de Promociones
-          const CatalogPromotionsSection(),
+          CatalogPromotionsSectionV2(providerId: widget.providerId),
 
-          // 3. Sellos de confianza/calidad
+          // 3. Sellos de confianza
           const CatalogTrustSignals(),
 
           // 4. Portafolio Visual
@@ -225,33 +253,32 @@ class _CatalogLayoutState extends State<CatalogLayout> {
               brandColor: profile.brandColor,
             ),
           
-          // 5. SECCIÓN DE SERVICIOS (Conexión activa con el borrador)
+          // 5. SECCIÓN DE SERVICIOS (Selección activa)
           CatalogServicesSection(
             providerId: widget.providerId,
             brandColor: profile.brandColor,
-            onServiceTap: _toggleService,        // Activamos la función de selección
-            selectedServices: _selectedServices, // Pasamos el estado de selección
+            onServiceTap: _toggleService, 
+            selectedServices: _selectedServices,
           ),
 
           // 6. Módulo de Gift Cards
-          const CatalogGiftCardSection(),
+          CatalogGiftCardSection(providerId: widget.providerId),
 
-          // 7. Módulo de Reseñas de Firebase
+          // 7. Módulo de Reseñas
           if (profile.showReviewsModule)
             CatalogReviewsSection(profile: profile),
 
-          // Espacio para evitar que el FAB tape el último contenido
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
       
-      // --- BARRA FLOTANTE DE RESUMEN (Aparece al seleccionar servicios) ---
+      // --- BARRA FLOTANTE DE RESUMEN ---
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _selectedServices.isNotEmpty 
         ? FloatingAppointmentBar(
             count: _selectedServices.length,
             total: _selectedServices.fold(0, (sum, item) => sum + item.price),
-            onTap: _showAppointmentDraft, // Abre el recibo/borrador
+            onTap: _showAppointmentDraft, 
           )
         : null,
     );

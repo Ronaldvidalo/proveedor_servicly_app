@@ -24,8 +24,9 @@ import 'package:proveedor_servicly_app/features/crm/presentation/providers/lead_
 
 // Pantallas
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart';
+// CORRECCIÓN: Ruta de paquete corregida a proveedor_servicly_app
 import 'package:proveedor_servicly_app/features/budget/screens/quote_editor_screen.dart';
-import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart'; // Asegúrate que esta ruta sea correcta
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
 
 class SimpleLeadsTab extends StatefulWidget {
   const SimpleLeadsTab({super.key});
@@ -46,8 +47,8 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
   bool _isTourCheckPending = true;
 
   // --- KEYS PARA EL TOUR VIRTUAL ---
-  final GlobalKey _keyLeadList = GlobalKey(); // Foco en la lista
-  final GlobalKey _keyLockedLead = GlobalKey(); // Foco en un lead bloqueado (si hay)
+  final GlobalKey _keyLeadList = GlobalKey(); 
+  final GlobalKey _keyLockedLead = GlobalKey(); 
 
   final List<String> _fillers = [
     "Revisando tu cartera de clientes...",
@@ -115,10 +116,8 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
   Future<void> _processVoiceCommand(String command) async {
     if (command.trim().isEmpty) return;
     
-    // 1. Estado "Pensando"
     setState(() => _isThinking = true);
     
-    // Filler para no dejar silencio si es largo
     if (command.split(' ').length > 4) {
        _fillers.shuffle();
        _speak(_fillers.first);
@@ -127,28 +126,16 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
     try {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-            
-            // 2. Llamada al Cerebro (Api Connector)
             final geminiService = GeminiService();
             final apiConnector = ServiApiConnectorService(geminiService);
 
             final responseMap = await apiConnector.callServiLLM(command, userId);
-            
-            // 3. Procesar Respuesta
             String textoHablado = responseMap['TEXTO_VOZ'] ?? responseMap['TEXTO_ESCRITO'] ?? "Listo.";
             
-            // Hablamos primero para dar feedback
             await _speak(textoHablado);
 
-            // 4. DETECCIÓN DE COMANDO DE NAVEGACIÓN
-            
-            // --- CASO A: PRESUPUESTO ---
             if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRESUPUESTO') {
-                
-                debugPrint("🚀 SERVI: Ejecutando navegación a Presupuesto...");
                 final datos = responseMap['DATOS_PRECARGA'] ?? {};
-                
-                // Pequeño delay para que termine de hablar antes de cambiar de pantalla
                 await Future.delayed(const Duration(milliseconds: 1500));
 
                 if (mounted) {
@@ -157,39 +144,29 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
                             isNew: true,
                             initialClient: datos['cliente_nombre'],
                             initialConcept: datos['concepto'],
-                            // Convertimos a String y luego a Double para evitar errores de tipo int/double
                             initialPrice: double.tryParse(datos['precio_estimado']?.toString() ?? '0'),
                             aiSuggestion: datos['sugerencia_ia']
                         )
                     ));
                 }
             }
-            // --- CASO B: PRODUCTO (NUEVO BLOQUE 📦) ---
             else if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRODUCTO') {
-                
-                debugPrint("📦 SERVI: Navegando a Nuevo Producto...");
                 final datos = responseMap['DATOS_PRECARGA'] ?? {};
-                
-                // Esperamos que termine de hablar
                 await Future.delayed(const Duration(milliseconds: 1500));
 
                 if (mounted) {
                     Navigator.push(context, MaterialPageRoute(
                         builder: (_) => AddEditProductScreen(
-                            // OJO: Asegúrate que tu AddEditProductScreen acepte estos parámetros.
-                            // Si no, tendremos que actualizar ese archivo también.
                             initialName: datos['nombre_producto'],
                             initialPrice: double.tryParse(datos['precio']?.toString() ?? '0'),
                             initialStock: double.tryParse(datos['stock']?.toString() ?? '0'),
-                            aiDescription: datos['descripcion_ia'], // O aviso_ia
+                            aiDescription: datos['descripcion_ia'], 
                         )
                     ));
                 }
             }
             
-            // Terminamos de pensar
             if (mounted) setState(() => _isThinking = false);
-
         }
     } catch (e) {
         debugPrint("Error procesando voz: $e");
@@ -211,7 +188,6 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
     }
   }
 
-  // --- TOUR HABLADO ---
   String _getScriptForStep(GlobalKey key) {
     if (key == _keyLeadList) return "Esta es tu mina de oro. Aquí están todos los interesados en tus servicios.";
     if (key == _keyLockedLead) return "¡Atención! Estos candados son oportunidades perdidas. Mejorá tu plan para ver quién quiso comprarte.";
@@ -272,8 +248,6 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
 
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
-          
-          // --- BOTÓN FLOTANTE IA ---
           floatingActionButton: Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
             child: GestureDetector(
@@ -286,11 +260,9 @@ class _SimpleLeadsTabState extends State<SimpleLeadsTab> with SingleTickerProvid
               ),
             ),
           ),
-
           body: StreamBuilder<List<Cliente>>(
             stream: leadViewModel.filteredLeadsStream, 
             builder: (context, snapshot) {
-              
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator(color: colorScheme.primary));
               }
@@ -366,17 +338,30 @@ class _LeadCard extends StatelessWidget {
     required this.userPlan,
   });
 
+  /// Determina el nombre del producto o servicio basándose en la fuente o comentario.
+  String? _getProductName() {
+    // CORRECCIÓN: Eliminadas comprobaciones de nulo innecesarias (lead.source no es nulo según el diagnóstico)
+    if (lead.source.contains(':')) {
+      return lead.source.split(':').last.trim();
+    }
+    // CORRECCIÓN: 'notas' no existe en el modelo Cliente, usamos 'comentario'
+    if (lead.comentario.isNotEmpty) {
+      return lead.comentario;
+    }
+    return null;
+  }
+
   String _getFriendlySource(String? source) {
-    if (source == null) return 'Consulta';
+    if (source == null) return 'Consulta Directa';
     final s = source.toLowerCase();
     if (s.contains('whatsapp')) return 'WhatsApp';
-    if (s.contains('view_product')) return 'Vio Producto';
-    if (s.contains('cart')) return 'Carrito Abandonado'; 
-    if (s.contains('like')) return 'Le gustó un Producto'; 
+    if (s.contains('view_product')) return 'Catálogo: Vio Producto';
+    if (s.contains('cart')) return 'Catálogo: Carrito Abandonado'; 
+    if (s.contains('like')) return 'Catálogo: Favorito'; 
     if (s.contains('telefono')) return 'Llamada';
-    if (s.contains('email')) return 'Email';
-    if (s.contains('presupuesto')) return 'Presupuesto';
-    return 'Consulta';
+    if (s.contains('email')) return 'Correo Electrónico';
+    if (s.contains('presupuesto')) return 'Solicitud Presupuesto';
+    return 'Consulta Externa';
   }
 
   @override
@@ -387,6 +372,7 @@ class _LeadCard extends StatelessWidget {
     
     final displayName = hasAccess ? lead.nombreCompleto : 'Oportunidad Detectada'; 
     final displaySource = hasAccess ? _getFriendlySource(lead.source) : "Carrito/Interés (Solo PRO)";
+    final productName = hasAccess ? _getProductName() : null;
 
     Color statusColor = Colors.blueGrey;
     String statusText = lead.estadoCRM.name; 
@@ -424,51 +410,85 @@ class _LeadCard extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                    Container(
-                    width: 4, height: 40,
+                  Container(
+                    width: 4, height: 60, // Ajustado para dar espacio al producto
                     decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2)),
                   ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          hasAccess 
-                            ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
-                            : ImageFiltered(
-                               imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                               child: Text(displayName, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 16)),
-                             ),
-                          const SizedBox(height: 4),
-                          Text(
-                            displaySource,
-                            style: TextStyle(
-                              color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
-                              fontSize: 13, 
-                              fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: hasAccess 
+                                ? Text(displayName, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16))
+                                : ImageFiltered(
+                                   imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                                   child: Text(displayName, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 16)),
+                                 ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          displaySource,
+                          style: TextStyle(
+                            color: hasAccess ? colorScheme.onSurface.withValues(alpha: 0.7) : Colors.amber, 
+                            fontSize: 12, 
+                            fontWeight: hasAccess ? FontWeight.normal : FontWeight.bold
+                          ),
+                        ),
+                        
+                        // --- SECCIÓN DE PRODUCTO DIFERENCIADO ---
+                        if (productName != null) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.shopping_bag_outlined, size: 12, color: colorScheme.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  productName,
+                                  style: TextStyle(
+                                    color: colorScheme.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: statusColor.withValues(alpha: 0.5)),
-                                ),
-                                child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
-                              ),
-                              const Spacer(),
-                              Text(dateStr, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)),
-                            ],
-                          )
                         ],
-                      ),
+                        
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                              ),
+                              child: Text(statusText.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                            ),
+                            const Spacer(),
+                            Text(dateStr, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)),
+                          ],
+                        )
+                      ],
                     ),
-                    if (hasAccess)
-                     Icon(Icons.arrow_forward_ios, color: colorScheme.onSurface.withValues(alpha: 0.3), size: 16),
+                  ),
+                  if (hasAccess)
+                   Icon(Icons.arrow_forward_ios, color: colorScheme.onSurface.withValues(alpha: 0.3), size: 16),
                 ],
               ),
             ),
@@ -488,9 +508,9 @@ class _LeadCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                         color: Colors.black.withValues(alpha: 0.5)
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: const [
+                        children: [
                           Icon(Icons.lock, color: Colors.amber, size: 16),
                           SizedBox(width: 8),
                           Text("Solo PRO", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
@@ -512,7 +532,7 @@ class _LeadCard extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: theme.cardTheme.color,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [const Icon(Icons.star, color: Colors.amber), const SizedBox(width: 8), Text('Oportunidad Perdida', style: TextStyle(color: theme.colorScheme.onSurface))]),
+        title: const Row(children: [Icon(Icons.star, color: Colors.amber), SizedBox(width: 8), Text('Oportunidad Perdida')]),
         content: Text(
           'Un cliente mostró interés pero no te contactó directamente.\n\nLos usuarios PRO pueden ver estos datos y contactar al cliente proactivamente.',
           style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),

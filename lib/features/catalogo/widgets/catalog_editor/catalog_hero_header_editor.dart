@@ -10,6 +10,9 @@ import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/brand_settings_screen.dart';
 
+// ✅ Importamos el widget de Rating
+import 'package:proveedor_servicly_app/features/reviews/widgets/provider_rating_badge.dart';
+
 class CatalogHeroHeaderEditor extends StatefulWidget {
   final ProviderProfileModel profile;
   final UserModel user;
@@ -27,13 +30,13 @@ class CatalogHeroHeaderEditor extends StatefulWidget {
 class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
   bool _isUploading = false;
 
-  // --- LÓGICA DE SUBIDA DE IMÁGENES (Igual que antes) ---
+  // --- LÓGICA DE SUBIDA DE IMÁGENES ---
   Future<void> _changeImage(bool isLogo) async {
     final picker = ImagePicker();
     final storage = context.read<StorageService>();
     final firestore = context.read<FirestoreService>();
-    // ... (Resto de la lógica de _changeImage permanece igual)
-     final XFile? pickedFile = await picker.pickImage(
+    
+    final XFile? pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 70,
     );
@@ -45,23 +48,26 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
     try {
       final String folder = isLogo ? 'logos' : 'covers';
       final String fileName = '${widget.user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final String path = 'catalogs/${widget.user.uid}/$folder/$fileName';
+      final String path = 'brandProfiles/${widget.user.uid}/$folder/$fileName';
 
       final String downloadUrl = await storage.uploadFileWithProgress(
         File(pickedFile.path),
         path,
-        (progress) => debugPrint("Progreso: $progress"),
+        (progress) => debugPrint("Progreso subida: $progress"),
       );
 
       final Map<String, dynamic> updateData = isLogo 
           ? {'logoUrl': downloadUrl} 
           : {'coverImageUrl': downloadUrl};
 
-      await firestore.updateCatalogField(widget.user.uid, updateData);
+      await firestore.setBrandProfile(widget.user.uid, updateData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isLogo ? "Logo actualizado" : "Portada actualizada")),
+          SnackBar(
+            content: Text(isLogo ? "Logo actualizado" : "Portada de fondo actualizada"),
+            backgroundColor: const Color(0xFF00B2B2),
+          ),
         );
       }
     } catch (e) {
@@ -73,113 +79,142 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Usamos los datos reales del perfil pasado al widget
-    final profile = widget.profile;
-    // Ajustamos la altura para que quepa todo cómodamente
-    const double headerHeight = 480.0; 
+    final firestoreService = context.read<FirestoreService>();
 
-    return SliverAppBar(
-      expandedHeight: headerHeight,
-      pinned: true,
-      stretch: true,
-      backgroundColor: const Color(0xFF1A1A2E),
-      automaticallyImplyLeading: false,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            // 1. Fondo de Portada (Cover) con indicador de cámara grande
-            _buildCoverBackground(profile),
+    return StreamBuilder<ProviderProfileModel?>(
+      stream: firestoreService.getBrandProfile(widget.user.uid),
+      builder: (context, snapshot) {
+        final profile = snapshot.data ?? widget.profile;
+        const double headerHeight = 480.0; 
 
-            // 2. Gradiente oscuro para legibilidad
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.transparent, Colors.black],
-                  stops: [0.0, 0.3, 0.95],
-                ),
-              ),
-            ),
+        return SliverAppBar(
+          expandedHeight: headerHeight,
+          pinned: true,
+          stretch: true,
+          backgroundColor: const Color(0xFF1A1A2E),
+          automaticallyImplyLeading: false,
+          flexibleSpace: FlexibleSpaceBar(
+            background: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 1. CAPA BASE: Fondo de Portada (Interactiva)
+                _buildCoverBackground(profile),
 
-            // 3. Sección Superior: Identidad (Logo, Nombre y Lápiz de edición)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
-              left: 16,
-              right: 16,
-              child: _buildHeaderContent(profile),
-            ),
-
-            // 4. Sección Inferior: Información, Rating y CTA
-            Positioned(
-              bottom: 24,
-              left: 20,
-              right: 20,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildRatingHeader(profile),
-                  const SizedBox(height: 12),
-                  
-                  // Dirección (Muestra dato real o texto de configurar)
-                  _buildEditableInfoRow(
-                    Icons.location_on_outlined,
-                    (profile.address?.isNotEmpty ?? false) 
-                        ? profile.address! 
-                        : "Configurar ubicación técnica",
-                    onTap: () => _navigateToBrandSettings(context),
-                  ),
-                  
-                  // Horario (Muestra dato real o texto de configurar)
-                  _buildEditableInfoRow(
-                    Icons.access_time_rounded,
-                    (profile.openingHours?.isNotEmpty ?? false) 
-                        ? profile.openingHours! 
-                        : "Configurar horario",
-                    onTap: () => _navigateToBrandSettings(context),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Botón de Acción Principal (CTA)
-                  _buildBookingCTA(profile),
-
-                  // Indicador de carga si se está subiendo una foto
-                  if (_isUploading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 12.0),
-                      child: LinearProgressIndicator(color: Color(0xFF00B2B2), backgroundColor: Colors.white10),
+                // 2. CAPA DECORATIVA: Gradiente (IgnorePointer permite que el toque pase)
+                const IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.black54, Colors.transparent, Colors.black],
+                        stops: [0.0, 0.3, 0.95],
+                      ),
                     ),
-                ],
-              ),
+                  ),
+                ),
+
+                // 3. CAPA SUPERIOR: Logo y Nombre
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  left: 16,
+                  right: 16,
+                  child: _buildHeaderContent(profile),
+                ),
+
+                // 4. CAPA INFERIOR: Información y CTA
+                Positioned(
+                  bottom: 24,
+                  left: 20,
+                  right: 20,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ✅ WIDGET REUTILIZABLE DE RATING
+                      ProviderRatingBadge(
+                        profile: profile,
+                        starSize: 20,
+                        // Forzamos texto blanco y grande porque estamos sobre fondo oscuro
+                        textStyle: const TextStyle(
+                          color: Colors.white, 
+                          fontSize: 24, 
+                          fontWeight: FontWeight.bold
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 12),
+                      
+                      _buildEditableInfoRow(
+                        Icons.location_on_outlined,
+                        (profile.address?.isNotEmpty ?? false) 
+                            ? profile.address! 
+                            : "Añadir ubicación técnica",
+                        onTap: () => _navigateToBrandSettings(context, profile),
+                      ),
+                      
+                      _buildEditableInfoRow(
+                        Icons.access_time_rounded,
+                        (profile.openingHours?.isNotEmpty ?? false) 
+                            ? profile.openingHours! 
+                            : "Configurar horario",
+                        onTap: () => _navigateToBrandSettings(context, profile),
+                      ),
+                      const SizedBox(height: 20),
+
+                      _buildBookingCTA(profile),
+
+                      if (_isUploading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12.0),
+                          child: LinearProgressIndicator(
+                            color: Color(0xFF00B2B2), 
+                            backgroundColor: Colors.white10
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  // --- WIDGETS COMPONENTES ---
+  // --- COMPONENTES DEL HEADER ---
 
-  // 1. Fondo de Portada con icono de cámara grande si está vacío
   Widget _buildCoverBackground(ProviderProfileModel profile) {
     bool hasCover = profile.coverImageUrl != null && profile.coverImageUrl!.isNotEmpty;
     return GestureDetector(
-      onTap: () => _changeImage(false), // Cambiar Portada
+      behavior: HitTestBehavior.opaque, // ✅ Asegura que toda el área sea táctil
+      onTap: () => _changeImage(false), 
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (hasCover)
             Image.network(profile.coverImageUrl!, fit: BoxFit.cover)
           else
-            Container(color: profile.brandColor.withOpacity(0.2)), // Fondo sutil si no hay imagen
+            Container(color: profile.brandColor.withValues(alpha: 0.2)), 
           
-          // Icono de cámara grande centrado (estilo image_1.png)
           Center(
-            child: Icon(
-              Icons.add_a_photo_outlined, 
-              color: Colors.white.withOpacity(hasCover ? 0.5 : 0.8), 
-              size: 48
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.add_a_photo_outlined, 
+                  color: Colors.white.withValues(alpha: hasCover ? 0.5 : 0.8), 
+                  size: 48
+                ),
+                if (!hasCover)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      "CAMBIAR IMAGEN DE FONDO", 
+                      style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -187,25 +222,20 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
     );
   }
 
-  // 2. Contenido Superior: Logo + Nombre con indicador de edición
   Widget _buildHeaderContent(ProviderProfileModel profile) {
     return Row(
       children: [
-        // Avatar con lápiz
         GestureDetector(
-          onTap: () => _changeImage(true), // Cambiar Logo
+          onTap: () => _changeImage(true), 
           child: Stack(
             alignment: Alignment.bottomRight,
             children: [
               CircleAvatar(
                 radius: 32,
-                backgroundColor: Colors.white12,
-                // ✅ Muestra el logo real si existe
+                backgroundColor: Colors.white10,
                 backgroundImage: profile.logoUrl.isNotEmpty ? NetworkImage(profile.logoUrl) : null,
-                // Muestra icono por defecto si no hay logo
                 child: profile.logoUrl.isEmpty ? const Icon(Icons.business, color: Colors.white) : null,
               ),
-              // ✅ Pequeño indicador de lápiz sobre el avatar
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
@@ -219,41 +249,36 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
         ),
         const SizedBox(width: 12),
         
-        // Nombre y enlace de edición
         Expanded(
           child: GestureDetector(
-            onTap: () => _navigateToBrandSettings(context),
+            onTap: () => _navigateToBrandSettings(context, profile),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ Muestra el nombre real del negocio
                 Text(
-                  profile.businessName,
+                  profile.businessName.isEmpty ? "Nuevo Negocio" : profile.businessName,
                   style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
-                // ✅ Enlace visual "Editar Identidad" con icono pequeño
                 const Row(
                   children: [
-                     Text("Editar Identidad", style: TextStyle(color: Color(0xFF00B2B2), fontSize: 12)),
-                     SizedBox(width: 4),
-                     Icon(Icons.edit_note, color: Color(0xFF00B2B2), size: 14),
+                      Text("Editar Identidad", style: TextStyle(color: Color(0xFF00B2B2), fontSize: 12)),
+                      SizedBox(width: 4),
+                      Icon(Icons.edit_note, color: Color(0xFF00B2B2), size: 14),
                   ],
                 )
               ],
             ),
           ),
         ),
-        // Botón de configuración rápida
         IconButton(
           icon: const Icon(Icons.settings_outlined, color: Colors.white),
-          onPressed: () => _navigateToBrandSettings(context),
+          onPressed: () => _navigateToBrandSettings(context, profile),
         ),
       ],
     );
   }
 
-  // 3. Filas de información (Dirección/Horario) con icono
   Widget _buildEditableInfoRow(IconData icon, String text, {required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
@@ -270,7 +295,6 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
             ),
-            // Flecha sutil para indicar navegación
             const Icon(Icons.chevron_right, color: Colors.white24, size: 16),
           ],
         ),
@@ -278,26 +302,14 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
     );
   }
 
-  // 4. Header de Rating (Visual por ahora, usa datos reales del perfil)
-  Widget _buildRatingHeader(ProviderProfileModel profile) {
-    return Row(
-      children: [
-        Text((profile.averageRating ?? 5.0).toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
-        const SizedBox(width: 8),
-        Row(children: List.generate(5, (i) => Icon(Icons.star, color: i < (profile.averageRating ?? 5).round() ? Colors.amber : Colors.grey, size: 18))),
-        const SizedBox(width: 8),
-        Text("(${profile.reviewCount ?? 0} Reviews)", style: const TextStyle(color: Colors.white38, fontSize: 12)),
-      ],
-    );
-  }
+  // _buildRatingHeader Eliminado porque ahora usamos ProviderRatingBadge
 
-  // 5. Botón CTA (Mismo que antes)
   Widget _buildBookingCTA(ProviderProfileModel profile) {
-     final bool isAgenda = profile.bookingActionType == 'agenda';
+    final bool isAgenda = profile.bookingActionType == 'agenda';
     final String buttonLabel = isAgenda ? "Agendar Cita" : "Pedir Presupuesto";
 
     return GestureDetector(
-      onTap: () => _showBookingEditor(context),
+      onTap: () => _showBookingEditor(context, profile),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -306,7 +318,7 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00B2B2).withOpacity(0.3),
+              color: const Color(0xFF00B2B2).withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             )
@@ -328,9 +340,9 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
       ),
     );
   }
-   // --- SELECTOR DE DOS OPCIONES (SIN TEXTO) ---
-  void _showBookingEditor(BuildContext context) {
-    String tempSelection = widget.profile.bookingActionType ?? 'presupuesto';
+
+  void _showBookingEditor(BuildContext context, ProviderProfileModel profile) {
+    String tempSelection = profile.bookingActionType ?? 'presupuesto';
 
     showModalBottomSheet(
       context: context,
@@ -338,14 +350,13 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text("Función del Botón Principal", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
               
-              // OPCIÓN A: AGENDA
               _buildSimpleOption(
                 label: "Vincular con mi Agenda",
                 icon: Icons.calendar_today_rounded,
@@ -355,7 +366,6 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
               
               const SizedBox(height: 12),
               
-              // OPCIÓN B: PRESUPUESTO
               _buildSimpleOption(
                 label: "Pedir Presupuesto / Cotización",
                 icon: Icons.description_outlined,
@@ -371,10 +381,9 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
                 child: FilledButton(
                   style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00B2B2)),
                   onPressed: () async {
-                    // EL SISTEMA DECIDE EL TEXTO AQUÍ, TÚ NO ESCRIBES NADA
                     final String autoText = (tempSelection == 'agenda') ? "Agendar Cita" : "Pedir Presupuesto";
                     
-                    await context.read<FirestoreService>().updateCatalogField(widget.profile.id, {
+                    await context.read<FirestoreService>().setBrandProfile(widget.user.uid, {
                       'bookingActionType': tempSelection,
                       'bookingButtonText': autoText,
                     });
@@ -383,7 +392,6 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
                   child: const Text("CONFIRMAR SELECCIÓN"),
                 ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -398,7 +406,7 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00B2B2).withOpacity(0.15) : Colors.white.withOpacity(0.05),
+          color: isSelected ? const Color(0xFF00B2B2).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: isSelected ? const Color(0xFF00B2B2) : Colors.white10),
         ),
@@ -415,8 +423,7 @@ class _CatalogHeroHeaderEditorState extends State<CatalogHeroHeaderEditor> {
     );
   }
 
-
-  void _navigateToBrandSettings(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => BrandSettingsScreen(user: widget.user, brandProfile: widget.profile)));
+  void _navigateToBrandSettings(BuildContext context, ProviderProfileModel profile) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => BrandSettingsScreen(user: widget.user, brandProfile: profile)));
   }
 }

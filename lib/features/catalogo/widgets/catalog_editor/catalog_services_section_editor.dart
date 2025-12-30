@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 
 // Modelos y Servicios
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
@@ -24,7 +25,7 @@ class CatalogServicesSectionEditor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HEADER DE SECCIÓN
+          // --- HEADER DE SECCIÓN ---
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
             child: Row(
@@ -42,84 +43,140 @@ class CatalogServicesSectionEditor extends StatelessWidget {
                 IconButton.filled(
                   onPressed: () => _navigateToEditor(context),
                   icon: const Icon(Icons.add, color: Colors.white),
-                  style: IconButton.styleFrom(backgroundColor: const Color(0xFF6200EE)),
+                  style: IconButton.styleFrom(backgroundColor: const Color(0xFF00B2B2)),
                 ),
               ],
             ),
           ),
 
-          // LISTADO DE SERVICIOS (Corregido para evitar pantalla roja)
+          // --- LISTADO DE SERVICIOS DINÁMICO ---
           StreamBuilder<List<ProductModel>>(
             stream: productService.getProducts(providerId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: CircularProgressIndicator(),
+                  padding: EdgeInsets.all(40.0),
+                  child: CircularProgressIndicator(color: Color(0xFF00B2B2)),
                 ));
               }
 
               final products = snapshot.data ?? [];
+              if (products.isEmpty) return _buildEmptyState(context);
 
-              if (products.isEmpty) {
-                return _buildEmptyState(context);
-              }
-
-              // ✅ SOLUCIÓN AL ERROR: Usamos ListView en lugar de SliverList
               return ListView.builder(
-                shrinkWrap: true, // Permite que el ListView viva dentro de una Column
-                physics: const NeverScrollableScrollPhysics(), // El scroll lo maneja el CustomScrollView principal
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: products.length,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemBuilder: (context, index) {
-                  final product = products[index];
-                  return _buildServiceItem(context, product);
+                  return _buildServiceItem(context, products[index]);
                 },
               );
             },
           ),
-          const SizedBox(height: 100), // Espacio para el botón flotante
+          const SizedBox(height: 100), 
         ],
       ),
     );
   }
 
   Widget _buildServiceItem(BuildContext context, ProductModel product) {
-    // Lógica técnica: Si el costo es mayor al precio, alertamos al ingeniero
-    final bool isLowProfit = (product.cost ?? 0) >= product.price;
+    // Lógica técnica de rentabilidad
+    final bool isLowProfit = (product.cost) >= product.price;
+
+    // 🔍 DETERMINAR MINIATURA Y TIPO DE MEDIO
+    final String? mainImg = product.imageUrl.isNotEmpty ? product.imageUrl : null;
+    final Map<String, dynamic>? firstGallery = product.mediaGallery.isNotEmpty ? product.mediaGallery.first : null;
+    final String? thumbUrl = mainImg ?? firstGallery?['url'];
+    final bool isVideo = firstGallery?['type'] == 'video' || (thumbUrl?.contains('.mp4') ?? false);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isLowProfit ? Colors.redAccent.withOpacity(0.3) : Colors.white10),
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isLowProfit ? Colors.redAccent.withValues(alpha: 0.3) : Colors.white10),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Image.network(
-            product.imageUrl,
-            width: 50, height: 50, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: Colors.white10, child: const Icon(Icons.image_not_supported)),
-          ),
-        ),
-        title: Text(product.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
           children: [
-            Text("Venta: \$${product.price}", style: const TextStyle(color: Color(0xFF00B2B2), fontSize: 12)),
-            // Información técnica para el editor
-            Text("Costo: \$${product.cost ?? 0.0} | Stock: ${product.quantity}", 
-              style: TextStyle(color: isLowProfit ? Colors.redAccent : Colors.white38, fontSize: 10)),
+            // 🖼️ MINIATURA INTERACTIVA (MAXIMIZABLE)
+            GestureDetector(
+              onTap: () => _openFullscreenMedia(context, product),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Hero(
+                    tag: 'editor_media_${product.id}',
+                    child: Container(
+                      width: 75, height: 75,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.black26,
+                        image: thumbUrl != null 
+                          ? DecorationImage(image: NetworkImage(thumbUrl), fit: BoxFit.cover) 
+                          : null,
+                      ),
+                      child: thumbUrl == null ? const Icon(Icons.image_not_supported, color: Colors.white10) : null,
+                    ),
+                  ),
+                  if (isVideo)
+                    const Icon(Icons.play_circle_fill, color: Colors.white, size: 30),
+                  
+                  // Badge de "Ampliar"
+                  Positioned(
+                    bottom: 4, right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                      child: const Icon(Icons.fullscreen, color: Colors.white70, size: 12),
+                    ),
+                  )
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 16),
+
+            // 📋 INFO TÉCNICA Y PRECIOS
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(product.name, 
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text("Venta: \$${NumberFormat("#,##0").format(product.price)}", 
+                        style: const TextStyle(color: Color(0xFF00B2B2), fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Text("Costo: \$${product.cost.toStringAsFixed(0)} | Stock: ${product.quantity ?? 0}", 
+                    style: TextStyle(color: isLowProfit ? Colors.redAccent : Colors.white38, fontSize: 11)),
+                ],
+              ),
+            ),
+
+            // ⚙️ ACCIONES
+            IconButton(
+              icon: const Icon(Icons.edit_note_rounded, color: Colors.white54, size: 28),
+              onPressed: () => _navigateToEditor(context, product: product),
+            ),
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit_outlined, color: Colors.white54),
-          onPressed: () => _navigateToEditor(context, product: product),
-        ),
       ),
+    );
+  }
+
+  // --- LÓGICA DE NAVEGACIÓN Y VISUALIZACIÓN ---
+
+  void _openFullscreenMedia(BuildContext context, ProductModel product) {
+    showDialog(
+      context: context,
+      builder: (context) => _SimpleFullscreenViewer(product: product),
     );
   }
 
@@ -132,7 +189,7 @@ class CatalogServicesSectionEditor extends StatelessWidget {
           const Text("No hay servicios cargados", style: TextStyle(color: Colors.white38)),
           TextButton(
             onPressed: () => _navigateToEditor(context),
-            child: const Text("Crear mi primer servicio"),
+            child: const Text("Crear mi primer servicio", style: TextStyle(color: Color(0xFF00B2B2))),
           ),
         ],
       ),
@@ -143,9 +200,58 @@ class CatalogServicesSectionEditor extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEditProductScreen(
-          productToEdit: product,
-        ),
+        builder: (context) => AddEditProductScreen(productToEdit: product),
+      ),
+    );
+  }
+}
+
+// 🎬 VISUALIZADOR RÁPIDO PARA EL EDITOR (Zoom e Info)
+class _SimpleFullscreenViewer extends StatelessWidget {
+  final ProductModel product;
+  const _SimpleFullscreenViewer({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> allMedia = [
+      if (product.imageUrl.isNotEmpty) product.imageUrl,
+      ...product.mediaGallery.map((m) => m['url'].toString())
+    ];
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(product.name, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: PageView.builder(
+        itemCount: allMedia.length,
+        itemBuilder: (context, index) {
+          final url = allMedia[index];
+          final bool isVideo = url.contains('.mp4');
+
+          return Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Hero(
+                tag: index == 0 ? 'editor_media_${product.id}' : 'gallery_editor_$index',
+                child: isVideo 
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.play_circle_outline, color: Colors.white, size: 80),
+                        SizedBox(height: 16),
+                        Text("Vista previa de Video", style: TextStyle(color: Colors.white54)),
+                      ],
+                    )
+                  : Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

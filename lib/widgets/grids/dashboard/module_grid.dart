@@ -27,6 +27,7 @@ import 'package:proveedor_servicly_app/features/inventory/screens/inventory_scre
 import 'package:proveedor_servicly_app/features/budget/screens/quote_list_screen.dart';
 import 'package:proveedor_servicly_app/features/orders/screens/provider_orders_screen.dart';
 import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart';
+import 'package:proveedor_servicly_app/features/promotion/screens/marketing_center_screen.dart';
 
 // --- Mapa de Iconos ---
 const Map<String, IconData> _iconMap = {
@@ -35,15 +36,20 @@ const Map<String, IconData> _iconMap = {
   'calendar_today_outlined': Icons.calendar_today_outlined,
   'group_outlined': Icons.people_alt_rounded,
   'clients': Icons.people_alt_rounded,
+  'crm': Icons.people_alt_rounded,
+  'client-management': Icons.people_alt_rounded,
   'bar_chart_outlined': Icons.bar_chart_rounded,
   'calculate': Icons.calculate_outlined,
   'inventory_2': Icons.inventory_2_outlined,
   'point_of_sale': Icons.point_of_sale_rounded,
   'fast_sales': Icons.price_check_rounded,
+  'fast-sales': Icons.price_check_rounded,
+  'pos': Icons.price_check_rounded,
   'extension_outlined': Icons.extension_outlined, 
   'quotes': Icons.description_outlined,
   'receipt_long_outlined': Icons.receipt_long_outlined,
   'shopping_bag_outlined': Icons.shopping_bag_outlined,
+  'campaign_outlined': Icons.campaign_outlined,
 };
 
 class ModulesGrid extends StatefulWidget {
@@ -91,13 +97,18 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
       case 'store_template': script = "Tu Vidriera Digital. Cargá tus productos y vendé las 24 horas."; break;
       case 'catalog_template': script = "Tu Portafolio Profesional. Mostrá tus trabajos y recibí pedidos."; break;
       case 'agenda': script = "Tu secretaria personal. Agendá turnos y recordatorios."; break;
-      case 'clients': script = "Tu mina de oro. Gestioná los datos de tus clientes."; break;
+      case 'clients':
+      case 'crm':
+      case 'client-management': script = "Tu mina de oro. Gestioná los datos de tus clientes."; break;
       case 'advanced-finance': script = "Cuidá el mango. Controlá ingresos y egresos."; break;
       case 'inventory': script = "Controlá tu stock. No te quedes sin mercadería."; break;
-      case 'fast_sales': script = "Tu caja registradora. Cobrá rápido en el mostrador."; break;
+      case 'fast_sales':
+      case 'fast-sales':
+      case 'pos': script = "Tu caja registradora. Cobrá rápido en el mostrador."; break;
       case 'quotes': script = "Presupuestos profesionales en PDF para WhatsApp."; break;
       case 'cost_structure': script = "Tus costos fijos. Sabé cuánto te cuesta abrir cada día."; break;
       case 'orders-module': script = "Gestión de Pedidos. Revisá ventas y coordiná entregas."; break;
+      case 'marketing-center-module': script = "Marketing Center. Creá promociones inteligentes y gift cards con ayuda de Servi."; break;
       case 'add_module': script = "Expandí tu potencial. Activá nuevas herramientas."; break;
       default: script = "Esta herramienta optimiza tu flujo de trabajo.";
     }
@@ -118,7 +129,6 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECCIÓN: PERFIL PÚBLICO (Destacado arriba) ---
             _buildSectionHeader(context, "Mi presencia online"),
             if (widget.user.publicProfileTemplate == 'store') 
               _buildLargeTile(
@@ -135,14 +145,12 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
                 subtitle: 'Servicios de alto impacto',
                 icon: _iconMap['auto_stories_outlined']!,
                 color: Colors.deepPurpleAccent,
-                // CORRECCIÓN AQUÍ: Se cambia 'user: widget.user' por 'providerId: widget.user.uid'
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CatalogEditorScreen(providerId: widget.user.uid))),
                 onLongPress: () => _explainModule('catalog_template'),
               ),
 
             const SizedBox(height: 24),
             
-            // --- SECCIÓN: HERRAMIENTAS (Grid de 2 columnas) ---
             _buildSectionHeader(context, "Gestión del negocio"),
             GridView.builder(
               shrinkWrap: true,
@@ -190,7 +198,6 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     );
   }
 
-  // Tarjeta grande para Tienda/Catálogo
   Widget _buildLargeTile({
     required String title,
     required String subtitle,
@@ -210,7 +217,6 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     );
   }
 
-  // Item de la cuadrícula
   Widget _buildGridItem({
     required ModuleModel module,
     required int index,
@@ -248,12 +254,17 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
   Color _getCategoryColor(String id) {
     switch (id) {
       case 'fast_sales':
-      case 'orders-module': return Colors.orangeAccent; // Ventas
+      case 'fast-sales':
+      case 'pos':
+      case 'orders-module': return Colors.orangeAccent;
       case 'advanced-finance':
-      case 'cost_structure': return Colors.tealAccent; // Finanzas
+      case 'cost_structure': return Colors.tealAccent;
       case 'agenda':
-      case 'clients': return Colors.blueAccent; // CRM/Agenda
-      case 'inventory': return Colors.purpleAccent; // Logística
+      case 'clients':
+      case 'crm':
+      case 'client-management': return Colors.blueAccent;
+      case 'inventory': return Colors.purpleAccent;
+      case 'marketing-center-module': return Colors.cyanAccent;
       default: return Colors.blueGrey;
     }
   }
@@ -261,13 +272,18 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
   String _getModuleSubtitle(String id) {
     switch (id) {
       case 'agenda': return 'Turnos';
-      case 'clients': return 'Base CRM';
+      case 'clients':
+      case 'crm':
+      case 'client-management': return 'Base CRM';
       case 'advanced-finance': return 'Finanzas';
       case 'inventory': return 'Stock';
-      case 'fast_sales': return 'Caja';
+      case 'fast_sales':
+      case 'fast-sales':
+      case 'pos': return 'Caja';
       case 'quotes': return 'PDFs';
       case 'cost_structure': return 'Costos';
       case 'orders-module': return 'Pedidos';
+      case 'marketing-center-module': return 'Promos e IA';
       default: return 'Gestión';
     }
   }
@@ -305,18 +321,52 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
 
   void _navigateToModule(BuildContext context, String moduleId, UserModel user) {
     Widget? destination;
+    
     switch (moduleId) {
-      case 'agenda': destination = AgendaScreen(user: user); break;
-      case 'clients': destination = Provider<CrmRepository>(create: (_) => CrmRepository(), child: const ClientManagementScreen()); break;
-      case 'advanced-finance': destination = const AdvancedFinanceScreen(); break;
-      case 'cost_structure': destination = const BusinessConfigScreen(); break;
-      case 'inventory': destination = const InventoryScreen(); break;
-      case 'fast_sales': destination = const PosScreen(); break;
-      case 'quotes': destination = const QuoteListScreen(); break;
-      case 'orders-module': destination = const ProviderOrdersScreen(); break;
-      case 'module_client_orders': destination = const ClientOrdersScreen(); break;
+      case 'agenda': 
+        destination = AgendaScreen(user: user); 
+        break;
+      case 'clients':
+      case 'crm':
+      case 'client-management': // CORRECCIÓN: ID exacto reportado en el error
+        destination = Provider<CrmRepository>(
+          create: (_) => CrmRepository(), 
+          child: const ClientManagementScreen()
+        ); 
+        break;
+      case 'advanced-finance': 
+        destination = const AdvancedFinanceScreen(); 
+        break;
+      case 'cost_structure': 
+        destination = const BusinessConfigScreen(); 
+        break;
+      case 'inventory': 
+        destination = const InventoryScreen(); 
+        break;
+      case 'fast_sales':
+      case 'fast-sales': // Soporte para variante con guion
+      case 'pos': 
+        destination = const PosScreen(); 
+        break;
+      case 'quotes': 
+        destination = const QuoteListScreen(); 
+        break;
+      case 'orders-module': 
+        destination = const ProviderOrdersScreen(); 
+        break;
+      case 'module_client_orders': 
+        destination = const ClientOrdersScreen(); 
+        break;
+      case 'marketing-center-module': 
+        destination = const MarketingCenterScreen(); 
+        break;
     }
-    if (destination != null) Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
+    
+    if (destination != null) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => destination!));
+    } else {
+      debugPrint("Advertencia: No se encontró destino para el moduleId: $moduleId");
+    }
   }
 }
 

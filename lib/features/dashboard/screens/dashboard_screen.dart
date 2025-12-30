@@ -4,14 +4,17 @@
 // QA FIX 26/11/2025: Theme Integration
 // UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
 // UPDATE: Integración Notificaciones Push (Cliente)
-// UPDATE: Servi AI Navigation Logic (Dashboard)
+// UPDATE: Servi AI Navigation Logic + Proactive Insights + Lead Coach
+// FIX FINAL: Integración con Modelo Cliente Original
 // ---------------------------------
 
+import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui'; 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 
 // --- Imports de Utilidades ---
 import 'package:showcaseview/showcaseview.dart';
@@ -19,13 +22,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // --- IMPORTS DE LA IA (SERVICIOS Y WIDGETS) ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
-import 'package:proveedor_servicly_app/ai/services/servi_brain_service.dart'; 
 import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 // --- IMPORTS PARA LA CONEXIÓN REAL (CEREBRO HÍBRIDO) ---
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
-import 'package:proveedor_servicly_app/ai/services/servi_conversational_service.dart';
+
+// --- IMPORTS PROACTIVOS (MARKETING & CRM) ---
+import 'package:proveedor_servicly_app/features/promotion/services/proactive_insight_engine.dart';
+import 'package:proveedor_servicly_app/features/promotion/screens/marketing_center_screen.dart';
+import 'package:proveedor_servicly_app/features/promotion/models/smart_insight_model.dart'; 
+
+// --- IMPORTS CRM (LEADS) ---
+import 'package:proveedor_servicly_app/features/crm/services/proactive_lead_engine.dart';
+import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart'; 
+// ✅ CORRECCIÓN: Importamos el modelo Cliente original
+import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 
 // --- Importaciones de Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
@@ -45,7 +57,6 @@ import 'package:proveedor_servicly_app/widgets/dashboard_header.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart';
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
 
-// ✅ CORRECCIÓN 1: Usamos 'as' para evitar conflictos de nombres
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart' as summary_widgets;
 import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart' as metric_widgets;
 
@@ -54,6 +65,7 @@ import 'package:proveedor_servicly_app/ai/screens/servi_chat_screen.dart';
 // --- IMPORTS DE ACCIÓN (PARA NAVEGACIÓN IA) ---
 import 'package:proveedor_servicly_app/features/budget/screens/quote_editor_screen.dart';
 import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -145,7 +157,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   late Future<List<ModuleModel>> _modulesFuture;
   late AnimationController _animationController;
 
-  // --- KEYS PARA EL TOUR ---
   final GlobalKey _keyHeader = GlobalKey();
   final GlobalKey _keyPrompt = GlobalKey();
   final GlobalKey _keyMetrics = GlobalKey();
@@ -153,21 +164,21 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   final GlobalKey _keyPublicProfile = GlobalKey(); 
   final GlobalKey _keyModulesGrid = GlobalKey(); 
 
-  // --- IA SERVICIOS ---
   final ServiVoiceService _voiceService = ServiVoiceService();
   final stt.SpeechToText _speech = stt.SpeechToText();
   
-  // Usamos el conector directo en lugar del BrainService antiguo para tener control total del JSON
+  final ProactiveLeadEngine _leadEngine = ProactiveLeadEngine();
+  StreamSubscription? _leadSubscription;
+  SmartInsight? _currentInsight; 
+  
   late ServiApiConnectorService _apiConnector; 
   
-  // Estados de la IA
   bool _isSpeaking = false; 
   bool _isListening = false;
   bool _isThinking = false; 
   
   bool _isTourCheckPending = true;
 
-  // --- MULETILLAS ARGENTINAS (Para llenar silencios) ---
   final List<String> _fillers = [
     "A ver, bancame un segundo que reviso...",
     "Analizando tus datos, dame un toque...",
@@ -180,14 +191,11 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   void initState() {
     super.initState();
     
-    // --- 🧠 INICIALIZACIÓN DEL CEREBRO HÍBRIDO ---
     final firestoreService = context.read<FirestoreService>();
     final geminiService = GeminiService(); 
     
-    // Inicializamos el conector directo para acceder a la respuesta JSON cruda
     _apiConnector = ServiApiConnectorService(geminiService);
 
-    // --- Resto de inicializaciones ---
     _modulesFuture = firestoreService.getAvailableModules();
     
     _animationController = AnimationController(
@@ -198,10 +206,29 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     _initVoiceListeners();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _animationController.forward();
+      if (mounted) {
+        _animationController.forward();
+        
+        final user = context.read<UserModel?>();
+        if (user != null) {
+           // 1. ESCUCHA ACTIVA DE LEADS
+           _leadSubscription = _leadEngine.listenForNewLeads(user.uid).listen((insight) {
+              if (insight != null && mounted) {
+                setState(() => _currentInsight = insight);
+                _handleNewInsight(insight); 
+              }
+           });
+
+           // 2. MARKETING PROACTIVO
+           Future.delayed(const Duration(seconds: 3), () {
+              if (_currentInsight == null) { 
+                 _checkProactiveInsights(user);
+              }
+           });
+        }
+      }
     });
 
-    // --- SOLICITUD DE NOTIFICACIONES (PROVEEDOR) ---
     WidgetsBinding.instance.addPostFrameCallback((_) async {
        if (!mounted) return;
        final notificationService = context.read<NotificationService>();
@@ -224,7 +251,107 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     await _voiceService.speak(text);
   }
 
-  // --- LÓGICA DE ESCUCHA (STT) ---
+  void _handleNewInsight(SmartInsight insight) async {
+    setState(() => _isThinking = true);
+
+    String message = insight.message;
+    String actionLabel = "VER";
+    VoidCallback actionCallback = () {}; 
+
+    if (insight.type == InsightType.newLead) {
+       actionLabel = "ATENDER YA";
+       // ✅ Callback seguro
+       actionCallback = () => _navigateToCRM(insight);
+    } else {
+       actionLabel = "VER OPORTUNIDAD";
+       actionCallback = () => _navigateToPromoCreator(insight.suggestedPromo);
+    }
+
+    if (mounted) setState(() => _isThinking = false);
+
+    _speak(message);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(insight.type == InsightType.newLead ? Icons.notifications_active : Icons.auto_awesome, color: Colors.amber), 
+                const SizedBox(width: 8), 
+                Text(insight.type == InsightType.newLead ? "NUEVO CLIENTE" : "OPORTUNIDAD", style: const TextStyle(fontWeight: FontWeight.bold))
+              ]),
+              Text(message, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+          backgroundColor: const Color(0xFF2D2D5A),
+          duration: const Duration(seconds: 10),
+          action: SnackBarAction(
+            label: actionLabel,
+            textColor: Colors.greenAccent,
+            onPressed: actionCallback,
+          ),
+        ),
+      );
+    }
+  }
+
+  // --- NAVEGACIÓN CRM (CORREGIDA PARA USAR CLIENTE) ---
+  void _navigateToCRM(SmartInsight insight) async {
+     _leadEngine.markLeadAsAnalyzed(insight.id);
+
+     setState(() => _isThinking = true);
+
+     try {
+       // 1. Buscamos el documento en la colección de 'leads' (o 'clientes')
+       final docSnapshot = await FirebaseFirestore.instance.collection('leads').doc(insight.id).get();
+       
+       if (docSnapshot.exists && mounted) {
+          // 2. ✅ CORRECCIÓN: Usamos Cliente.fromFirestore
+          // Esto soluciona el conflicto de tipos
+          final clienteModel = Cliente.fromFirestore(docSnapshot);
+
+          setState(() => _isThinking = false);
+          
+          // 3. Navegamos pasando el modelo Cliente
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => LeadDetailScreen(lead: clienteModel)
+          ));
+       } else {
+          if (mounted) setState(() => _isThinking = false);
+          _speak("Parece que ese cliente ya no está disponible.");
+       }
+     } catch (e) {
+       debugPrint("Error cargando cliente: $e");
+       if (mounted) setState(() => _isThinking = false);
+       _speak("Tuve un problema cargando los datos del cliente.");
+     }
+  }
+
+  void _navigateToPromoCreator(Map<String, dynamic>? data) {
+      if (data == null) return;
+      
+      int targetTab = 0;
+      final String type = (data['type'] ?? '').toString().toUpperCase();
+
+      if (type == 'GIFT_CARD') {
+         targetTab = 1; 
+      } else if (type == 'DISCOUNT' || type == 'LOW_DENSITY') {
+         targetTab = 0; 
+      } else {
+         targetTab = 2; 
+      }
+
+      Navigator.push(context, MaterialPageRoute(
+        builder: (context) => MarketingCenterScreen(
+          initialData: data,
+          initialTabIndex: targetTab,
+        )
+      ));
+  }
+
   Future<void> _listen(UserModel user) async {
     if (_isListening || _isThinking) return; 
 
@@ -248,7 +375,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         onResult: (val) {
           if (val.finalResult) {
             setState(() => _isListening = false);
-            // ✅ Pasamos el usuario capturado
             _processVoiceCommand(val.recognizedWords, user);
           }
         },
@@ -259,38 +385,26 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     }
   }
 
-  // --- CEREBRO: PROCESAMIENTO CON FEEDBACK Y NAVEGACIÓN ---
   Future<void> _processVoiceCommand(String command, UserModel user) async {
     if (command.trim().isEmpty) return;
 
-    // 1. Activar Feedback Visual (Avatar girando)
     setState(() => _isThinking = true);
 
-    // 2. Feedback Auditivo (Muletilla)
     if (command.split(' ').length > 2) {
        _fillers.shuffle();
        _speak(_fillers.first); 
     }
 
     try {
-        // 3. Procesamiento Real usando el conector directo (devuelve JSON Map)
         final responseMap = await _apiConnector.callServiLLM(command, user.uid);
         
-        // 4. Apagar Feedback Visual
         if (mounted) setState(() => _isThinking = false);
         
-        // 5. Procesar Respuesta
         String textoHablado = responseMap['TEXTO_VOZ'] ?? responseMap['TEXTO_ESCRITO'] ?? "Listo.";
         await _speak(textoHablado);
 
-        // --- 6. EJECUTAR ACCIONES DE NAVEGACIÓN ---
-        
-        // CASO A: PRESUPUESTO
         if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRESUPUESTO') {
-            debugPrint("🚀 SERVI: Ejecutando navegación a Presupuesto (desde Dashboard)...");
             final datos = responseMap['DATOS_PRECARGA'] ?? {};
-            
-            // Esperar que termine de hablar
             await Future.delayed(const Duration(milliseconds: 1500));
 
             if (mounted) {
@@ -305,17 +419,13 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
                 ));
             }
         }
-        // CASO B: PRODUCTO (INVENTARIO)
         else if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRODUCTO') {
-            debugPrint("📦 SERVI: Ejecutando navegación a Nuevo Producto (desde Dashboard)...");
             final datos = responseMap['DATOS_PRECARGA'] ?? {};
-            
             await Future.delayed(const Duration(milliseconds: 1500));
 
             if (mounted) {
                 Navigator.push(context, MaterialPageRoute(
                     builder: (_) => AddEditProductScreen(
-                        // Pasamos el usuario explícitamente ya que lo tenemos aquí
                         user: user, 
                         initialName: datos['nombre_producto'],
                         initialPrice: double.tryParse(datos['precio']?.toString() ?? '0'),
@@ -333,7 +443,16 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     }
   }
 
-  // --- UTILIDADES DEL TOUR ---
+  Future<void> _checkProactiveInsights(UserModel user) async {
+      final insightEngine = ProactiveInsightEngine(); 
+      final insight = await insightEngine.analyzeBookingTrends(user.uid);
+
+      if (insight != null && mounted) {
+          debugPrint("💡 SERVI MARKETER: ${insight.message}");
+          _handleNewInsight(insight);
+      }
+  }
+
   String _getUserName(UserModel user) {
     if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
       return user.displayName!.trim().split(' ')[0];
@@ -353,7 +472,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 
   void _onShowcaseStepStart(int? index, GlobalKey key) {
-    // Aquí podemos seguir usando context.read porque es un evento síncrono de UI
     final user = context.read<UserModel>();
     String script = _getScriptForStep(key, user);
     if (key.currentContext != null) {
@@ -366,10 +484,8 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     }
   }
 
-  // ✅ CORRECCIÓN: Recibe UserModel y BuildContext (valido) para evitar usar context.read tras un await
   Future<void> _checkIfFirstTime(BuildContext showcaseContext, UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
-    // Ya no hacemos context.read aquí
     final String tourKey = 'hasSeenDashboardTour_v12_${user.uid}'; 
     final bool hasSeenTour = prefs.getBool(tourKey) ?? false;
 
@@ -377,7 +493,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
       String name = _getUserName(user);
       await _speak("Hola $name. Soy Servi. Ahora tengo oídos. Tocá mi avatar abajo para hablarme.");
       
-      // Verificamos si el contexto del showcase sigue montado
       if (mounted && showcaseContext.mounted) {
         ShowCaseWidget.of(showcaseContext).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
         prefs.setBool(tourKey, true);
@@ -390,8 +505,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     ShowCaseWidget.of(showcaseContext).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
   }
 
-  // --- GESTIÓN DEL BOTÓN FLOTANTE INTELIGENTE ---
-  // ✅ Recibe el usuario desde el build para pasarlo
   void _handleAvatarTap(UserModel user) {
     if (_isThinking) return; 
     
@@ -410,6 +523,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     _animationController.dispose();
     _voiceService.dispose();
     _speech.stop();
+    _leadSubscription?.cancel(); 
     super.dispose();
   }
 
@@ -427,18 +541,15 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
       builder: (context) { 
         if (_isTourCheckPending) {
           _isTourCheckPending = false;
-          // ✅ CORRECCIÓN: Pasamos el 'userModel' capturado en el build
           WidgetsBinding.instance.addPostFrameCallback((_) => _checkIfFirstTime(context, userModel));
         }
 
         return Scaffold(
           appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.transparent, elevation: 0),
           
-          // --- SERVI AVATAR FLOTANTE (BOTÓN DE ESCUCHA) ---
           floatingActionButton: Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
             child: GestureDetector(
-              // ✅ Pasamos userModel al handler
               onTap: () => _handleAvatarTap(userModel),
               onLongPress: () => _manualTourStart(context),
               child: ServiAvatar(
@@ -501,7 +612,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
             child: Text("Resumen en Vivo", style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70, fontWeight: FontWeight.w600)),
           ),
           
-          // Barra de Chat
           Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
             child: Showcase(
@@ -512,14 +622,12 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
           Showcase(
             key: _keyMetrics, title: 'Métricas', description: 'Visitas y contactos recibidos.',
-            // ✅ CORRECCIÓN 2: Usamos el alias 'metric_widgets'
             child: metric_widgets.DashboardMetricsCard(userModel: userModel),
           ),
           const SizedBox(height: 32),
           
           Showcase(
             key: _keySummaryCards, title: 'Estado de tu Negocio', description: 'Finanzas, Citas y Solicitudes.',
-            // ✅ CORRECCIÓN 3: Usamos el alias 'summary_widgets'
             child: const summary_widgets.DashboardSummaryCards(),
           ),
           const SizedBox(height: 32),
@@ -554,8 +662,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 }
 
-// ... (Resto de widgets auxiliares se mantienen igual)
-// _ServiPromptBar, _PlaceholderScreen, _ProfileCompletionBanner, etc.
+// ... (Widgets auxiliares sin cambios)
 class _ServiPromptBar extends StatelessWidget {
     const _ServiPromptBar();
     @override

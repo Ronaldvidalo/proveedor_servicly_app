@@ -1,99 +1,133 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+// Importaciones de tu proyecto
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 import 'package:proveedor_servicly_app/features/crm/core/crm_enums.dart';
 
 /// El Repositorio es responsable de toda la interacción con Firestore para el módulo CRM.
+/// Se ha optimizado para manejar correctamente el mapeo de la clase Cliente y la trazabilidad de Leads.
 class CrmRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  // Asume que el usuario ya está autenticado y tenemos su UID
-  final String _userId = FirebaseAuth.instance.currentUser?.uid ?? 'default_user_id'; 
 
-  // Referencia a la colección 'clientes' para el usuario actual (Dueño del CRM)
-  CollectionReference get _clientesRef => 
-    _firestore.collection('users').doc(_userId).collection('clientes');
+  // Obtener el ID del usuario actual de forma dinámica
+  String get _userId => FirebaseAuth.instance.currentUser?.uid ?? 'default_user_id';
 
-  // Referencia al documento de configuración del usuario (para plan y límites)
-  DocumentReference get _userDocRef => 
-    _firestore.collection('users').doc(_userId);
+  // --- REFERENCIAS DE COLECCIÓN ---
 
-  // --- Stream 1: Clientes Activos (Pestaña Clientes) ---
+  /// Referencia a la colección 'clientes'. 
+  /// Usamos Map<String, dynamic> para mayor compatibilidad en operaciones de escritura.
+  CollectionReference<Map<String, dynamic>> get _clientesRef => _firestore
+      .collection('users')
+      .doc(_userId)
+      .collection('clientes');
+
+  /// Referencia al documento de configuración del usuario.
+  DocumentReference<Map<String, dynamic>> get _userDocRef =>
+      _firestore.collection('users').doc(_userId);
+
+  // --- STREAMS DE DATOS EN TIEMPO REAL ---
+
+  /// Obtiene los Clientes Activos (Pestaña Clientes).
   Stream<List<Cliente>> getClientesActivos({String? searchTerm, bool isPro = false}) {
-    Query query = _clientesRef.where('estadoCRM', isEqualTo: CrmEstado.clienteActivo.name);
+    Query<Map<String, dynamic>> query = _clientesRef.where('estadoCRM', isEqualTo: CrmEstado.clienteActivo.name);
+    
     return query.snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Cliente.fromFirestore(doc)).toList();
+      List<Cliente> results = snapshot.docs.map((doc) => Cliente.fromFirestore(doc)).toList();
+      
+      if (searchTerm != null && searchTerm.isNotEmpty) {
+        final term = searchTerm.toLowerCase();
+        return results.where((c) => 
+          c.nombreCompleto.toLowerCase().contains(term) || 
+          c.email.toLowerCase().contains(term)
+        ).toList();
+      }
+      return results;
     });
   }
 
-  // --- Stream 2: Leads (Pestaña Leads) ---
+  /// Obtiene los Leads (Pestaña Leads) según el nivel de plan (Free/Pro).
+  /// Incluye todos los leads, independientemente de si vienen del catálogo o creación manual.
   Stream<List<Cliente>> getLeadsStream({String? searchTerm, bool isPro = false}) {
-    
     List<String> leadStates = [
-      CrmEstado.leadNuevo.name, // Visible para Free y Pro
-      CrmEstado.lead.name,      
+      CrmEstado.leadNuevo.name,
+      CrmEstado.lead.name,
     ];
 
     if (isPro) {
-      // Los usuarios Pro ven los estados avanzados del pipeline también
       leadStates.addAll([
         CrmEstado.contactado.name,
         CrmEstado.cotizado.name
       ]);
     }
 
-    Query query = _clientesRef.where('estadoCRM', whereIn: leadStates);
-    
+    Query<Map<String, dynamic>> query = _clientesRef.where('estadoCRM', whereIn: leadStates);
+
     return query.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Cliente.fromFirestore(doc)).toList();
     });
   }
-  
-  // --- Stream 3: Configuración del Usuario ---
-  Stream<Map<String, dynamic>> getUserConfigStream() {
-    return _userDocRef.snapshots().map((doc) => doc.data() as Map<String, dynamic>? ?? {});
+
+  /// Stream específico para filtrar Leads provenientes del Catálogo.
+  Stream<List<Cliente>> getCatalogLeadsStream() {
+    return _clientesRef
+        .where('source', isGreaterThanOrEqualTo: 'catalog')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => Cliente.fromFirestore(doc)).toList());
   }
 
-  // ----------------------------------------------------------------------
-  // --- MÉTRICAS DE DASHBOARD (NUEVO MÉTODO) ---
-  // ----------------------------------------------------------------------
+  /// Configuración del Usuario (Plan y Límites).
+  Stream<Map<String, dynamic>> getUserConfigStream() {
+    return _userDocRef.snapshots().map((doc) => doc.data() ?? {});
+  }
 
-  /// Obtiene el conteo en tiempo real de Leads activos en el pipeline.
+  /// Conteo en tiempo real de Leads activos para el Dashboard.
   Stream<int> getLeadCountStream() {
-    // Filtramos los estados que consideramos Leads (no Clientes Activos/Inactivos)
     List<String> leadStates = [
       CrmEstado.leadNuevo.name,
       CrmEstado.lead.name,
       CrmEstado.contactado.name,
       CrmEstado.cotizado.name,
     ];
-    
+
     return _clientesRef
         .where('estadoCRM', whereIn: leadStates)
         .snapshots()
-        .map((snapshot) => snapshot.docs.length); 
+        .map((snapshot) => snapshot.docs.length);
   }
-  // ----------------------------------------------------------------------
 
   // --- MÉTODOS DE ACTUALIZACIÓN DEL PIPELINE ---
 
-  // Método para convertir un Lead a Cliente
+  /// Convierte un Lead a Cliente Activo.
   Future<void> convertLeadToClient(String leadId) async {
-    final clientRef = _clientesRef.doc(leadId);
-    return clientRef.update({ 
+    return _clientesRef.doc(leadId).update({
       'estadoCRM': CrmEstado.clienteActivo.name,
+      'ultimaInteraccion': FieldValue.serverTimestamp(),
     });
   }
-  
-  // Método para actualizar el estado del Lead en el pipeline
-  Future<void> updateLeadStatus(String leadId, CrmEstado newStatus) async {
-    return _clientesRef.doc(leadId).update({ 
-      'estadoCRM': newStatus.name,
-    });
-  }
-  
-  // --- MÉTODOS DE CREACIÓN ---
 
-  // Crea un Lead o Cliente manualmente (desde el formulario interno del proveedor)
+  /// Actualiza manualmente el estado de un Lead en el embudo.
+  Future<void> updateLeadStatus(String leadId, CrmEstado newStatus) async {
+    return _clientesRef.doc(leadId).update({
+      'estadoCRM': newStatus.name,
+      'ultimaInteraccion': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Actualiza un cliente completo usando el modelo (Necesario para LeadDetailScreen).
+  Future<void> updateClient(Cliente cliente) async {
+    return _clientesRef.doc(cliente.id).update(cliente.toMap());
+  }
+
+  /// Elimina un cliente/lead de la base de datos.
+  Future<void> deleteCliente(String clientId) async {
+    return _clientesRef.doc(clientId).delete();
+  }
+
+  // --- MÉTODOS DE CREACIÓN Y CAPTURA ---
+
+  /// Crea un nuevo contacto manualmente desde el formulario interno del proveedor.
   Future<void> createCliente(Map<String, dynamic> data) async {
     await _clientesRef.add({
       ...data,
@@ -102,32 +136,30 @@ class CrmRepository {
       'montoTotalFacturado': 0.0,
       'etiquetas': [],
       'notasInternas': '',
+      'source': 'manual_admin', // Identificador de creación interna
     });
   }
-  
-  /// Registra un Lead automáticamente desde una interacción pública.
-  /// Este método escribe en la colección del PROVEEDOR especificado.
+
+  /// Registra un Lead automáticamente desde una interacción pública (Catálogo/Tienda).
+  /// Escribe en la colección del PROVEEDOR especificado.
   Future<void> captureLeadFromPublicProfile({
-    required String? email, 
-    required String? nombreCompleto, 
-    required String source, // e.g., 'tienda_whatsapp', 'catalogo_telefono'
-    required String providerId, // ID del proveedor que recibe el lead
+    required String? email,
+    required String? nombreCompleto,
+    required String source, // e.g., 'catalog_whatsapp', 'catalog_appointment'
+    required String providerId,
     String? telefono,
-    String? logoUrl, 
+    String? logoUrl,
     String? location,
   }) async {
-    // 1. Determinar el estado inicial del Lead
     final estado = CrmEstado.leadNuevo.name;
-    
-    // CORRECCIÓN: Referencia a la colección del PROVEEDOR (dueño de la tienda)
+
     final providerLeadsRef = _firestore
         .collection('users')
         .doc(providerId)
         .collection('clientes');
 
-    // 2. Crear el documento del Lead
     await providerLeadsRef.add({
-      'nombreCompleto': nombreCompleto ?? 'Visitante Anónimo',
+      'nombreCompleto': nombreCompleto ?? 'Visitante Catálogo',
       'email': email ?? '',
       'telefono': telefono ?? '',
       'estadoCRM': estado,
@@ -135,16 +167,17 @@ class CrmRepository {
       'ultimaInteraccion': FieldValue.serverTimestamp(),
       'source': source,
       'montoTotalFacturado': 0.0,
-      'etiquetas': ['public_lead', source.split('_').first], // Tag automático
-      'notasInternas': 'Capturado automáticamente el: ${DateTime.now()} desde $source.',
+      'etiquetas': ['public_lead', source.split('_').last],
+      'notasInternas': 'Lead automático generado desde: $source.',
       'logoUrl': logoUrl,
       'location': location,
-      
     });
+    
+    debugPrint("Lead capturado para el proveedor $providerId desde fuente: $source");
   }
 
-  // --- MÉTODOS DE DETALLE PRO ---
-  
+  // --- GESTIÓN PRO Y ETIQUETAS ---
+
   Future<int> getClienteCount() async {
     final snapshot = await _clientesRef.count().get();
     return snapshot.count ?? 0;
@@ -161,38 +194,30 @@ class CrmRepository {
       'notasInternas': notes,
     });
   }
-  
-  // ----------------------------------------------------
-  // --- MVP 2.0: AUDITORÍA DE PRECISIÓN DE SERVI (IA) ---
-  // ----------------------------------------------------
-  
-  // Helper para la colección de auditoría (servi_audit)
-  CollectionReference _getServiAuditRef(String clientId) => 
-    _clientesRef.doc(clientId).collection('servi_audit');
 
-  /// Registra una interacción del usuario con una recomendación de SERVI.
-  /// Añade el ID de la orden para medir el ROI generado por la IA.
+  // --- AUDITORÍA DE PRECISIÓN DE SERVI (IA) ---
+
+  /// Registra una interacción con las recomendaciones de IA.
   Future<void> recordServiRecommendation(
-    String clientId, 
-    String suggestedProduct, 
+    String clientId,
+    String suggestedProduct,
     bool wasSuccessful,
-    String? relatedOrderId) async { // <-- AGREGADO DE CAMPO OPCIONAL
-  
-    // 1. Registrar la interacción en la subcolección de auditoría
-    await _getServiAuditRef(clientId).add({
+    String? relatedOrderId,
+  ) async {
+    final auditRef = _clientesRef.doc(clientId).collection('servi_audit');
+
+    await auditRef.add({
       'timestamp': FieldValue.serverTimestamp(),
       'feature': 'product_recommendation',
       'suggested_product': suggestedProduct,
       'was_successful': wasSuccessful,
       'status': wasSuccessful ? 'Accepted' : 'Ignored',
-      'related_order_id': relatedOrderId, // Trazabilidad de la venta
+      'related_order_id': relatedOrderId,
     });
-    
-    // 2. Opcional: Añadir etiqueta de éxito al cliente
+
     if (wasSuccessful) {
       await _clientesRef.doc(clientId).update({
-        // Usamos arrayUnion para añadir la etiqueta sin sobrescribir las existentes
-        'etiquetas': FieldValue.arrayUnion(['servi_win', 'recom_${suggestedProduct.toLowerCase()}']), 
+        'etiquetas': FieldValue.arrayUnion(['servi_win', 'recom_${suggestedProduct.toLowerCase()}']),
         'ultimaInteraccion': FieldValue.serverTimestamp(),
       });
     }

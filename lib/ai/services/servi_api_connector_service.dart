@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 
+// --- IMPORT NECESARIO PARA PROMOS ---
+import 'package:proveedor_servicly_app/features/promotion/models/smart_insight_model.dart'; 
+
 class ServiApiConnectorService {
   final GeminiService _geminiService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -107,6 +110,60 @@ class ServiApiConnectorService {
     };
 
     return await _geminiService.callContextualLLM(query, contextJson);
+  }
+
+  // ==============================================================================
+  // 🧠 NUEVO: GENERADOR DE ALERTAS PROACTIVAS (PROMOS)
+  // ==============================================================================
+  Future<Map<String, dynamic>> generateProactiveMessage(SmartInsight insight, String userName) async {
+    
+    // 1. Construimos el contexto específico para la Promo
+    final String contextData = """
+    DATOS DEL HALLAZGO (INSIGHT):
+    - Tipo: ${insight.type.name}
+    - Mensaje Técnico: ${insight.message}
+    - Datos Sugeridos: ${insight.suggestedPromo.toString()}
+    
+    OBJETIVO:
+    Actúa como un socio comercial experto (con modismos argentinos profesionales).
+    Debes comunicarle este hallazgo al usuario '$userName' y proponerle activar la promoción sugerida.
+    Tu tono debe ser de "Alerta de Oportunidad", no de regaño.
+    """;
+
+    // 2. Prompt del Sistema específico para Insights
+    const String systemPrompt = """
+    Eres Servi, el asistente IA de la App Servicly.
+    Tu tarea es transformar datos técnicos en consejos de negocios accionables.
+    
+    REGLAS DE RESPUESTA JSON:
+    Debes responder SIEMPRE con este JSON exacto:
+    {
+      "INTENCION": "PROACTIVE_INSIGHT",
+      "TEXTO_VOZ": "Tu frase vendedora y empática aquí...",
+      "DATOS_ACCION": {
+         "screen": "PROMO_CREATOR",
+         "promo_data": { ...copia los datos sugeridos del insight aquí... }
+      }
+    }
+    """;
+
+    // 3. Llamada a Gemini
+    try {
+       // Simulamos una "pregunta del sistema" para disparar la generación
+       final response = await _geminiService.callContextualLLM(
+         "Genera la alerta proactiva basada en el insight.", 
+         { 
+           "system_role": systemPrompt,
+           "current_insight": contextData
+         }
+       );
+       return response;
+    } catch (e) {
+       return {
+         "TEXTO_VOZ": "Che, vi algo interesante en tus métricas, ¿lo revisamos?",
+         "INTENCION": "ERROR"
+       };
+    }
   }
 
   // ==============================================================================
@@ -299,5 +356,28 @@ class ServiApiConnectorService {
               };
           }
       } catch (e) { debugPrint("⚠️ Error Datos Personales: $e"); }
+  }
+  Future<String> generateSalesStrategy(String serviceName, String clientName) async {
+    const systemPrompt = """
+    Eres un Coach de Ventas Experto. Tu usuario es un proveedor de servicios.
+    Acaba de recibir un lead. Tu objetivo es darle un consejo CORTO y LETAL de 15 palabras para cerrar la venta.
+    Sugiere un gancho (descuento, urgencia, beneficio).
+    Tono: Argentino profesional, motivador.
+    """;
+
+    try {
+      final response = await _geminiService.callContextualLLM(
+        "Generar consejo venta", 
+        {
+          "system_role": systemPrompt,
+          "context": "Cliente: $clientName. Interesado en: $serviceName."
+        }
+      );
+      
+      // Si usas el método que devuelve Map, extrae el texto. Si devuelve String, úsalo directo.
+      return response['TEXTO_VOZ'] ?? "Ofrecele un turno inmediato para ganarle a la competencia.";
+    } catch (e) {
+      return "Contactalo rápido, la velocidad es clave para cerrar ventas.";
+    }
   }
 }

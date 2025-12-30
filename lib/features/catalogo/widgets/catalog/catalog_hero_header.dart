@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/features/booking/screens/booking_screen.dart';
 
+// ✅ Importamos los widgets compartidos para mantener la consistencia técnica
+import 'package:proveedor_servicly_app/features/reviews/widgets/provider_rating_badge.dart';
+
 class CatalogHeroHeader extends StatelessWidget {
   final ProviderProfileModel profile;
   final bool isEditor;
@@ -25,13 +28,12 @@ class CatalogHeroHeader extends StatelessWidget {
     // Definimos el color de marca (fallback a un color oscuro si es nulo)
     final brandColor = profile.brandColor ?? const Color(0xFF1A1A2E);
     
-    // Lógica para el texto del Rating (ej: "4.8")
-    final double ratingValue = profile.averageRating ?? 5.0;
-    final String ratingText = ratingValue.toStringAsFixed(1);
-    final int reviewCount = profile.reviewCount ?? 0;
+    // ✅ Lógica dinámica del botón principal según la configuración del editor
+    final bool isAgenda = profile.bookingActionType == 'agenda';
+    final String buttonLabel = profile.bookingButtonText ?? (isAgenda ? "Agendar Cita" : "Pedir Presupuesto");
     
     // Altura extendida para contener toda la información sin scroll inicial
-    const double headerHeight = 460.0;
+    const double headerHeight = 480.0;
 
     return SliverAppBar(
       expandedHeight: headerHeight,
@@ -44,24 +46,24 @@ class CatalogHeroHeader extends StatelessWidget {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. IMAGEN DE FONDO
-            if (profile.logoUrl.isNotEmpty)
-              Image.network(profile.logoUrl, fit: BoxFit.cover)
-            else
-              Container(color: brandColor.withAlpha(150)),
+            // 1. IMAGEN DE FONDO (COVER)
+            // ✅ Ahora utiliza coverImageUrl como prioridad, igual que en el editor
+            _buildBackgroundImage(brandColor),
 
             // 2. GRADIENTES DE CONTRASTE (Protección de lectura)
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black54, // Sombra para botones superiores
-                    Colors.transparent,
-                    Colors.black,   // Negro profundo para la info inferior
-                  ],
-                  stops: [0.0, 0.3, 0.82],
+            const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black54, // Sombra para botones superiores
+                      Colors.transparent,
+                      Colors.black,   // Negro profundo para la info inferior
+                    ],
+                    stops: [0.0, 0.3, 0.85],
+                  ),
                 ),
               ),
             ),
@@ -73,7 +75,7 @@ class CatalogHeroHeader extends StatelessWidget {
               right: 16,
               child: Row(
                 children: [
-                  // Avatar con borde nítido
+                  // Avatar con borde nítido vinculado a logoUrl
                   Container(
                     padding: const EdgeInsets.all(2),
                     decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white24),
@@ -110,7 +112,7 @@ class CatalogHeroHeader extends StatelessWidget {
               ),
             ),
 
-            // 4. SECCIÓN INFERIOR: Rating, Contacto y CTA principal
+            // 4. SECCIÓN INFERIOR: Rating, Info y CTA principal
             Positioned(
               bottom: 24,
               left: 20,
@@ -119,50 +121,21 @@ class CatalogHeroHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   
-                  // --- BLOQUE DE CALIFICACIÓN (INTEGRADO AQUÍ) ---
-                  Row(
-                    children: [
-                      Text(
-                        ratingText, 
-                        style: const TextStyle(
-                          color: Colors.white, 
-                          fontSize: 26, 
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(blurRadius: 4, color: Colors.black45)]
-                        )
-                      ),
-                      const SizedBox(width: 8),
-                      // Generación dinámica de estrellas
-                      ...List.generate(5, (index) {
-                        IconData icon;
-                        if (index < ratingValue.floor()) {
-                          icon = Icons.star; // Estrella llena
-                        } else if (index < ratingValue) {
-                          icon = Icons.star_half; // Media estrella
-                        } else {
-                          icon = Icons.star_border; // Estrella vacía
-                        }
-                        return Icon(
-                          icon,
-                          color: Colors.amber,
-                          size: 20,
-                        );
-                      }),
-                      const SizedBox(width: 8),
-                      Text(
-                        '($reviewCount Reviews)', 
-                        style: const TextStyle(
-                          color: Colors.white70, 
-                          fontSize: 13,
-                          shadows: [Shadow(blurRadius: 4, color: Colors.black45)]
-                        )
-                      ),
-                    ],
+                  // ✅ WIDGET REUTILIZABLE DE RATING (Espejo del editor)
+                  ProviderRatingBadge(
+                    profile: profile,
+                    starSize: 20,
+                    textStyle: const TextStyle(
+                      color: Colors.white, 
+                      fontSize: 26, 
+                      fontWeight: FontWeight.bold,
+                      shadows: [Shadow(blurRadius: 4, color: Colors.black45)]
+                    ),
                   ),
+                  
                   const SizedBox(height: 14),
-                  // ----------------------------------------------
 
-                  // Filas de Información sutiles
+                  // Filas de Información basadas en address
                   _buildInfoRow(Icons.location_on_outlined, profile.address ?? "Consultar ubicación"),
                   _buildInfoRow(Icons.access_time_rounded, profile.openingHours ?? "Consultar horario"),
                   
@@ -172,28 +145,41 @@ class CatalogHeroHeader extends StatelessWidget {
                   Row(
                     children: [
                       // Botones de contacto flotantes
-                      if (profile.whatsapp != null)
-                        _buildContactIcon(Icons.chat_bubble_outline, Colors.greenAccent, "whatsapp"),
+                      if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty)
+                        _buildContactIcon(Icons.chat_bubble_outline, const Color(0xFF00B2B2), "whatsapp"),
                       const SizedBox(width: 12),
-                      if (profile.phone != null)
-                        _buildContactIcon(Icons.phone_outlined, Colors.blueAccent, "tel"),
+                      if (profile.phone != null && profile.phone!.isNotEmpty)
+                        _buildContactIcon(Icons.phone_outlined, Colors.white70, "tel"),
                       
                       const SizedBox(width: 16),
                       
-                      // Botón Agendar: Fuerte contraste y jerarquía
+                      // ✅ Botón Dinámico: Refleja la elección del editor
                       Expanded(
                         child: SizedBox(
-                          height: 50,
+                          height: 52,
                           child: FilledButton(
                             style: FilledButton.styleFrom(
                               backgroundColor: const Color(0xFF00B2B2),
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               elevation: 4,
-                              shadowColor: const Color(0xFF00B2B2).withAlpha(100),
+                              shadowColor: const Color(0xFF00B2B2).withValues(alpha: 0.3),
                             ),
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BookingScreen(providerId: profile.providerId))),
-                            child: const Text("Agendar Cita Ahora", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 0.5)),
+                            onPressed: () {
+                              if (isAgenda) {
+                                Navigator.push(
+                                  context, 
+                                  MaterialPageRoute(builder: (_) => BookingScreen(providerId: profile.providerId))
+                                );
+                              } else {
+                                // Lógica para Pedir Presupuesto (WhatsApp o Formulario)
+                                _handleQuoteAction();
+                              }
+                            },
+                            child: Text(
+                              buttonLabel.toUpperCase(), 
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.8)
+                            ),
                           ),
                         ),
                       ),
@@ -208,7 +194,18 @@ class CatalogHeroHeader extends StatelessWidget {
     );
   }
 
-  // --- WIDGETS AUXILIARES ---
+  // --- MÉTODOS DE CONSTRUCCIÓN TÉCNICA ---
+
+  Widget _buildBackgroundImage(Color brandColor) {
+    // ✅ Prioridad: coverImageUrl -> logoUrl -> brandColor
+    if (profile.coverImageUrl != null && profile.coverImageUrl!.isNotEmpty) {
+      return Image.network(profile.coverImageUrl!, fit: BoxFit.cover);
+    } else if (profile.logoUrl.isNotEmpty) {
+      return Image.network(profile.logoUrl, fit: BoxFit.cover);
+    } else {
+      return Container(color: brandColor.withValues(alpha: 0.6));
+    }
+  }
 
   Widget _buildFollowButton() {
     return InkWell(
@@ -237,12 +234,23 @@ class CatalogHeroHeader extends StatelessWidget {
 
   Widget _buildInfoRow(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white70, size: 16),
+          Icon(icon, color: const Color(0xFF00B2B2), size: 18),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 13, shadows: [Shadow(blurRadius: 6, color: Colors.black)]))),
+          Expanded(
+            child: Text(
+              text, 
+              style: const TextStyle(
+                color: Colors.white, 
+                fontSize: 14, 
+                shadows: [Shadow(blurRadius: 6, color: Colors.black)]
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          ),
         ],
       ),
     );
@@ -260,11 +268,11 @@ class CatalogHeroHeader extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.black.withAlpha(120),
+          color: Colors.black.withValues(alpha: 0.4),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: Colors.white10),
         ),
-        child: Icon(icon, color: color, size: 22),
+        child: Icon(icon, color: color, size: 24),
       ),
     );
   }
@@ -273,13 +281,13 @@ class CatalogHeroHeader extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isEditor ? const Color(0xFF00B2B2) : Colors.white10,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white24),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
       ),
       child: isEditor 
         ? const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8), 
-            child: Text("Save", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+            child: Text("EDITOR", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))
           )
         : IconButton(
             icon: const Icon(Icons.share_outlined, color: Colors.white, size: 20), 
@@ -287,5 +295,10 @@ class CatalogHeroHeader extends StatelessWidget {
             tooltip: 'Compartir',
           ),
     );
+  }
+
+  void _handleQuoteAction() {
+    // Lógica para disparar el flujo de presupuesto/whatsapp
+    debugPrint("Acción de Presupuesto disparada");
   }
 }

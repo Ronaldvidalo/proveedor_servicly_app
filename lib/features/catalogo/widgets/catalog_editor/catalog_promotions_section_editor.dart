@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:proveedor_servicly_app/features/promotion/models/promotion_model.dart';
+import 'package:proveedor_servicly_app/features/promotion/screens/marketing_center_screen.dart';
 
 class CatalogPromotionsSectionEditor extends StatelessWidget {
-  final ProviderProfileModel profile;
+  final String providerId;
 
-  const CatalogPromotionsSectionEditor({super.key, required this.profile});
+  const CatalogPromotionsSectionEditor({super.key, required this.providerId});
 
   @override
   Widget build(BuildContext context) {
@@ -14,68 +14,78 @@ class CatalogPromotionsSectionEditor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Ofertas y Promociones", 
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                TextButton.icon(
-                  onPressed: () => _showPromoEditor(context),
-                  icon: const Icon(Icons.edit_note, size: 18),
-                  label: const Text("Editar Promo"),
-                  style: TextButton.styleFrom(foregroundColor: const Color(0xFF00B2B2)),
+          _buildHeader(context),
+          StreamBuilder<List<PromotionModel>>(
+            stream: FirebaseFirestore.instance
+                .collection('promotions') // ✅ Colección raíz
+                .where('providerId', isEqualTo: providerId)
+                .where('type', isEqualTo: 'DISCOUNT')
+                .where('isActive', isEqualTo: true)
+                .snapshots()
+                .map((snap) => snap.docs.map((doc) => PromotionModel.fromFirestore(doc)).toList()),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return _buildEmptyState(context);
+              }
+
+              return SizedBox(
+                height: 100,
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: snapshot.data!.length,
+                  itemBuilder: (context, index) => _buildPromoCard(snapshot.data![index]),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-          
-          // TARJETA DE PROMOCIÓN INTERACTIVA
-          GestureDetector(
-            onTap: () => _showPromoEditor(context),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    profile.brandColor.withValues(alpha: 0.8),
-                    profile.brandColor.withValues(alpha: 0.4),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.percent, color: Colors.white, size: 28),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          profile.promoTitle ?? "Configurar Oferta",
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          profile.promoSubtitle ?? "Toca aquí para definir los días de descuento",
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.keyboard_arrow_right, color: Colors.white38),
-                ],
-              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 10, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Promociones", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline, color: Color(0xFF00B2B2)),
+            onPressed: () => _nav(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromoCard(PromotionModel promo) {
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [const Color(0xFF00B2B2).withValues(alpha: 0.8), const Color(0xFF008080).withValues(alpha: 0.4)]),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.stars, color: Colors.white, size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text("${promo.discountPercentage.toStringAsFixed(0)}% OFF: ${promo.title}", 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(promo.description ?? "Válido hoy", 
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
             ),
           ),
         ],
@@ -83,67 +93,27 @@ class CatalogPromotionsSectionEditor extends StatelessWidget {
     );
   }
 
-  void _showPromoEditor(BuildContext context) {
-    final titleController = TextEditingController(text: profile.promoTitle);
-    final subtitleController = TextEditingController(text: profile.promoSubtitle);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1A2E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 24, right: 24, top: 24
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Editar Promoción", 
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: titleController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: "Título (Ej: 20% OFF en Coloración)",
-                labelStyle: TextStyle(color: Colors.white38),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: subtitleController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: "Subtítulo (Ej: Válido Martes y Miércoles)",
-                labelStyle: TextStyle(color: Colors.white38),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00B2B2)),
-                onPressed: () async {
-                  // Usamos profile.id que ahora ya está definido en el modelo
-                  await context.read<FirestoreService>().updateCatalogField(profile.id, {
-                    'promoTitle': titleController.text.trim(),
-                    'promoSubtitle': subtitleController.text.trim(),
-                  });
-                  if (context.mounted) Navigator.pop(context);
-                },
-                child: const Text("GUARDAR PROMOCIÓN", style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 32),
-          ],
+  Widget _buildEmptyState(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _nav(context),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(vertical: 30),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+        child: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.percent_rounded, color: Colors.white24, size: 40),
+              Text("No hay ofertas activas", style: TextStyle(color: Colors.white38)),
+              Text("Toca para configurar", style: TextStyle(color: Color(0xFF00B2B2), fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _nav(BuildContext context) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const MarketingCenterScreen(initialTabIndex: 0)));
   }
 }

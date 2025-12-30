@@ -8,26 +8,20 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 // --- Servicios ---
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 
-// --- Widgets del Editor (Los que creamos hoy) ---
+// --- Widgets del Editor ---
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_hero_header_editor.dart';
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_portfolio_section_editor.dart';
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_services_section_editor.dart';
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_trust_signals_editor.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_gift_card_section_editor.dart';
+import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog_editor/catalog_promotions_section_editor.dart';
 
-// --- Widgets de Visualización (Reutilizados) ---
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_promotions_section.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_trust_signals.dart';
-import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_gift_card_section.dart';
+// --- Widgets de Visualización ---
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_reviews_section.dart';
-
 
 class CatalogEditorScreen extends StatefulWidget {
   final String providerId;
-
-  const CatalogEditorScreen({
-    super.key, 
-    required this.providerId
-  });
+  const CatalogEditorScreen({super.key, required this.providerId});
 
   @override
   State<CatalogEditorScreen> createState() => _CatalogEditorScreenState();
@@ -37,64 +31,44 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final firestoreService = context.read<FirestoreService>();
-    // Obtenemos el usuario actual para pasarlo a los editores que requieren navegar a BrandSettings
     final currentUser = context.read<UserModel?>();
 
-    if (currentUser == null) {
-      return const Scaffold(body: Center(child: Text("Error de sesión")));
-    }
+    if (currentUser == null) return const Scaffold(body: Center(child: Text("Error de sesión")));
 
     return StreamBuilder<ProviderProfileModel?>(
-      stream: firestoreService.getCatalogStream(widget.providerId), // Stream para cambios en tiempo real
+      stream: firestoreService.getCatalogStream(widget.providerId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF1A1A2E),
-            body: Center(child: CircularProgressIndicator(color: Color(0xFF00B2B2))),
-          );
+          return const Scaffold(backgroundColor: Color(0xFF1A1A2E), body: Center(child: CircularProgressIndicator(color: Color(0xFF00B2B2))));
         }
 
         final profile = snapshot.data;
-
-        if (profile == null) {
-          return const Scaffold(
-            body: Center(child: Text("No se encontró la configuración del catálogo")),
-          );
-        }
+        if (profile == null) return const Scaffold(body: Center(child: Text("No se encontró la configuración del catálogo")));
 
         return Scaffold(
-          backgroundColor: const Color(0xFF1A1A2E),
+          backgroundColor: const Color(0xFF0D0D1A),
           body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // 1. Header con edición de identidad (Redirige a Brand Settings)
-              CatalogHeroHeaderEditor(
-                profile: profile,
-                user: currentUser,
-              ),
+              // 1. Header Editor
+              CatalogHeroHeaderEditor(profile: profile, user: currentUser),
 
-              // 2. Módulo de Promociones (Vista previa)
-              const CatalogPromotionsSection(),
+              // 2. Sección de Promociones (Usando el nuevo widget editor)
+              CatalogPromotionsSectionEditor(providerId: widget.providerId),
 
-              // 3. Señales de confianza (Vista previa)
+              // 3. Señales de confianza
               CatalogTrustSignalsEditor(profile: profile),
 
-              // 4. Portafolio con botones de Gestión (Subir fotos / Categorías)
-              CatalogPortfolioSectionEditor(
-                providerId: widget.providerId,
-                brandColor: profile.brandColor,
-              ),
+              // 4. Portafolio
+              CatalogPortfolioSectionEditor(providerId: widget.providerId, brandColor: profile.brandColor),
 
-              // 5. Servicios con conexión a Inventario y Costos
-              CatalogServicesSectionEditor(
-                providerId: widget.providerId,
-                brandColor: profile.brandColor,
-              ),
+              // 5. Servicios
+              CatalogServicesSectionEditor(providerId: widget.providerId, brandColor: profile.brandColor),
 
-              // 6. Gift Cards (Configuración rápida)
-              const CatalogGiftCardSection(),
+              // 6. Sección de Gift Cards (Usando el nuevo widget editor)
+              CatalogGiftCardSectionEditor(providerId: widget.providerId),
 
-              // 7. Reseñas (Interruptor de visibilidad)
+              // 7. Reseñas con Toggle
               _buildModuleToggle(
                 context,
                 title: "Opiniones de Clientes",
@@ -103,19 +77,16 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
                 onChanged: (val) => _updateModuleVisibility('showReviewsModule', val),
               ),
               
-              if (profile.showReviewsModule)
-                CatalogReviewsSection(profile: profile),
+              if (profile.showReviewsModule) CatalogReviewsSection(profile: profile),
 
-              // Espacio final
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
-          
-          // Botón de finalización / Guardado global
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
           floatingActionButton: FloatingActionButton.extended(
             backgroundColor: const Color(0xFF00B2B2),
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.check, color: Colors.white),
+            icon: const Icon(Icons.check_circle_outline, color: Colors.white),
             label: const Text("VISTA FINALIZADA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         );
@@ -123,22 +94,11 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
     );
   }
 
-  // --- LÓGICA DE CONFIGURACIÓN DEL EDITOR ---
-
   Future<void> _updateModuleVisibility(String field, bool value) async {
-    await context.read<FirestoreService>().updateCatalogField(
-      widget.providerId, 
-      {field: value}
-    );
+    await context.read<FirestoreService>().updateCatalogField(widget.providerId, {field: value});
   }
 
-  Widget _buildModuleToggle(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required bool isEnabled,
-    required Function(bool) onChanged,
-  }) {
+  Widget _buildModuleToggle(BuildContext context, {required String title, required String subtitle, required bool isEnabled, required Function(bool) onChanged}) {
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.all(16),
@@ -150,20 +110,8 @@ class _CatalogEditorScreenState extends State<CatalogEditorScreen> {
         ),
         child: Row(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                ],
-              ),
-            ),
-            Switch(
-              value: isEnabled,
-              activeColor: const Color(0xFF00B2B2),
-              onChanged: onChanged,
-            ),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11))])),
+            Switch(value: isEnabled, activeColor: const Color(0xFF00B2B2), onChanged: onChanged),
           ],
         ),
       ),
