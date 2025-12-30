@@ -5,7 +5,7 @@
 // UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
 // UPDATE: Integración Notificaciones Push (Cliente)
 // UPDATE: Servi AI Navigation Logic + Proactive Insights + Lead Coach
-// FIX FINAL: Integración con Modelo Cliente Original
+// FIX FINAL: Dashboard con Control de Voz (Mute Inteligente)
 // ---------------------------------
 
 import 'dart:async'; 
@@ -36,7 +36,6 @@ import 'package:proveedor_servicly_app/features/promotion/models/smart_insight_m
 // --- IMPORTS CRM (LEADS) ---
 import 'package:proveedor_servicly_app/features/crm/services/proactive_lead_engine.dart';
 import 'package:proveedor_servicly_app/features/crm/presentation/screens/lead_detail_screen.dart'; 
-// ✅ CORRECCIÓN: Importamos el modelo Cliente original
 import 'package:proveedor_servicly_app/features/crm/data/models/cliente_model.dart';
 
 // --- Importaciones de Modelos y Servicios ---
@@ -176,6 +175,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   bool _isSpeaking = false; 
   bool _isListening = false;
   bool _isThinking = false; 
+  bool _isMuted = false; // 🔇 Estado de Silencio (Por defecto HABLA)
   
   bool _isTourCheckPending = true;
 
@@ -247,8 +247,24 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     });
   }
 
+  // --- CONTROL DE VOZ ---
   Future<void> _speak(String text) async {
+    if (_isMuted) return; // 🛑 Si está muteado, no habla.
     await _voiceService.speak(text);
+  }
+
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+    // Feedback inmediato
+    if (_isMuted) {
+      _voiceService.stop(); // Calla inmediatamente
+      // SnackBar visual en lugar de voz
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🔇 Servi silenciada"), duration: Duration(seconds: 1)));
+    } else {
+      _speak("Audio activado. Estoy atenta."); 
+    }
   }
 
   void _handleNewInsight(SmartInsight insight) async {
@@ -260,7 +276,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
     if (insight.type == InsightType.newLead) {
        actionLabel = "ATENDER YA";
-       // ✅ Callback seguro
        actionCallback = () => _navigateToCRM(insight);
     } else {
        actionLabel = "VER OPORTUNIDAD";
@@ -298,24 +313,16 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
     }
   }
 
-  // --- NAVEGACIÓN CRM (CORREGIDA PARA USAR CLIENTE) ---
   void _navigateToCRM(SmartInsight insight) async {
      _leadEngine.markLeadAsAnalyzed(insight.id);
-
      setState(() => _isThinking = true);
-
      try {
-       // 1. Buscamos el documento en la colección de 'leads' (o 'clientes')
        final docSnapshot = await FirebaseFirestore.instance.collection('leads').doc(insight.id).get();
        
        if (docSnapshot.exists && mounted) {
-          // 2. ✅ CORRECCIÓN: Usamos Cliente.fromFirestore
-          // Esto soluciona el conflicto de tipos
           final clienteModel = Cliente.fromFirestore(docSnapshot);
-
           setState(() => _isThinking = false);
           
-          // 3. Navegamos pasando el modelo Cliente
           Navigator.push(context, MaterialPageRoute(
             builder: (_) => LeadDetailScreen(lead: clienteModel)
           ));
@@ -332,17 +339,11 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
   void _navigateToPromoCreator(Map<String, dynamic>? data) {
       if (data == null) return;
-      
       int targetTab = 0;
       final String type = (data['type'] ?? '').toString().toUpperCase();
-
-      if (type == 'GIFT_CARD') {
-         targetTab = 1; 
-      } else if (type == 'DISCOUNT' || type == 'LOW_DENSITY') {
-         targetTab = 0; 
-      } else {
-         targetTab = 2; 
-      }
+      if (type == 'GIFT_CARD') targetTab = 1; 
+      else if (type == 'DISCOUNT' || type == 'LOW_DENSITY') targetTab = 0; 
+      else targetTab = 2; 
 
       Navigator.push(context, MaterialPageRoute(
         builder: (context) => MarketingCenterScreen(
@@ -397,7 +398,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
 
     try {
         final responseMap = await _apiConnector.callServiLLM(command, user.uid);
-        
         if (mounted) setState(() => _isThinking = false);
         
         String textoHablado = responseMap['TEXTO_VOZ'] ?? responseMap['TEXTO_ESCRITO'] ?? "Listo.";
@@ -406,7 +406,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRESUPUESTO') {
             final datos = responseMap['DATOS_PRECARGA'] ?? {};
             await Future.delayed(const Duration(milliseconds: 1500));
-
             if (mounted) {
                 Navigator.push(context, MaterialPageRoute(
                     builder: (_) => QuoteEditorScreen(
@@ -422,7 +421,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         else if (responseMap.containsKey('ACCION') && responseMap['ACCION'] == 'NAVEGAR_PRODUCTO') {
             final datos = responseMap['DATOS_PRECARGA'] ?? {};
             await Future.delayed(const Duration(milliseconds: 1500));
-
             if (mounted) {
                 Navigator.push(context, MaterialPageRoute(
                     builder: (_) => AddEditProductScreen(
@@ -435,7 +433,6 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
                 ));
             }
         }
-
     } catch (e) {
         debugPrint("Error Servi Dashboard: $e");
         if (mounted) setState(() => _isThinking = false);
@@ -501,12 +498,23 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
   }
 
   void _manualTourStart(BuildContext showcaseContext) {
-    _speak("Repasemos todo de nuevo.");
+    if(_isMuted) {
+      setState(() => _isMuted = false); // ⚡ Auto-unmute para el tour
+      _speak("Activando voz para el recorrido.");
+    } else {
+      _speak("Repasemos todo de nuevo.");
+    }
     ShowCaseWidget.of(showcaseContext).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
   }
 
   void _handleAvatarTap(UserModel user) {
     if (_isThinking) return; 
+    
+    // ⚡ INTERACCIÓN DIRECTA = DESMUTEAR (Si tocas para hablar, quieres escuchar respuesta)
+    if (_isMuted) {
+       setState(() => _isMuted = false);
+       // No hablamos aún, esperamos a que termine de escuchar
+    }
     
     if (_isListening) {
       _listen(user); 
@@ -545,13 +553,55 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
         }
 
         return Scaffold(
-          appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.transparent, elevation: 0),
+          // APPBAR PARA CONTROLES DE SILENCIO (Transparente para no romper diseño)
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            toolbarHeight: 50, // Pequeño y sutil
+            actions: [
+               IconButton(
+                 icon: Icon(
+                   _isMuted ? Icons.volume_off : Icons.volume_up, 
+                   color: _isMuted ? Colors.redAccent : Colors.greenAccent
+                 ),
+                 onPressed: _toggleMute,
+                 tooltip: _isMuted ? "Activar Voz de Servi" : "Silenciar Servi",
+               ),
+               IconButton(
+                 icon: const Icon(Icons.help_outline, color: Colors.white54),
+                 onPressed: () => _manualTourStart(context),
+                 tooltip: "Ver Tour",
+               ),
+               const SizedBox(width: 8),
+            ],
+          ),
+          extendBodyBehindAppBar: true, // Para que el header quede detrás
           
           floatingActionButton: Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
             child: GestureDetector(
               onTap: () => _handleAvatarTap(userModel),
               onLongPress: () => _manualTourStart(context),
+              // DEJAMOS EL SIMULADOR DISPONIBLE POR SI LO NECESITAS
+              onDoubleTap: () async {
+                  final user = context.read<UserModel>();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🧪 Simulando Lead...")));
+                  try {
+                    await FirebaseFirestore.instance.collection('leads').add({
+                      'providerId': user.uid,
+                      'ia_analyzed': false,
+                      'status': 'new',
+                      'nombreCompleto': 'Cliente Test Mute',
+                      'serviceName': 'Prueba Silencio',
+                      'source': 'Simulador',
+                      'telefono': '111222333',
+                      'email': 'mute@test.com',
+                      'createdAt': FieldValue.serverTimestamp(),
+                      'fechaAlta': FieldValue.serverTimestamp(),
+                      'notasInternas': 'Test de Mute.',
+                    });
+                  } catch (e) { debugPrint("Error: $e"); }
+              },
               child: ServiAvatar(
                 isSpeaking: _isSpeaking,
                 isListening: _isListening, 
@@ -562,6 +612,7 @@ class _ProviderHomeTabState extends State<_ProviderHomeTab> with SingleTickerPro
           ),
           
           body: SafeArea(
+            top: false, // Permitimos que el contenido suba detrás del AppBar transparente
             bottom: false,
             child: FutureBuilder<List<ModuleModel>>(
               future: _modulesFuture,
