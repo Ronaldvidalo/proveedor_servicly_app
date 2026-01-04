@@ -41,6 +41,7 @@ import 'package:proveedor_servicly_app/core/services/notification_service.dart';
 
 // --- UTILIDADES ---
 import 'package:proveedor_servicly_app/core/utils/global_navigation.dart'; // <--- IMPORTANTE: Llave de Navegación
+import 'package:proveedor_servicly_app/core/services/availability_service.dart';
 
 // --- Modelos y ViewModels ---
 import 'core/models/user_model.dart';
@@ -129,6 +130,7 @@ class MyApp extends StatelessWidget {
         Provider<PaymentService>(create: (_) => PaymentService()),
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider(create: (_) => FirestoreService()),
+        ChangeNotifierProvider(create: (_) => AvailabilityService()),
         // --- ✅ CORRECCIÓN: GEMINI SERVICE COMO SINGLETON ---
         // Esto asegura que la instancia (y la API Key) se cree una sola vez
         Provider<GeminiService>(create: (_) => GeminiService()),

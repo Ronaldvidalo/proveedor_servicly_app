@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 // Modelos
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/product_model.dart'; 
+import 'package:proveedor_servicly_app/core/services/availability_service.dart';
 
 // Widgets Reutilizables
 import 'package:proveedor_servicly_app/features/catalogo/widgets/catalog/catalog_hero_header.dart';
@@ -35,16 +36,11 @@ class CatalogLayout extends StatefulWidget {
 }
 
 class _CatalogLayoutState extends State<CatalogLayout> {
-  // Estado local para seguimiento
   bool _isFollowing = false;
-  
-  // --- GESTIÓN DEL BORRADOR DE SERVICIOS ---
   final List<ProductModel> _selectedServices = [];
 
-  // Función para añadir o quitar servicios del borrador
   void _toggleService(ProductModel service) {
     setState(() {
-      // Usamos el ID para asegurar una comparación precisa
       if (_selectedServices.any((s) => s.id == service.id)) {
         _selectedServices.removeWhere((s) => s.id == service.id);
       } else {
@@ -53,7 +49,6 @@ class _CatalogLayoutState extends State<CatalogLayout> {
     });
   }
 
-  // Muestra el Modal con el resumen tipo "Recibo" antes de agendar
   void _showAppointmentDraft() {
     final double total = _selectedServices.fold(0, (sum, item) => sum + item.price);
     final Color brandColor = widget.profile.brandColor;
@@ -62,8 +57,7 @@ class _CatalogLayoutState extends State<CatalogLayout> {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A2E),
-      // CORRECCIÓN: BorderRadius.vertical no es constante, se quita el 'const' del widget padre si existiera
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
@@ -87,7 +81,6 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                 ),
                 const Divider(color: Colors.white10, height: 32),
                 
-                // Lista de servicios en el recibo/borrador
                 Expanded(
                   child: ListView.builder(
                     controller: controller,
@@ -139,11 +132,10 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                       backgroundColor: const Color(0xFF00B2B2)
                     ),
                     onPressed: () async {
-                      // CAPTURA SEGURA: Navigator y Repo antes del await
+                      // ✅ MEJORA: Capturamos el Navigator antes del await para evitar el warning de 'BuildContext' sincrónico
                       final navigator = Navigator.of(context);
                       final crmRepo = context.read<CrmRepository>();
 
-                      // --- INTEGRACIÓN CRM: CAPTURA DE INTENCIÓN DE CITA ---
                       try {
                         final String servicesSummary = _selectedServices.map((s) => s.name).join(', ');
                         
@@ -158,12 +150,22 @@ class _CatalogLayoutState extends State<CatalogLayout> {
                       }
 
                       if (!mounted) return;
-                      navigator.pop(); // Cerramos el modal
                       
+                      // 1. Cerramos el modal actual
+                      navigator.pop(); 
+                      
+                      // 2. Navegamos a la agenda inyectando el servicio
+                      // Corregido: widget.providerId y _selectedServices definidos correctamente
                       navigator.push(
                         MaterialPageRoute(
-                          builder: (_) => BookingScreen(providerId: widget.providerId)
-                        )
+                          builder: (context) => ChangeNotifierProvider(
+                            create: (_) => AvailabilityService(),
+                            child: BookingScreen(
+                              providerId: widget.providerId,
+                              selectedServices: List.from(_selectedServices),
+                            ),
+                          ),
+                        ),
                       );
                     },
                     child: const Text(
@@ -180,12 +182,9 @@ class _CatalogLayoutState extends State<CatalogLayout> {
     );
   }
 
-  // Captura de leads para el CRM antes de abrir apps externas
   Future<void> _handleContact(Uri url, String source) async {
     try {
       final crmRepository = context.read<CrmRepository>();
-      
-      // Personalizamos el origen si hay servicios seleccionados
       String finalSource = source;
       if (source == 'whatsapp' && _selectedServices.isNotEmpty) {
         final String services = _selectedServices.map((s) => s.name).join(', ');
@@ -231,7 +230,6 @@ class _CatalogLayoutState extends State<CatalogLayout> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // 1. Header con identidad y contacto integrado
           CatalogHeroHeader(
             profile: profile,
             isEditor: false,
@@ -239,48 +237,33 @@ class _CatalogLayoutState extends State<CatalogLayout> {
             onFollowTap: _toggleFollow,
             onContactTap: _handleContact,
           ),
-
-          // 2. Sección de Promociones
           CatalogPromotionsSectionV2(providerId: widget.providerId),
-
-          // 3. Sellos de confianza
           const CatalogTrustSignals(),
-
-          // 4. Portafolio Visual
           if (profile.showPortfolioModule)
             CatalogPortfolioSection(
               providerId: widget.providerId,
               brandColor: profile.brandColor,
             ),
-          
-          // 5. SECCIÓN DE SERVICIOS (Selección activa)
           CatalogServicesSection(
             providerId: widget.providerId,
             brandColor: profile.brandColor,
             onServiceTap: _toggleService, 
             selectedServices: _selectedServices,
           ),
-
-          // 6. Módulo de Gift Cards
           CatalogGiftCardSection(providerId: widget.providerId),
-
-          // 7. Módulo de Reseñas
           if (profile.showReviewsModule)
             CatalogReviewsSection(profile: profile),
-
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
-      
-      // --- BARRA FLOTANTE DE RESUMEN ---
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _selectedServices.isNotEmpty 
-        ? FloatingAppointmentBar(
-            count: _selectedServices.length,
-            total: _selectedServices.fold(0, (sum, item) => sum + item.price),
-            onTap: _showAppointmentDraft, 
-          )
-        : null,
+          ? FloatingAppointmentBar(
+              count: _selectedServices.length,
+              total: _selectedServices.fold(0, (sum, item) => sum + item.price),
+              onTap: _showAppointmentDraft, 
+              isAgenda: widget.profile.actionType == 'booking', 
+            )
+          : null,
     );
   }
 }

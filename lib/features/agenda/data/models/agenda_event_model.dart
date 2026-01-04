@@ -1,15 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- ACTUALIZACIÓN: NUEVOS TIPOS DE EVENTOS ---
+// --- ACTUALIZACIÓN: TIPOS DE EVENTOS UNIFICADOS ---
 enum EventType { 
   visit,              // Visita técnica / Cita presencial
-  personalReminder,  // Recordatorio personal
+  personalReminder,   // Recordatorio personal
   appointment,        // Reunión virtual / Llamada
-  paymentReminder,   // Cuentas por Pagar (Facturas)
-  collectionReminder // Cuentas por Cobrar (A clientes)
+  paymentReminder,    // Cuentas por Pagar (Facturas)
+  collectionReminder, // Cuentas por Cobrar (A clientes)
+  quoteNegotiation,   // Pedido de presupuesto desde catálogo (Negociación)
+  clientBooking       // Cita agendada automáticamente desde catálogo
 }
 
-enum EventStatus { pending, confirmed, completed, cancelled }
+// --- ACTUALIZACIÓN: ESTADOS UNIFICADOS PARA NEGOCIACIÓN ---
+enum EventStatus { 
+  pending, 
+  pendingApproval,    // Estado para negociación de contraoferta
+  confirmed, 
+  completed, 
+  cancelled 
+}
 
 class AgendaEvent {
   final String? id;
@@ -26,6 +35,10 @@ class AgendaEvent {
   final double? amount; 
   final bool isAllDay;
 
+  // --- NUEVO CAMPO TÉCNICO ---
+  /// Almacena datos adicionales como lista de servicios, nombre del cliente o fuente.
+  final Map<String, dynamic>? metadata;
+
   AgendaEvent({
     this.id,
     required this.title,
@@ -38,6 +51,7 @@ class AgendaEvent {
     this.clientId,
     this.amount,
     this.isAllDay = false,
+    this.metadata,
   });
 
   AgendaEvent copyWith({
@@ -52,6 +66,7 @@ class AgendaEvent {
     String? clientId,
     double? amount,
     bool? isAllDay,
+    Map<String, dynamic>? metadata,
   }) {
     return AgendaEvent(
       id: id ?? this.id,
@@ -65,6 +80,7 @@ class AgendaEvent {
       clientId: clientId ?? this.clientId,
       amount: amount ?? this.amount,
       isAllDay: isAllDay ?? this.isAllDay,
+      metadata: metadata ?? this.metadata,
     );
   }
 
@@ -76,19 +92,21 @@ class AgendaEvent {
       description: data['description'],
       startTime: (data['startTime'] as Timestamp).toDate(),
       endTime: (data['endTime'] as Timestamp).toDate(),
-      // Mapeo robusto de Enum
+      // Mapeo robusto de Enum para tipos de eventos
       eventType: EventType.values.firstWhere(
           (e) => e.name == data['eventType'], 
           orElse: () => EventType.personalReminder
       ),
+      // Mapeo robusto para estados de negociación
       eventStatus: EventStatus.values.firstWhere(
           (e) => e.name == data['eventStatus'], 
           orElse: () => EventStatus.pending
       ),
-      providerId: data['providerId'],
+      providerId: data['providerId'] ?? '',
       clientId: data['clientId'],
       amount: (data['amount'] as num?)?.toDouble(),
       isAllDay: data['isAllDay'] ?? false,
+      metadata: data['metadata'] != null ? Map<String, dynamic>.from(data['metadata']) : null,
     );
   }
 
@@ -104,6 +122,7 @@ class AgendaEvent {
       'clientId': clientId,
       'amount': amount,
       'isAllDay': isAllDay,
+      'metadata': metadata,
     };
   }
 }

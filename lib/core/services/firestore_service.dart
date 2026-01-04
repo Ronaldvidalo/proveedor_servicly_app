@@ -18,6 +18,9 @@ class FirestoreService {
 
   // --- COLECCIÓN CATÁLOGOS ---
   late final CollectionReference<Map<String, dynamic>> _catalogsCollection;
+  
+  // --- COLECCIÓN RAÍZ DE PERFILES DE MARCA ---
+  late final CollectionReference<Map<String, dynamic>> _brandProfilesCollection;
 
   // --- Constantes para subcolecciones ---
   final String _portfolioCategoriesCollection = 'portfolio_categories';
@@ -29,11 +32,45 @@ class FirestoreService {
     _usersCollection = _db.collection('users');
     _modulesCollection = _db.collection('modules');
     _catalogsCollection = _db.collection('catalogs');
+    // Inicializamos referencia a la colección raíz
+    _brandProfilesCollection = _db.collection('brandProfiles');
   }
 
-  // ------------------------------
-  // MÉTODOS USUARIOS
-  // ------------------------------
+  // =================================================================
+  // === LÓGICA MULTI-TIENDA (COLECCIÓN RAÍZ FILTRADA) ===
+  // =================================================================
+
+  /// Obtiene TODOS los perfiles que pertenecen al usuario (providerId == uid)
+  /// Buscando en la colección raíz 'brandProfiles'.
+  Stream<List<ProviderProfileModel>> getUserProviderProfiles(String uid) {
+    return _brandProfilesCollection
+        .where('providerId', isEqualTo: uid)
+        // Puedes descomentar esto si manejas soft-delete
+        // .where('isActive', isEqualTo: true) 
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            // Importante: Pasamos el ID del documento al modelo
+            return ProviderProfileModel.fromFirestore(doc); 
+          }).toList();
+        });
+  }
+
+  /// Guarda o actualiza un perfil en la colección RAÍZ.
+  /// Si docId es null, usa el uid (comportamiento legacy/perfil principal).
+  /// Si docId se provee, actualiza/crea ese documento específico (nuevas tiendas).
+  Future<void> setBrandProfile(String uid, Map<String, dynamic> data, {String? docId}) async {
+    // Si no pasamos ID específico, asumimos que es el perfil principal (ID = UID)
+    final String targetId = docId ?? uid;
+    
+    await _brandProfilesCollection
+        .doc(targetId)
+        .set(data, SetOptions(merge: true));
+  }
+
+  // =================================================================
+  // === MÉTODOS USUARIOS ===
+  // =================================================================
 
   Future<void> createUser(UserModel user) async {
     try {
@@ -124,9 +161,9 @@ class FirestoreService {
     }
   }
 
-  // ------------------------------
-  // MÉTODOS MÓDULOS
-  // ------------------------------
+  // =================================================================
+  // === MÉTODOS MÓDULOS ===
+  // =================================================================
 
   Future<List<ModuleModel>> getAvailableModules() async {
     if (kDebugMode) {
@@ -182,9 +219,9 @@ class FirestoreService {
     }
   }
 
-  // ------------------------------
-  // CATEGORÍAS DE PRODUCTOS
-  // ------------------------------
+  // =================================================================
+  // === CATEGORÍAS DE PRODUCTOS ===
+  // =================================================================
 
   Stream<List<CategoryModel>> getCategoriesStream(String uid) {
     if (kDebugMode) {
@@ -717,63 +754,11 @@ class FirestoreService {
     }
   }
 
-  // --- MÉTODOS OBSOLETOS ---
-
-  @Deprecated('Use getCatalogPortfolioCategoriesStream instead')
-  Stream<List<PortfolioCategoryModel>> getPortfolioCategoriesStream(
-      String userId) {
-    debugPrint(
-        "[FirestoreService] ADVERTENCIA: Usando método obsoleto getPortfolioCategoriesStream");
-    return _usersCollection
-        .doc(userId)
-        .collection(_portfolioCategoriesCollection)
-        .orderBy('order')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PortfolioCategoryModel.fromFirestore(doc))
-            .toList())
-        .handleError((error) {
-      debugPrint(
-          '[FirestoreService] Error en getPortfolioCategoriesStream (obsoleto): $error');
-      return <PortfolioCategoryModel>[];
-    });
-  }
-
-  @Deprecated('Use getCatalogPortfolioItemsStream instead')
-  Stream<List<PortfolioItemModel>> getPortfolioItemsStream(
-      String userId, String categoryId) {
-    debugPrint(
-        "[FirestoreService] ADVERTENCIA: Usando método obsoleto getPortfolioItemsStream");
-    return _usersCollection
-        .doc(userId)
-        .collection(_portfolioItemsCollection)
-        .where('categoryId', isEqualTo: categoryId)
-        .orderBy('order')
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => PortfolioItemModel.fromFirestore(doc))
-          .toList();
-    }).handleError((error) {
-      if (kDebugMode) {
-        debugPrint(
-            '[FirestoreService] !! ERROR en getPortfolioItemsStream (obsoleto) UID: $userId CatID: $categoryId. Error: $error');
-      }
-      return <PortfolioItemModel>[];
-    });
-  }
-
-  Future<void> setBrandProfile(String uid, Map<String, dynamic> data) async {
-    await _db
-        .collection('brandProfiles')
-        .doc(uid)
-        .set(data, SetOptions(merge: true));
-  }
+  // --- MÉTODOS DE DISPONIBILIDAD Y STATUS ---
 
   /// Obtiene un Stream del perfil de marca de un proveedor.
   Stream<ProviderProfileModel?> getBrandProfile(String providerId) {
-    return _db
-        .collection('brandProfiles')
+    return _brandProfilesCollection
         .doc(providerId)
         .snapshots() 
         .map((doc) {
@@ -785,7 +770,6 @@ class FirestoreService {
     });
   }
 
-  // --- ACTUALIZAR DISPONIBILIDAD ---
   Future<void> updateProviderAvailability(String uid, bool isAvailable) async {
     if (kDebugMode) {
       debugPrint(
@@ -793,7 +777,7 @@ class FirestoreService {
     }
     try {
       await _usersCollection.doc(uid).update({'isAvailable': isAvailable});
-      await _db.collection('brandProfiles').doc(uid).set(
+      await _brandProfilesCollection.doc(uid).set(
           {'isAvailable': isAvailable}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[FirestoreService] Error al actualizar disponibilidad: $e');
@@ -803,11 +787,11 @@ class FirestoreService {
   // Obtener el perfil público (brandProfiles)
   Future<ProviderProfileModel?> getProviderPublicProfile(String providerId) async {
     try {
-      final doc = await _db.collection('brandProfiles').doc(providerId).get();
+      final doc = await _brandProfilesCollection.doc(providerId).get();
       if (doc.exists) {
         return ProviderProfileModel.fromFirestore(doc);
       } 
-      final userDoc = await _db.collection('users').doc(providerId).get();
+      final userDoc = await _usersCollection.doc(providerId).get();
       if (userDoc.exists) {
           return ProviderProfileModel.fromFirestore(userDoc);
       }

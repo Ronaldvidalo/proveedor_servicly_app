@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // --- Imports para el Tour ---
 import 'package:showcaseview/showcaseview.dart';
@@ -23,8 +24,8 @@ import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 
 // --- IMPORTAR LOS WIDGETS REUTILIZABLES ---
-// Asegúrate de que esta ruta sea correcta según donde guardaste el archivo
 import 'package:proveedor_servicly_app/features/settings/widgets/brand_settings_widgets.dart';
+import 'package:proveedor_servicly_app/widgets/weekly_schedule_editor.dart';
 
 // Data Prefijos
 final Map<String, String> _countryDialCodes = {
@@ -33,7 +34,7 @@ final Map<String, String> _countryDialCodes = {
   'UY': '+598', 'VE': '+58', 'ES': '+34',
 };
 
-// Función auxiliar para color (Local o importada de widgets, ambas funcionan)
+// Función auxiliar para color
 Color? _colorFromHex(String? hexColor) {
   if (hexColor == null || hexColor.isEmpty) return null;
   final hexCode = hexColor.replaceAll('#', '');
@@ -50,9 +51,16 @@ Color? _colorFromHex(String? hexColor) {
 
 class BrandSettingsScreen extends StatefulWidget {
   final UserModel user;
-  final ProviderProfileModel? brandProfile;
+  final ProviderProfileModel? brandProfile; 
+  // Recibe la plantilla seleccionada si es creación nueva
+  final String? initialTemplate;
 
-  const BrandSettingsScreen({super.key, required this.user, this.brandProfile});
+  const BrandSettingsScreen({
+    super.key, 
+    required this.user, 
+    this.brandProfile,
+    this.initialTemplate,
+  });
 
   @override
   State<BrandSettingsScreen> createState() => BrandSettingsScreenState();
@@ -75,8 +83,10 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _addressController;
   late TextEditingController _contactEmailController;
   late TextEditingController _countryController;
-  late String _selectedFormat;
-  late String _selectedPublicTheme;
+
+  // Variable NO nullable (por eso daba error antes)
+  String _selectedFormat = 'catalog'; 
+  String _selectedPublicTheme = 'cyber_glow';
 
   late TextEditingController _phoneController;
   late TextEditingController _whatsappController;
@@ -84,6 +94,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _instagramController;
   late TextEditingController _facebookController;
   late TextEditingController _tiktokController;
+
+  Map<int, List<TimeRange>> _weeklySchedule = {};
+  bool _worksOnHolidays = false;
 
   String _currentDialCode = '+54';
 
@@ -94,17 +107,16 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final ServiVoiceService _voiceService = ServiVoiceService();
   bool _isSpeaking = false;
 
-  Color _selectedBrandColor = const Color(0xFF00BFFF);
+  Color _selectedBrandColor = const Color(0xFF00B2B2);
 
   final List<Color> _predefinedBrandColors = [
-    const Color(0xFF00BFFF), const Color(0xFF00FF7F), const Color(0xFFF000B0),
+    const Color(0xFF00B2B2), const Color(0xFF00FF7F), const Color(0xFFF000B0),
     const Color(0xFFFFA500), Colors.purpleAccent, Colors.redAccent,
   ];
 
   @override
   void initState() {
     super.initState();
-    // Inicialización de controladores
     _businessNameController = TextEditingController();
     _sloganController = TextEditingController();
     _addressController = TextEditingController();
@@ -117,30 +129,27 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _facebookController = TextEditingController();
     _tiktokController = TextEditingController();
 
-    _initializeFields();
+    _initializeFields(widget.brandProfile);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       _checkIfFirstTime();
+    });
 
-    // Listener para la animación del Avatar
     _voiceService.player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _isSpeaking = state == PlayerState.playing);
     });
-
-    // Iniciar chequeo del Tour
-    _checkIfFirstTime();
   }
 
   Future<void> _checkIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
-    // CAMBIÉ A 'v4' PARA FORZAR QUE TE APAREZCA EL TOUR AL PROBAR ESTE CÓDIGO
-    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v4') ?? false;
+    final bool hasSeenTour = prefs.getBool('hasSeenBrandSettingsTour_v5_multi') ?? false;
 
     if (!hasSeenTour) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _speak("Bienvenido al estudio de diseño. Aquí definiremos cómo te ve el mundo. Toca los elementos resaltados.");
+        await _speak("Bienvenido al estudio de diseño. Aquí configuraremos esta tienda específica.");
         if (mounted) {
           _startTour();
-          prefs.setBool('hasSeenBrandSettingsTour_v4', true);
+          prefs.setBool('hasSeenBrandSettingsTour_v5_multi', true);
         }
-      });
     }
   }
 
@@ -153,29 +162,22 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         _keyFormatSection,
         _keySaveButton
       ]);
-    } else {
-      debugPrint("Error: _showCaseContext es nulo");
     }
   }
 
   Future<void> _speak(String text) async {
-    // Asegúrate de que la configuración de audio esté activa en tu dispositivo/simulador
     await _voiceService.speak(text);
   }
 
   String _getScriptForStep(GlobalKey key) {
-    if (key == _keyIdentitySection) return "Confirmemos tu identidad. Ya puse el nombre de tu negocio, pero puedes cambiarlo.";
-    if (key == _keyColorSection) return "El color transmite emociones. Elige uno que represente la energía de tu marca.";
-    if (key == _keyThemeSection) return "La atmósfera es clave. Prueba los temas oscuros o neón.";
-    if (key == _keyFormatSection) return "Aquí está el formato que elegiste antes. Puedes cambiarlo si gustas.";
-    if (key == _keySaveButton) return "Cuando te guste lo que ves, guarda los cambios para publicar tu sitio web.";
+    if (key == _keyIdentitySection) return "Aquí define el nombre y logo de ESTA tienda.";
+    if (key == _keyColorSection) return "Cada tienda puede tener su propio color.";
+    if (key == _keySaveButton) return "Guarda para publicar este perfil.";
     return "";
   }
 
   void _onShowcaseStepStart(int? index, GlobalKey key) {
     String script = _getScriptForStep(key);
-    
-    // Aseguramos que el widget sea visible (scroll automático)
     if (key.currentContext != null) {
       Scrollable.ensureVisible(
         key.currentContext!, 
@@ -184,9 +186,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         alignment: 0.5
       );
     }
-    
     if (script.isNotEmpty) {
-      // Pequeño delay para que coincida con la animación visual
       Future.delayed(const Duration(milliseconds: 400), () { 
         if (mounted) _speak(script); 
       });
@@ -198,48 +198,62 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       _voiceService.stop(); 
       return; 
     }
-    _speak("Estás en el editor de marca. Toca el signo de interrogación arriba para reiniciar el tour guiado.");
+    _speak("Estás editando un perfil de negocio. Recuerda que con el plan PRO puedes tener varios.");
   }
 
-  void _initializeFields() {
-    final brand = widget.brandProfile;
-    final userLegacy = widget.user.personalization;
+  void _initializeFields(ProviderProfileModel? brand) {
+    // Usamos 'personalization' como fallback si no hay brand
+    final legacyData = widget.user.personalization;
 
-    _businessNameController.text = brand?.businessName ?? userLegacy['businessName'] ?? widget.user.displayName ?? '';
-    _sloganController.text = brand?.slogan ?? userLegacy['slogan'] ?? '';
-    _addressController.text = brand?.address ?? userLegacy['address'] ?? '';
+    _businessNameController.text = brand?.businessName ?? widget.user.displayName ?? '';
+    _sloganController.text = brand?.slogan ?? '';
+    _addressController.text = brand?.address ?? '';
     _contactEmailController.text = brand?.contactEmail ?? widget.user.email ?? '';
 
-    String countryCode = brand?.country ?? userLegacy['country'] ?? 'AR';
+    String countryCode = brand?.country ?? 'AR';
     _countryController.text = countryCode;
     _currentDialCode = _countryDialCodes[countryCode] ?? '+54';
 
-    // Lógica para limpiar el prefijo si ya existe en la DB
-    String rawPhone = brand?.phone ?? userLegacy['phone'] ?? '';
+    String rawPhone = brand?.phone ?? (legacyData['phone'] as String?) ?? '';
+    
     if (rawPhone.startsWith(_currentDialCode)) {
       _phoneController.text = rawPhone.substring(_currentDialCode.length).trim();
     } else {
       _phoneController.text = rawPhone;
     }
 
-    String rawWhatsapp = brand?.whatsapp ?? userLegacy['whatsapp'] ?? '';
+    String rawWhatsapp = brand?.whatsapp ?? '';
     if (rawWhatsapp.startsWith(_currentDialCode)) {
       _whatsappController.text = rawWhatsapp.substring(_currentDialCode.length).trim();
     } else {
       _whatsappController.text = rawWhatsapp;
     }
 
-    _websiteController.text = brand?.website ?? userLegacy['website'] ?? '';
-    _instagramController.text = brand?.instagram ?? userLegacy['instagram'] ?? '';
-    _facebookController.text = brand?.facebook ?? userLegacy['facebook'] ?? '';
-    _tiktokController.text = brand?.tiktok ?? userLegacy['tiktok'] ?? '';
+    _websiteController.text = brand?.website ?? '';
+    _instagramController.text = brand?.instagram ?? '';
+    _facebookController.text = brand?.facebook ?? '';
+    _tiktokController.text = brand?.tiktok ?? '';
 
-    _selectedFormat = brand?.publicProfileTemplate ?? widget.user.publicProfileTemplate ?? 'catalog';
-    _existingLogoUrl = brand?.logoUrl ?? userLegacy['logoUrl'];
+    // --- CORRECCIÓN DEFINITIVA DE ASIGNACIÓN (OPERADOR ??) ---
+    // Usamos '??' para asegurar que nunca se asigne un null a _selectedFormat
+    if (brand != null) {
+        _selectedFormat = brand.publicProfileTemplate ?? 'catalog';
+    } else {
+        _selectedFormat = widget.initialTemplate ?? 'catalog';
+    }
 
-    final hexColor = brand?.primaryColor ?? userLegacy['primaryColor'];
-    _selectedBrandColor = _colorFromHex(hexColor) ?? const Color(0xFF00BFFF);
-    _selectedPublicTheme = brand?.publicProfileTheme ?? userLegacy['publicProfileTheme'] ?? 'cyber_glow';
+    _existingLogoUrl = brand?.logoUrl;
+
+    if (brand != null) {
+        _selectedBrandColor = brand.brandColor;
+    } else {
+        final legacyColor = legacyData['primaryColor'] as String?;
+        _selectedBrandColor = _colorFromHex(legacyColor) ?? const Color(0xFF00B2B2);
+    }
+    
+    _selectedPublicTheme = brand?.publicProfileTheme ?? 'cyber_glow';
+    _weeklySchedule = brand?.weeklySchedule ?? {};
+    _worksOnHolidays = brand?.worksOnHolidays ?? false;
   }
 
   @override
@@ -252,7 +266,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     super.dispose();
   }
 
-  // Usamos PublicThemeData importado del archivo de widgets
   PublicThemeData _getPublicThemeData(String themeId) {
     return publicProfileThemes.firstWhere(
       (t) => t.id == themeId, 
@@ -271,28 +284,45 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    if (!_formKey.currentState!.validate() || _isLoading) return;
+    if (!_formKey.currentState!.validate()) {
+      _speak("Bancame, hay algunos campos con errores arriba. Revisalos.");
+      _showSnackbar("Revisa los campos marcados en rojo.", isError: true);
+      return;
+    }
+
+    if (_isLoading) return;
+
     setState(() => _isLoading = true);
-    _speak("Guardando tu marca. Esto se verá genial.");
+    _speak("Guardando perfil...");
 
     final firestoreService = context.read<FirestoreService>();
     final storageService = context.read<StorageService>();
     final userModel = widget.user;
-    String? newLogoUrl;
     final geocodingService = GeocodingService();
-    double? newLatitude;
-    double? newLongitude;
+    final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
+    String? newLogoUrl;
+    double? newLatitude;
+    double? newLongitude;
+
     try {
+      // 1. Determinar ID del documento
+      String docId;
+      if (widget.brandProfile != null) {
+         docId = widget.brandProfile!.id; // Editando existente
+      } else {
+         // Generamos un ID nuevo en la colección raíz
+         docId = FirebaseFirestore.instance.collection('brandProfiles').doc().id; 
+      }
+
+      // 2. Subir imagen (Usamos el docId para carpeta única)
       if (_selectedImageFile != null) {
-        final String storagePath = 'brandProfiles/${userModel.uid}/profile_logo.jpg';
-        if (_existingLogoUrl != null && _existingLogoUrl!.isNotEmpty) {
-          try { await storageService.deleteFileByUrl(_existingLogoUrl!); } catch (e) { debugPrint("No se pudo borrar logo: $e"); }
-        }
+        final String storagePath = 'brandProfiles/${userModel.uid}/$docId/logo.jpg';
         newLogoUrl = await storageService.uploadFileWithProgress(File(_selectedImageFile!.path), storagePath, (progress) {});
       }
 
+      // 3. Geocoding
       final addressText = _addressController.text.trim();
       if (addressText.isNotEmpty) {
         try {
@@ -303,16 +333,26 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
              }
           }
           final coords = await geocodingService.getCoordinatesFromAddress(queryAddress);
-          if (coords != null) { newLatitude = coords['latitude']; newLongitude = coords['longitude']; }
+          if (coords != null) { 
+            newLatitude = coords['latitude']; 
+            newLongitude = coords['longitude']; 
+          }
         } catch (e) { debugPrint("Error geocoding: $e"); }
       }
 
-      final hexColor = '#${_selectedBrandColor.value.toRadixString(16).substring(2).toUpperCase()}';
+      final hexColor = '#${_selectedBrandColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
       final fullPhone = _phoneController.text.trim().isNotEmpty ? "$_currentDialCode ${_phoneController.text.trim()}" : "";
       final fullWhatsapp = _whatsappController.text.trim().isNotEmpty ? "$_currentDialCode ${_whatsappController.text.trim()}" : "";
 
+      final Map<String, dynamic> serializedSchedule = _weeklySchedule.map((key, value) {
+        return MapEntry(key.toString(), value.map((v) => v.toMap()).toList());
+      });
+
+      // 4. Construir Data
       final Map<String, dynamic> brandData = {
-        'providerId': userModel.uid,
+        'id': docId,
+        'providerId': userModel.uid, // Vincula la tienda al usuario
+        'isActive': true, 
         'businessName': _businessNameController.text.trim(),
         'slogan': _sloganController.text.trim(),
         'welcomeMessage': _sloganController.text.trim(),
@@ -329,21 +369,43 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'instagram': _instagramController.text.trim(),
         'facebook': _facebookController.text.trim(),
         'tiktok': _tiktokController.text.trim(),
+        'weeklySchedule': serializedSchedule,
+        'worksOnHolidays': _worksOnHolidays,
+        'updatedAt': FieldValue.serverTimestamp(),
+        // Si es nuevo, agregamos fecha de creación
+        if (widget.brandProfile == null) 'createdAt': FieldValue.serverTimestamp(),
       };
 
       if (newLatitude != null) brandData['latitude'] = newLatitude;
       if (newLongitude != null) brandData['longitude'] = newLongitude;
 
-      await firestoreService.setBrandProfile(userModel.uid, brandData);
-      await firestoreService.updateUser(userModel.uid, {'publicProfileTemplate': _selectedFormat, 'isProfileComplete': true, 'publicProfileCreated': true});
+      // 5. GUARDAR USANDO EL SERVICIO (A la colección raíz)
+      await firestoreService.setBrandProfile(userModel.uid, brandData, docId: docId);
+
+      // 6. Actualizar User (Flags generales)
+      await firestoreService.updateUser(userModel.uid, {
+        'isProfileComplete': true, 
+        'publicProfileCreated': true,
+      });
 
       if (!mounted) return;
-      _showSnackbar('¡Perfil público guardado con éxito!');
-      navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const AuthWrapper()), (route) => false);
+      
+      messenger.showSnackBar(
+        const SnackBar(content: Text('¡Tienda guardada con éxito!'), backgroundColor: Color(0xFF00FF7F))
+      );
+
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const AuthWrapper()), 
+        (route) => false
+      );
+
     } catch (e) {
-      if (mounted) _showSnackbar('Error al guardar: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint("Error crítico al guardar: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackbar('Error al guardar cambios.', isError: true);
+        _speak("Hubo un problema guardando. Intenta de nuevo.");
+      }
     }
   }
 
@@ -351,9 +413,12 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   Widget build(BuildContext context) {
     final ThemeData appTheme = Theme.of(context);
     final PublicThemeData publicTheme = _getPublicThemeData(_selectedPublicTheme);
-    // getOnColor viene de brand_settings_widgets.dart
+    
     final ThemeData previewTheme = appTheme.copyWith(
-      colorScheme: appTheme.colorScheme.copyWith(surface: publicTheme.surface, onPrimary: getOnColor(_selectedBrandColor)),
+      colorScheme: appTheme.colorScheme.copyWith(
+        surface: publicTheme.surface, 
+        onPrimary: getOnColor(_selectedBrandColor)
+      ),
       scaffoldBackgroundColor: publicTheme.background,
     );
 
@@ -366,21 +431,19 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         _showCaseContext = context;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Editar Perfil Público'),
+            title: Text(widget.brandProfile == null ? 'Nueva Tienda' : 'Editar Tienda'),
             backgroundColor: appTheme.scaffoldBackgroundColor, 
             foregroundColor: appTheme.colorScheme.onSurface, 
             elevation: 0,
             actions: [
-              // --- 1. Botón Manual para reiniciar el Tour ---
               IconButton(
                 icon: const Icon(Icons.help_outline_rounded),
                 tooltip: 'Iniciar Tour Guiado',
                 onPressed: () {
-                   _speak("Reiniciando el tour guiado.");
-                   _startTour();
+                    _speak("Reiniciando el tour guiado.");
+                    _startTour();
                 },
               ),
-              // --- 2. Avatar de la IA ---
               Padding(
                 padding: const EdgeInsets.only(right: 16.0, left: 8.0), 
                 child: Center(
@@ -399,7 +462,16 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
             child: Builder(builder: (context) {
               final theme = Theme.of(context);
               final colors = theme.colorScheme;
-              final inputDecoration = InputDecoration(filled: true, fillColor: colors.surface, labelStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.7)), hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.4)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.primary, width: 2)), errorStyle: TextStyle(color: colors.error.withValues(alpha: 0.9)));
+              final inputDecoration = InputDecoration(
+                filled: true, 
+                fillColor: colors.surface, 
+                labelStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.7)), 
+                hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.4)), 
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.primary, width: 2)), 
+                errorStyle: TextStyle(color: colors.error.withValues(alpha: 0.9))
+              );
 
               return Form(
                 key: _formKey,
@@ -411,7 +483,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                       constraints: const BoxConstraints(maxWidth: 700),
                       child: Column(
                         children: [
-                          // --- Sección 1 con Tour ---
                           BrandSectionCard(title: 'Identidad de Marca (Público)', children: [
                             Showcase(
                               key: _keyIdentitySection, 
@@ -451,7 +522,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                           
                           const SizedBox(height: 24),
                           
-                          // --- Sección 2 con Tour ---
                           BrandSectionCard(title: 'Formato de Perfil Público', subtitle: 'Elige cómo verán tus clientes tu página.', children: [
                             Showcase(
                               key: _keyFormatSection, 
@@ -465,14 +535,59 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                           ]),
                           
                           const SizedBox(height: 24),
+
+                          if (_selectedFormat == 'catalog')
+                            BrandSectionCard(
+                              title: 'Gestión de Agenda', 
+                              subtitle: 'Define tus horarios para recibir turnos automáticamente.', 
+                              children: [
+                                WeeklyScheduleEditor(
+                                  initialSchedule: _weeklySchedule, 
+                                  initialWorksOnHolidays: _worksOnHolidays,
+                                  accentColor: _selectedBrandColor,
+                                  onChanged: (newSchedule, worksHolidays) {
+                                    setState(() {
+                                      _weeklySchedule = newSchedule;
+                                      _worksOnHolidays = worksHolidays;
+                                    });
+                                  },
+                                ),
+                              ]
+                            ),
+
+                          if (_selectedFormat == 'catalog') const SizedBox(height: 24),
                           
-                          // --- Otras Secciones (Sin Tour específico) ---
                           BrandSectionCard(title: 'Contenido del Perfil', children: [
-                            TextFormField(controller: _sloganController, style: TextStyle(color: colors.onSurface), decoration: inputDecoration.copyWith(labelText: 'Slogan o Mensaje de Bienvenida', prefixIcon: Icon(Icons.campaign_outlined, color: colors.onSurface.withValues(alpha: 0.7))), maxLength: 150),
+                            TextFormField(
+                              controller: _sloganController, 
+                              style: TextStyle(color: colors.onSurface), 
+                              decoration: inputDecoration.copyWith(
+                                labelText: 'Slogan o Mensaje de Bienvenida', 
+                                prefixIcon: Icon(Icons.campaign_outlined, color: colors.onSurface.withValues(alpha: 0.7))
+                              ), 
+                              maxLength: 150
+                            ),
                             const SizedBox(height: 16),
-                            TextFormField(controller: _addressController, style: TextStyle(color: colors.onSurface), decoration: inputDecoration.copyWith(labelText: 'Dirección o Zona de Cobertura', helperText: 'Se usará para mostrar "Cerca de mí" en el mapa', helperStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.6)), prefixIcon: Icon(Icons.location_on_outlined, color: colors.onSurface.withValues(alpha: 0.7)))),
+                            TextFormField(
+                              controller: _addressController, 
+                              style: TextStyle(color: colors.onSurface), 
+                              decoration: inputDecoration.copyWith(
+                                labelText: 'Dirección o Zona de Cobertura', 
+                                helperText: 'Se usará para mostrar "Cerca de mí" en el mapa', 
+                                helperStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.6)), 
+                                prefixIcon: Icon(Icons.location_on_outlined, color: colors.onSurface.withValues(alpha: 0.7))
+                              )
+                            ),
                             const SizedBox(height: 16),
-                            TextFormField(controller: _countryController, readOnly: true, style: TextStyle(color: colors.onSurface.withValues(alpha: 0.5)), decoration: inputDecoration.copyWith(labelText: 'País (Seleccionado al inicio)', prefixIcon: Icon(Icons.flag_outlined, color: colors.onSurface.withValues(alpha: 0.5)))),
+                            TextFormField(
+                              controller: _countryController, 
+                              readOnly: true, 
+                              style: TextStyle(color: colors.onSurface.withValues(alpha: 0.5)), 
+                              decoration: inputDecoration.copyWith(
+                                labelText: 'País', 
+                                prefixIcon: Icon(Icons.flag_outlined, color: colors.onSurface.withValues(alpha: 0.5))
+                              )
+                            ),
                           ]),
                           
                           const SizedBox(height: 24),
@@ -492,23 +607,27 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
                           PaymentMethodsCard(user: widget.user),
                           const SizedBox(height: 48),
                           
-                          // --- Botón Guardar con Tour ---
                           Showcase(
                             key: _keySaveButton, 
                             title: 'Publicar', 
                             description: 'Guarda para que tus clientes vean los cambios.', 
                             child: SizedBox(
-                              height: 50, 
+                              height: 54, 
+                              width: double.infinity, 
                               child: FilledButton(
-                                style: FilledButton.styleFrom(backgroundColor: appTheme.colorScheme.primary, foregroundColor: appTheme.colorScheme.onPrimary), 
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: colors.primary, 
+                                  foregroundColor: colors.onPrimary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                                ), 
                                 onPressed: _isLoading ? null : _saveSettings, 
                                 child: _isLoading 
-                                  ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: appTheme.colorScheme.onPrimary, strokeWidth: 3)) 
-                                  : const Text('Guardar Cambios')
+                                  ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 3) 
+                                  : const Text('GUARDAR Y PUBLICAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1))
                               )
                             )
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 48),
                         ],
                       ),
                     ),
@@ -525,6 +644,12 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   void _showSnackbar(String message, {bool isError = false}) {
     if (!mounted) return;
     final colors = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, style: TextStyle(color: isError ? colors.onError : Colors.black, fontWeight: FontWeight.bold)), backgroundColor: isError ? colors.error : const Color(0xFF00FF7F), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), margin: const EdgeInsets.all(16)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message, style: TextStyle(color: isError ? Colors.white : Colors.black, fontWeight: FontWeight.bold)), 
+      backgroundColor: isError ? colors.error : const Color(0xFF00FF7F), 
+      behavior: SnackBarBehavior.floating, 
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
+      margin: const EdgeInsets.all(16)
+    ));
   }
 }

@@ -2,13 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 /// Representa el modelo de datos para un usuario en la plataforma Servicly.
-///
-/// Este modelo contiene no solo la información de la plataforma (rol, plan),
-/// sino también un mapa flexible 'personalization' que almacena todos los
-/// datos del negocio del proveedor.
 @immutable
 class UserModel {
-  // --- DATOS DE LA PLATAFORMA (Gestionados por Servicly) ---
+  // --- DATOS DE LA PLATAFORMA ---
   final String uid;
   final String? email;
   final Timestamp? createdAt;
@@ -17,31 +13,34 @@ class UserModel {
   final String planType;
   final List<String> activeModules;
 
-  // --- MODIFICACIÓN: Campos para el nuevo flujo de perfil público ---
-  /// Indica si el usuario ya ha completado la creación de su perfil público.
-  /// Por defecto es `false`.
+  // --- PERFIL PÚBLICO ---
   final bool publicProfileCreated;
-
-  /// Almacena el identificador de la plantilla seleccionada (ej: 'cv', 'tienda').
-  /// Es `null` si el perfil no ha sido creado.
   final String? publicProfileTemplate;
 
-  // --- MODIFICACIÓN: CAMPOS DE LA RAÍZ (basado en tu Firestore) ---
-  final String? businessName;
+  // --- DATOS DE NEGOCIO Y VERIFICACIÓN ---
+  // Mantenemos businessName como variable principal según tu estructura
+  final String? businessName; 
   final String? logoUrl;
+  
+  // Nuevos campos detectados en tu Firestore:
+  final bool isVerified;
+  final String? verificationStatus; // "basic_verified"
+  final Timestamp? verificationDate;
+  
+  // Métricas
+  final num ratingAvg;   // Usamos num para soportar int (4) y double (4.5)
+  final num ratingCount;
 
-  // --- DATOS DEL NEGOCIO (Gestionados por el Proveedor) ---
-  /// Mapa flexible para almacenar toda la configuración de la marca y el perfil público.
+  // --- DATOS FLEXIBLES ---
   final Map<String, dynamic> personalization;
 
-  // --- GETTERS DE CONVENIENCIA (¡CORREGIDOS!) ---
-  /// Acceso directo al nombre del negocio.
-  String? get displayName => businessName; // <-- CORREGIDO
+  // --- GETTERS DE CONVENIENCIA (COMO ESTABAN ANTES) ---
+  /// Mantiene la compatibilidad con tus otros archivos.
+  /// Obtiene el nombre del negocio o el nombre de pantalla.
+  String? get displayName => businessName; 
 
-  /// Acceso directo a la URL de la foto de perfil.
-  /// La UI pide 'photoUrl', pero tu base de datos usa 'logoUrl'.
-  /// Este getter actúa como un "alias" para que funcione.
-  String? get photoUrl => logoUrl; // <-- CORREGIDO
+  /// Alias para photoUrl usando el logoUrl
+  String? get photoUrl => logoUrl;
 
   const UserModel({
     required this.uid,
@@ -49,19 +48,23 @@ class UserModel {
     this.createdAt,
     this.isProfileComplete = false,
     this.role,
-    this.planType = 'conecta',
+    this.planType = 'conecta', // Default según tu código anterior
     this.activeModules = const [],
     this.personalization = const {},
-    // --- MODIFICACIÓN: Se añaden los nuevos campos al constructor ---
     this.publicProfileCreated = false,
     this.publicProfileTemplate,
-
-    // --- MODIFICACIÓN: AÑADIDOS AL CONSTRUCTOR ---
+    
+    // Campos restaurados y nuevos
     this.businessName,
     this.logoUrl,
+    this.isVerified = false,
+    this.verificationStatus,
+    this.verificationDate,
+    this.ratingAvg = 0,
+    this.ratingCount = 0,
   });
 
-  /// Convierte la instancia del modelo a un mapa para guardarlo en Firestore.
+  /// Convierte a JSON para Firestore
   Map<String, dynamic> toJson() {
     return {
       'uid': uid,
@@ -73,15 +76,21 @@ class UserModel {
       'activeModules': activeModules,
       'personalization': personalization,
       'publicProfileCreated': publicProfileCreated,
-      // --- ¡CORRECCIÓN DEL TYPO! ---
-      'publicProfileTemplate': publicProfileTemplate, // Era publicHrofileTemplate
-      // --- MODIFICACIÓN: AÑADIDOS AL JSON ---
+      'publicProfileTemplate': publicProfileTemplate,
+      
+      // Mapeo de campos de negocio
       'businessName': businessName,
+      'displayName': businessName, // Guardamos businessName también como displayName para consistencia
       'logoUrl': logoUrl,
+      'isVerified': isVerified,
+      'verificationStatus': verificationStatus,
+      'verificationDate': verificationDate,
+      'ratingAvg': ratingAvg,
+      'ratingCount': ratingCount,
     };
   }
 
-  /// Crea una instancia del modelo a partir de un mapa leído desde Firestore.
+  /// Crea desde Firestore
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       uid: json['uid'] as String,
@@ -92,36 +101,41 @@ class UserModel {
       planType: json['planType'] as String? ?? 'conecta',
       activeModules: List<String>.from(json['activeModules'] ?? []),
       personalization: Map<String, dynamic>.from(json['personalization'] ?? {}),
-      // --- MODIFICACIÓN: Se leen los nuevos campos de forma segura ---
+      
       publicProfileCreated: json['publicProfileCreated'] as bool? ?? false,
       publicProfileTemplate: json['publicProfileTemplate'] as String?,
 
-      // --- MODIFICACIÓN: LEER CAMPOS DE LA RAÍZ ---
-      businessName: json['businessName'] as String?,
+      // --- TRUCO DE COMPATIBILIDAD ---
+      // Leemos 'businessName'. Si es nulo, intentamos leer 'displayName' (donde dice "Ronald").
+      // Esto hace que tu getter displayName funcione aunque el campo en BD se llame diferente.
+      businessName: (json['businessName'] as String?) ?? (json['displayName'] as String?),
+      
       logoUrl: json['logoUrl'] as String?,
+      isVerified: json['isVerified'] as bool? ?? false,
+      verificationStatus: json['verificationStatus'] as String?,
+      verificationDate: json['verificationDate'] as Timestamp?,
+      
+      // Lectura segura de números
+      ratingAvg: json['ratingAvg'] as num? ?? 0,
+      ratingCount: json['ratingCount'] as num? ?? 0,
     );
   }
+
   factory UserModel.empty() {
-    return UserModel(
+    return const UserModel(
       uid: '',
       email: '',
-      // 'displayName' se elimina porque es un getter.
-      role: '', // O el rol por defecto que uses
+      role: '', 
       isProfileComplete: false,
       activeModules: [],
-      personalization: {}, // Mapa vacío
-      planType: 'conecta', // Default al plan conecta (coincide con PermissionsService)
+      personalization: {},
+      planType: 'conecta',
       publicProfileCreated: false,
-      publicProfileTemplate: null, // Opcional: ser explícito
-      createdAt: null, // Opcional: ser explícito
-      // --- MODIFICACIÓN: AÑADIDOS AL EMPTY ---
       businessName: null,
       logoUrl: null,
     );
   }
 
-  // --- ¡NUEVO MÉTODO 'copyWith' AÑADIDO! ---
-  /// Crea una copia de este modelo con los campos proporcionados sobrescritos.
   UserModel copyWith({
     String? uid,
     String? email,
@@ -133,9 +147,14 @@ class UserModel {
     bool? publicProfileCreated,
     String? publicProfileTemplate,
     Map<String, dynamic>? personalization,
-    // --- MODIFICACIÓN: AÑADIDOS AL COPYWITH ---
+    
     String? businessName,
     String? logoUrl,
+    bool? isVerified,
+    String? verificationStatus,
+    Timestamp? verificationDate,
+    num? ratingAvg,
+    num? ratingCount,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -147,11 +166,15 @@ class UserModel {
       activeModules: activeModules ?? this.activeModules,
       personalization: personalization ?? this.personalization,
       publicProfileCreated: publicProfileCreated ?? this.publicProfileCreated,
-      publicProfileTemplate:
-          publicProfileTemplate ?? this.publicProfileTemplate,
-      // --- MODIFICACIÓN: AÑADIDOS AL COPYWITH ---
+      publicProfileTemplate: publicProfileTemplate ?? this.publicProfileTemplate,
+      
       businessName: businessName ?? this.businessName,
       logoUrl: logoUrl ?? this.logoUrl,
+      isVerified: isVerified ?? this.isVerified,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      verificationDate: verificationDate ?? this.verificationDate,
+      ratingAvg: ratingAvg ?? this.ratingAvg,
+      ratingCount: ratingCount ?? this.ratingCount,
     );
   }
 }

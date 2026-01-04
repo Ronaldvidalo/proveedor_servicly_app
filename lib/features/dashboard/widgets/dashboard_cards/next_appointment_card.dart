@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 // --- Imports de Agenda ---
 import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart';
+import 'package:proveedor_servicly_app/features/agenda/data/models/agenda_event_model.dart';
 
 class NextAppointmentCard extends ConsumerWidget {
   const NextAppointmentCard({super.key});
@@ -18,8 +19,9 @@ class NextAppointmentCard extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final colorScheme = theme.colorScheme;
 
-    // Mantenemos el morado como color semántico de Agenda, pero lo adaptamos si es necesario
-    const Color semanticColor = Color(0xFF6C63FF); 
+    // Colores semánticos definidos en la infraestructura de ingeniería
+    const Color standardColor = Color(0xFF6C63FF); // Morado Agenda
+    const Color pendingColor = Colors.orangeAccent; // Naranja Negociación
 
     return nextEventAsync.when(
       loading: () => _buildPlaceholder(theme, isLoading: true),
@@ -27,26 +29,34 @@ class NextAppointmentCard extends ConsumerWidget {
       data: (event) {
         final bool hasAppointment = event != null;
         
+        // --- LÓGICA DE PRIORIDAD TÉCNICA ---
+        // Si el próximo evento requiere aprobación, cambiamos el color de la tarjeta
+        final bool isPending = hasAppointment && event.eventStatus == EventStatus.pendingApproval;
+        final Color activeColor = isPending ? pendingColor : standardColor;
+
         return Container(
           width: 160,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            // QA FIX: Fondo dinámico (Gradiente solo en dark)
             color: isDark ? null : theme.cardTheme.color,
             gradient: isDark ? LinearGradient(
-              colors: [semanticColor.withValues(alpha: 0.2), semanticColor.withValues(alpha: 0.05)], 
+              colors: [
+                activeColor.withValues(alpha: 0.2), 
+                activeColor.withValues(alpha: 0.05)
+              ], 
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ) : null,
             borderRadius: BorderRadius.circular(20),
-            // QA FIX: Borde adaptativo
             border: Border.all(
-              color: isDark ? semanticColor.withValues(alpha: 0.5) : theme.dividerColor
+              color: isDark 
+                  ? activeColor.withValues(alpha: 0.5) 
+                  : (isPending ? pendingColor : theme.dividerColor)
             ),
             boxShadow: [
                BoxShadow(
                 color: isDark 
-                    ? semanticColor.withValues(alpha: 0.1) 
+                    ? activeColor.withValues(alpha: 0.1) 
                     : Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10, 
                 offset: const Offset(0, 4)
@@ -58,15 +68,19 @@ class NextAppointmentCard extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_today, color: semanticColor, size: 18),
+                  Icon(
+                    isPending ? Icons.notification_important : Icons.calendar_today, 
+                    color: activeColor, 
+                    size: 18
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    "PRÓXIMA", 
+                    isPending ? "PENDIENTE" : "PRÓXIMA", 
                     style: TextStyle(
-                      // Texto secundario adaptable
-                      color: colorScheme.onSurface.withValues(alpha: 0.6), 
+                      color: isPending ? pendingColor : colorScheme.onSurface.withValues(alpha: 0.6), 
                       fontSize: 10, 
-                      fontWeight: FontWeight.bold
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5
                     )
                   ),
                 ],
@@ -76,8 +90,7 @@ class NextAppointmentCard extends ConsumerWidget {
                 Text(
                   DateFormat('HH:mm').format(event.startTime), 
                   style: TextStyle(
-                    // Hora en grande (Texto principal)
-                    color: colorScheme.onSurface, 
+                    color: isPending ? pendingColor : colorScheme.onSurface, 
                     fontSize: 22, 
                     fontWeight: FontWeight.bold
                   ),
@@ -87,21 +100,34 @@ class NextAppointmentCard extends ConsumerWidget {
                   event.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: semanticColor, fontSize: 12, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: isPending ? Colors.white : activeColor, 
+                    fontSize: 12, 
+                    fontWeight: FontWeight.w600
+                  ),
                 ),
                 Text(
-                  // Si es hoy, dice "Hoy", si no, la fecha
                   _formatDate(event.startTime),
-                  style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 10),
+                  style: TextStyle(
+                    color: colorScheme.onSurface.withValues(alpha: 0.6), 
+                    fontSize: 10
+                  ),
                 ),
               ] else ...[
                 Text(
                   "Libre", 
-                  style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)
+                  style: TextStyle(
+                    color: colorScheme.onSurface, 
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold
+                  )
                 ),
                 Text(
                   "Sin citas pendientes", 
-                  style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 10)
+                  style: TextStyle(
+                    color: colorScheme.onSurface.withValues(alpha: 0.5), 
+                    fontSize: 10
+                  )
                 ),
               ]
             ],
@@ -133,7 +159,7 @@ class NextAppointmentCard extends ConsumerWidget {
       ),
       child: Center(
         child: isLoading 
-            ? const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF))
+            ? const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00B2B2))
             : Text(errorText ?? "", style: TextStyle(color: colorScheme.error)),
       ),
     );

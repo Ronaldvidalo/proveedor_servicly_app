@@ -1,6 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+/// Clase de apoyo para definir rangos de tiempo (ej. 08:00 a 13:00)
+class TimeRange {
+  final String start;
+  final String end;
+
+  TimeRange({required this.start, required this.end});
+
+  Map<String, dynamic> toMap() => {
+    'start': start,
+    'end': end,
+  };
+
+  factory TimeRange.fromMap(Map<String, dynamic> map) {
+    return TimeRange(
+      start: map['start'] as String? ?? '',
+      end: map['end'] as String? ?? '',
+    );
+  }
+}
+
 class ProviderProfileModel {
   final String id;
   final String providerId;
@@ -27,6 +47,7 @@ class ProviderProfileModel {
   final String? openingHours;
   final String? phone;
   final String? whatsapp;
+  final String actionType;
 
   // --- CAMPOS DE ACCIÓN DEL BOTÓN ---
   final String? bookingActionType; // 'agenda' o 'presupuesto'
@@ -63,6 +84,12 @@ class ProviderProfileModel {
   final bool showGiftCardModule;
   final bool showBookingModule;
   final bool showQuotesModule;
+
+  // --- NUEVOS CAMPOS DE DISPONIBILIDAD TÉCNICA ---
+  /// Mapa de horarios: Llave es el día (1-7), Valor es una lista de rangos
+  final Map<int, List<TimeRange>>? weeklySchedule;
+  final int slotDuration; 
+  final bool worksOnHolidays; 
 
   const ProviderProfileModel({
     required this.id,
@@ -113,12 +140,22 @@ class ProviderProfileModel {
     this.promoSubtitle,
     this.bookingActionType,
     this.bookingButtonText,
+    this.actionType = 'booking',
+    this.weeklySchedule,
+    this.slotDuration = 30,
+    this.worksOnHolidays = false,
   });
 
   factory ProviderProfileModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final nested = data['personalization'] as Map<String, dynamic>? ?? {};
+    
+    // Función de ayuda robusta para buscar en ambos niveles
     dynamic get(String key) => data[key] ?? nested[key];
+
+    // Limpieza de logo para evitar cargar videos .mp4 como imágenes
+    String rawLogo = get('logoUrl') as String? ?? '';
+    String safeLogo = rawLogo.toLowerCase().contains('.mp4') ? '' : rawLogo;
 
     final welcomeModule = (get('welcomeModule') as Map<String, dynamic>?) ?? {};
     final portfolioModule = (get('portfolioModule') as Map<String, dynamic>?) ?? {};
@@ -128,11 +165,24 @@ class ProviderProfileModel {
     final bookingModule = (get('bookingModule') as Map<String, dynamic>?) ?? {};
     final quotesModule = (get('quotesModule') as Map<String, dynamic>?) ?? {};
 
+    // --- Lógica de parseo para weeklySchedule ---
+    final scheduleData = get('weeklySchedule') as Map<String, dynamic>?;
+    Map<int, List<TimeRange>>? parsedSchedule;
+    if (scheduleData != null) {
+      parsedSchedule = scheduleData.map((key, value) {
+        final dayKey = int.tryParse(key) ?? 0;
+        final slots = (value as List<dynamic>?)?.map((s) {
+          return TimeRange.fromMap(Map<String, dynamic>.from(s as Map));
+        }).toList();
+        return MapEntry(dayKey, slots ?? []);
+      });
+    }
+
     return ProviderProfileModel(
       id: doc.id,
       providerId: data['providerId'] as String? ?? doc.id,
       businessName: get('businessName') as String? ?? 'Nombre del Negocio',
-      logoUrl: get('logoUrl') as String? ?? '',
+      logoUrl: safeLogo,
       brandColor: _colorFromHex(get('primaryColor') as String?) ?? Colors.deepPurple,
       activeModules: List<String>.from(data['activeModules'] as List<dynamic>? ?? []),
       profileType: get('profileType') as String? ?? get('publicProfileTemplate') as String? ?? 'social',
@@ -177,6 +227,10 @@ class ProviderProfileModel {
       promoSubtitle: data['promoSubtitle'] as String?,
       bookingActionType: data['bookingActionType'] as String?, 
       bookingButtonText: data['bookingButtonText'] as String?,
+      actionType: data['actionType'] ?? 'booking',
+      weeklySchedule: parsedSchedule,
+      slotDuration: data['slotDuration'] as int? ?? 30,
+      worksOnHolidays: data['worksOnHolidays'] as bool? ?? false,
     );
   }
 
@@ -227,6 +281,9 @@ class ProviderProfileModel {
     String? coverImageUrl,
     String? promoTitle,
     String? promoSubtitle,
+    Map<int, List<TimeRange>>? weeklySchedule,
+    int? slotDuration,
+    bool? worksOnHolidays,
   }) {
     return ProviderProfileModel(
       id: id ?? this.id,
@@ -275,11 +332,13 @@ class ProviderProfileModel {
       coverImageUrl: coverImageUrl ?? this.coverImageUrl,
       promoTitle: promoTitle ?? this.promoTitle,
       promoSubtitle: promoSubtitle ?? this.promoSubtitle,
+      weeklySchedule: weeklySchedule ?? this.weeklySchedule,
+      slotDuration: slotDuration ?? this.slotDuration,
+      worksOnHolidays: worksOnHolidays ?? this.worksOnHolidays,
     );
   }
 
   Map<String, dynamic> toMap() {
-    // 🚩 BASE MAP: Solo campos obligatorios y estructuras fijas
     final Map<String, dynamic> data = {
       'providerId': providerId,
       'businessName': businessName,
@@ -288,6 +347,7 @@ class ProviderProfileModel {
       'profileType': profileType,
       'planType': planType,
       'isAvailable': isAvailable,
+      'actionType': actionType,
       'welcomeModule': {
         'show': showWelcomeModule,
         'type': welcomeModuleType,
@@ -301,9 +361,16 @@ class ProviderProfileModel {
       'giftCardModule': {'show': showGiftCardModule},
       'bookingModule': {'show': showBookingModule},
       'quotesModule': {'show': showQuotesModule},
+      'slotDuration': slotDuration,
+      'worksOnHolidays': worksOnHolidays,
     };
 
-    // ✅ LÓGICA INTELIGENTE: Función para agregar solo si el valor es válido
+    if (weeklySchedule != null) {
+      data['weeklySchedule'] = weeklySchedule!.map((key, value) {
+        return MapEntry(key.toString(), value.map((v) => v.toMap()).toList());
+      });
+    }
+
     void addIfValid(String key, dynamic value) {
       if (value == null) return;
       if (value is String && value.isEmpty) return;
@@ -311,7 +378,6 @@ class ProviderProfileModel {
       data[key] = value;
     }
 
-    // Agregamos campos opcionales solo si tienen contenido
     addIfValid('publicProfileTheme', publicProfileTheme);
     addIfValid('contactEmail', contactEmail);
     addIfValid('address', address);
