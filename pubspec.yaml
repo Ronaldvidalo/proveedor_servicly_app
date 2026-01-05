@@ -36,6 +36,7 @@ dependencies:
   share_plus: ^10.0.0
   pdf: ^3.10.8       # Motor de creación de documentos
   printing: ^5.13.1  # Vista previa, impresión y compartir nativo
+  flutter_paypal: ^0.2.1
   
 
   # --- GESTIÓN DE ESTADO ---

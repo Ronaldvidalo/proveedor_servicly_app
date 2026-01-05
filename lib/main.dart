@@ -3,6 +3,7 @@
 // Style: Cyber Glow Integration
 // Update: Integración completa de Módulos Presupuesto (Quotes), Inventario e IA
 // Update: Integración de Notificaciones Push (Firebase Messaging) + Navegación Global
+// Update: Implementación de Reactividad de Suscripciones (UserModel Stream)
 // FIX: GeminiService Singleton Injection
 // ---------------------------------
 
@@ -13,7 +14,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:rxdart/rxdart.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 
@@ -128,8 +128,10 @@ class MyApp extends StatelessWidget {
         Provider<VideoService>(create: (_) => VideoService()),
         Provider<FollowService>(create: (_) => FollowService()),
         Provider<PaymentService>(create: (_) => PaymentService()),
+        
+        // Servicio Base de Firestore
         Provider<FirestoreService>(create: (_) => FirestoreService()),
-        Provider(create: (_) => FirestoreService()),
+        
         ChangeNotifierProvider(create: (_) => AvailabilityService()),
         // --- ✅ CORRECCIÓN: GEMINI SERVICE COMO SINGLETON ---
         // Esto asegura que la instancia (y la API Key) se cree una sola vez
@@ -138,7 +140,7 @@ class MyApp extends StatelessWidget {
         // --- Inyectamos NotificationService ---
         Provider<NotificationService>(create: (_) => NotificationService()),
 
-        // --- AUTH SERVICE ---
+        // --- AUTH SERVICE (Centraliza la lógica de usuario) ---
         Provider<AuthService>(create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
@@ -192,20 +194,13 @@ class MyApp extends StatelessWidget {
           initialData: null,
         ),
         
+        // --- STREAM DE USUARIO (REACTIVO) ---
+        // Aquí ocurre la magia: Escuchamos el stream inteligente de AuthService.
+        // Si el usuario paga, este stream emite el nuevo UserModel automáticamente.
         StreamProvider<UserModel?>(
+          create: (context) => context.read<AuthService>().userModelStream,
           initialData: null,
-          create: (context) {
-            final authService = context.read<AuthService>();
-            final firestoreService = context.read<FirestoreService>();
-            
-            return authService.authStateChanges.switchMap((firebaseUser) {
-              if (firebaseUser == null) {
-                return Stream.value(null);
-              } else {
-                return firestoreService.getUserStream(firebaseUser.uid);
-              }
-            });
-          },
+          catchError: (_, __) => null, // Evita pantallas rojas si Firestore falla
         ),
 
         ProxyProvider<UserModel?, PermissionsService>(

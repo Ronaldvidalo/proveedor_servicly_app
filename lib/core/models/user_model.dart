@@ -10,7 +10,12 @@ class UserModel {
   final Timestamp? createdAt;
   final bool isProfileComplete;
   final String? role;
-  final String planType;
+  
+  // --- SUSCRIPCIONES Y PAGOS (NUEVO) ---
+  final String planType; // 'free', 'pro', 'corporate'
+  final bool isPremium;  // true si pagó
+  final Timestamp? subscriptionExpiry; // Fecha de vencimiento
+
   final List<String> activeModules;
 
   // --- PERFIL PÚBLICO ---
@@ -18,28 +23,23 @@ class UserModel {
   final String? publicProfileTemplate;
 
   // --- DATOS DE NEGOCIO Y VERIFICACIÓN ---
-  // Mantenemos businessName como variable principal según tu estructura
   final String? businessName; 
   final String? logoUrl;
   
-  // Nuevos campos detectados en tu Firestore:
+  // Datos de verificación
   final bool isVerified;
   final String? verificationStatus; // "basic_verified"
   final Timestamp? verificationDate;
   
   // Métricas
-  final num ratingAvg;   // Usamos num para soportar int (4) y double (4.5)
+  final num ratingAvg;
   final num ratingCount;
 
   // --- DATOS FLEXIBLES ---
   final Map<String, dynamic> personalization;
 
-  // --- GETTERS DE CONVENIENCIA (COMO ESTABAN ANTES) ---
-  /// Mantiene la compatibilidad con tus otros archivos.
-  /// Obtiene el nombre del negocio o el nombre de pantalla.
+  // --- GETTERS DE CONVENIENCIA ---
   String? get displayName => businessName; 
-
-  /// Alias para photoUrl usando el logoUrl
   String? get photoUrl => logoUrl;
 
   const UserModel({
@@ -48,13 +48,14 @@ class UserModel {
     this.createdAt,
     this.isProfileComplete = false,
     this.role,
-    this.planType = 'conecta', // Default según tu código anterior
+    this.planType = 'free',
+    this.isPremium = false, // Default false
+    this.subscriptionExpiry,
     this.activeModules = const [],
     this.personalization = const {},
     this.publicProfileCreated = false,
     this.publicProfileTemplate,
     
-    // Campos restaurados y nuevos
     this.businessName,
     this.logoUrl,
     this.isVerified = false,
@@ -72,15 +73,20 @@ class UserModel {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'isProfileComplete': isProfileComplete,
       'role': role,
+      
+      // Suscripción
       'planType': planType,
+      'isPremium': isPremium,
+      'subscriptionExpiry': subscriptionExpiry,
+
       'activeModules': activeModules,
       'personalization': personalization,
       'publicProfileCreated': publicProfileCreated,
       'publicProfileTemplate': publicProfileTemplate,
       
-      // Mapeo de campos de negocio
+      // Negocio
       'businessName': businessName,
-      'displayName': businessName, // Guardamos businessName también como displayName para consistencia
+      'displayName': businessName, 
       'logoUrl': logoUrl,
       'isVerified': isVerified,
       'verificationStatus': verificationStatus,
@@ -98,16 +104,19 @@ class UserModel {
       createdAt: json['createdAt'] as Timestamp?,
       isProfileComplete: json['isProfileComplete'] as bool? ?? false,
       role: json['role'] as String?,
-      planType: json['planType'] as String? ?? 'conecta',
+      
+      // Suscripción
+      planType: json['planType'] as String? ?? 'free',
+      isPremium: json['isPremium'] as bool? ?? false,
+      subscriptionExpiry: json['subscriptionExpiry'] as Timestamp?,
+
       activeModules: List<String>.from(json['activeModules'] ?? []),
       personalization: Map<String, dynamic>.from(json['personalization'] ?? {}),
       
       publicProfileCreated: json['publicProfileCreated'] as bool? ?? false,
       publicProfileTemplate: json['publicProfileTemplate'] as String?,
 
-      // --- TRUCO DE COMPATIBILIDAD ---
-      // Leemos 'businessName'. Si es nulo, intentamos leer 'displayName' (donde dice "Ronald").
-      // Esto hace que tu getter displayName funcione aunque el campo en BD se llame diferente.
+      // Truco de compatibilidad para nombres
       businessName: (json['businessName'] as String?) ?? (json['displayName'] as String?),
       
       logoUrl: json['logoUrl'] as String?,
@@ -115,7 +124,6 @@ class UserModel {
       verificationStatus: json['verificationStatus'] as String?,
       verificationDate: json['verificationDate'] as Timestamp?,
       
-      // Lectura segura de números
       ratingAvg: json['ratingAvg'] as num? ?? 0,
       ratingCount: json['ratingCount'] as num? ?? 0,
     );
@@ -129,7 +137,8 @@ class UserModel {
       isProfileComplete: false,
       activeModules: [],
       personalization: {},
-      planType: 'conecta',
+      planType: 'free',
+      isPremium: false,
       publicProfileCreated: false,
       businessName: null,
       logoUrl: null,
@@ -142,7 +151,11 @@ class UserModel {
     Timestamp? createdAt,
     bool? isProfileComplete,
     String? role,
+    
     String? planType,
+    bool? isPremium,
+    Timestamp? subscriptionExpiry,
+    
     List<String>? activeModules,
     bool? publicProfileCreated,
     String? publicProfileTemplate,
@@ -162,7 +175,11 @@ class UserModel {
       createdAt: createdAt ?? this.createdAt,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
       role: role ?? this.role,
+      
       planType: planType ?? this.planType,
+      isPremium: isPremium ?? this.isPremium,
+      subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
+
       activeModules: activeModules ?? this.activeModules,
       personalization: personalization ?? this.personalization,
       publicProfileCreated: publicProfileCreated ?? this.publicProfileCreated,

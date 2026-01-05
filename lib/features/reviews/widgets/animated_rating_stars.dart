@@ -8,15 +8,19 @@ class AnimatedRatingStars extends StatelessWidget {
   final double size;
 
   const AnimatedRatingStars({
-    Key? key,
+    super.key, // Corrección Lint: 'key' converted to super parameter
     required this.currentRating,
     required this.onRatingSelected,
     this.size = 40,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    Color activeColor = getRatingColor(currentRating == 0 ? 5 : currentRating);
+    // 1. CORRECCIÓN: Usamos CyberStyles.getRatingColor pasando el context
+    Color activeColor = CyberStyles.getRatingColor(context, currentRating == 0 ? 5 : currentRating);
+    
+    // Obtenemos el tema para el color de la estrella inactiva
+    final theme = Theme.of(context);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -27,13 +31,17 @@ class AnimatedRatingStars extends StatelessWidget {
         return GestureDetector(
           onTap: () => onRatingSelected(starValue),
           child: AnimatedContainer(
-            duration: Duration(milliseconds: 300),
-            padding: EdgeInsets.symmetric(horizontal: 4),
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Icon(
               isActive ? Icons.star : Icons.star_border,
-              color: isActive ? activeColor : Colors.grey[700],
+              // 2. CORRECCIÓN: Color inactivo adaptativo (no grey[700] fijo)
+              color: isActive ? activeColor : theme.disabledColor,
               size: size,
-              shadows: isActive ? getGlow(activeColor) : [],
+              // 3. CORRECCIÓN: Usamos CyberStyles.getGlow pasando context y color
+              shadows: isActive 
+                  ? CyberStyles.getGlow(context, color: activeColor, isFocused: true) 
+                  : [],
             ),
           ),
         );

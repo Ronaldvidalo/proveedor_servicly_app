@@ -6,19 +6,35 @@ class ReputationCard extends StatelessWidget {
   final double ratingAvg;
   final int ratingCount;
 
-  const ReputationCard({Key? key, required this.ratingAvg, required this.ratingCount}) : super(key: key);
+  const ReputationCard({
+    super.key, // Sintaxis moderna
+    required this.ratingAvg, 
+    required this.ratingCount
+  });
 
   @override
   Widget build(BuildContext context) {
-    Color statusColor = getRatingColor(ratingAvg.round());
+    final theme = Theme.of(context);
+    
+    // 1. CORRECCIÓN: Usamos CyberStyles pasando el contexto
+    Color statusColor = CyberStyles.getRatingColor(context, ratingAvg.round());
 
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: CyberColors.surface,
+        // 2. CORRECCIÓN: Fondo dinámico (Card Color del tema)
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-        boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4))],
+        // Borde sutil basado en el divisor del tema
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            // Sombra suave adaptativa (negra en dark, grisacea en light)
+            color: theme.shadowColor.withValues(alpha: 0.1),
+            blurRadius: 10, 
+            offset: const Offset(0, 4)
+          )
+        ],
       ),
       child: Row(
         children: [
@@ -31,24 +47,39 @@ class ReputationCard extends StatelessWidget {
                   color: statusColor,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  shadows: getGlow(statusColor),
+                  // 3. CORRECCIÓN: Glow dinámico (Neón en Dark, Sombra en Light)
+                  shadows: CyberStyles.getGlow(context, color: statusColor, isFocused: true),
                 ),
               ),
-              Text("$ratingCount reseñas", style: TextStyle(color: Colors.white54, fontSize: 12)),
+              Text(
+                "$ratingCount reseñas", 
+                // 4. CORRECCIÓN: Color de texto secundario del tema
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.disabledColor
+                )
+              ),
             ],
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           // Visualización Estrellas estáticas
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Reputación", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(
+                  "Reputación", 
+                  // 5. CORRECCIÓN: Texto principal legible en ambos modos
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold
+                  )
+                ),
                 Row(
                   children: List.generate(5, (index) {
+                    bool isActive = index < ratingAvg.round();
                     return Icon(
-                      index < ratingAvg.round() ? Icons.star : Icons.star_border,
-                      color: index < ratingAvg.round() ? statusColor : Colors.grey[800],
+                      isActive ? Icons.star : Icons.star_border,
+                      // 6. CORRECCIÓN: Color inactivo del tema (disabledColor)
+                      color: isActive ? statusColor : theme.disabledColor,
                       size: 20,
                     );
                   }),

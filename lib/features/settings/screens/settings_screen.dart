@@ -1,9 +1,7 @@
 // --- UX/UI Enhancement Comment ---
 // UX/UI Redesigned: 14/10/2025
 // Style: Cyber Glow
-// This screen was refactored to align with the "Cyber Glow" design philosophy.
-// It features a modern, card-based layout for each setting option, creating
-// a visually appealing and intuitive command center for the user.
+// Updated: Integration with Subscription Module
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -12,14 +10,18 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import '../../../core/services/auth_service.dart';
 import 'brand_settings_screen.dart';
 
+// IMPORTACIÓN NUEVA: Módulo de Suscripciones
+// Ajusta la ruta si tus carpetas tienen nombres ligeramente diferentes
+import '../../subscriptions/screens/subscription_screen.dart';
+
 /// La "página matriz" de Configuración.
-/// Actúa como un centro de mando para varias sub-pantallas de ajustes.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final authService = context.read<AuthService>();
+    // Escuchamos el usuario para (opcionalmente) mostrar su plan actual en el subtítulo
     final user = context.watch<UserModel?>();
     
     const backgroundColor = Color(0xFF1A1A2E);
@@ -57,14 +59,26 @@ class SettingsScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 16),
+              
+              // --- TARJETA DE SUSCRIPCIÓN CONECTADA ---
               _SettingsCard(
                 icon: Icons.star_outline_rounded,
                 title: 'Gestionar Suscripción',
-                subtitle: 'Revisa tu plan actual y las opciones premium.',
+                // Mejora UX: Mostramos el plan actual si existe el dato
+                subtitle: user?.planType != null 
+                    ? 'Plan actual: ${user!.planType.toUpperCase()}. Ver mejoras.' 
+                    : 'Revisa tu plan actual y las opciones premium.',
                 onTap: () {
-                  // TODO: Navegar a la pantalla de gestión de planes.
+                  // Navegación a la nueva pantalla Cyber Glow de suscripciones
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SubscriptionScreen(),
+                    ),
+                  );
                 },
               ),
+              // -----------------------------------------
+
               const SizedBox(height: 16),
               _SettingsCard(
                 icon: Icons.logout_rounded,
@@ -91,6 +105,7 @@ class _SettingsCard extends StatelessWidget {
   final bool isDestructive;
 
   const _SettingsCard({
+    super.key, // Uso de super.key para Dart moderno
     required this.icon,
     required this.title,
     this.subtitle,
@@ -100,7 +115,7 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accentColor = Color(0xFF00BFFF);
+    const accentColor = Color(0xFF00BFFF); // Deep Sky Blue (Neon compatible)
     const surfaceColor = Color(0xFF2D2D5A);
     final destructiveColor = Colors.redAccent.shade100;
 
@@ -112,14 +127,28 @@ class _SettingsCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        // CORRECCIÓN: Se usa '.withAlpha()' en lugar de '.withOpacity()'.
-        splashColor: color.withAlpha(51), // 0.2 opacity
-        highlightColor: color.withAlpha(26), // 0.1 opacity
+        // Clean Code: withAlpha (0-255)
+        splashColor: color.withAlpha(50), 
+        highlightColor: color.withAlpha(25), 
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Row(
             children: [
-              Icon(icon, color: color, size: 28),
+              // Efecto de brillo sutil en el icono
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    if (!isDestructive)
+                      BoxShadow(
+                        color: color.withAlpha(40),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                  ]
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
@@ -137,7 +166,7 @@ class _SettingsCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         subtitle!,
-                        style: const TextStyle(color: Colors.white70),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ]
                   ],

@@ -6,7 +6,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/features/dashboard/providers/dashboard_context_provider.dart';
-import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart'; 
+import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
+
+// --- IMPORTS NUEVOS (INTEGRACIÓN PRO) ---
+import 'package:proveedor_servicly_app/shared/widgets/glow_avatar.dart'; // <--- El componente que brilla
+import 'package:proveedor_servicly_app/features/subscriptions/screens/subscription_screen.dart'; // <--- Para el Upsell
 
 class ServiclyHeader extends StatelessWidget {
   // Datos necesarios para la lógica
@@ -82,7 +86,10 @@ class ServiclyHeader extends StatelessWidget {
 
   void _handleOnAddStoreTap(BuildContext context) {
     final int currentCount = profiles.length;
-    final isPro = userModel.planType.toLowerCase() == 'pro' || userModel.planType.toLowerCase() == 'business';
+    // Verificación robusta del plan (incluyendo corporate)
+    final isPro = userModel.isPremium || 
+                  userModel.planType.toLowerCase() == 'pro' || 
+                  userModel.planType.toLowerCase() == 'corporate';
     
     // Regla de Negocio: FREE = Máximo 1 perfil.
     if (!isPro && currentCount >= 1) {
@@ -152,7 +159,11 @@ class ServiclyHeader extends StatelessWidget {
             style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
             onPressed: () { 
               Navigator.pop(context); 
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Navegando a Suscripciones...")));
+              // --- NAVEGACIÓN REAL AL MÓDULO DE SUSCRIPCIONES ---
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+              );
             }, 
             child: const Text("SER PRO")
           ),
@@ -192,10 +203,7 @@ class ServiclyHeader extends StatelessWidget {
   }
 
   Widget _buildUserInfo(ThemeData theme, ColorScheme scheme, bool isDark, bool isSelected) {
-    final user = FirebaseAuth.instance.currentUser;
-    final photoUrl = user?.photoURL ?? "";
-    
-    // Nombre seguro
+    // Calculamos el nombre para mostrarlo en el texto
     String displayName = "Usuario";
     if (userModel.displayName != null && userModel.displayName!.isNotEmpty) {
       displayName = userModel.displayName!;
@@ -203,24 +211,28 @@ class ServiclyHeader extends StatelessWidget {
 
     return Row(
       children: [
+        // Envolvemos el GlowAvatar en el contenedor de "Selección Global"
+        // Esto mantiene el indicador de "pestaña seleccionada" del dashboard
+        // pero usa el Avatar inteligente dentro.
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            // Borde de selección de Dashboard (Global View)
             border: Border.all(
               color: isSelected ? scheme.primary : Colors.transparent, 
               width: isSelected ? 3 : 1
             ),
+            // Sombra de selección de Dashboard
             boxShadow: isSelected && isDark
                 ? [BoxShadow(color: scheme.primary.withValues(alpha: 0.6), blurRadius: 15)]
                 : [],
           ),
-          child: CircleAvatar(
-            radius: 24,
-            backgroundColor: scheme.surface,
-            backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-            child: photoUrl.isEmpty ? Icon(Icons.person, color: scheme.onSurface) : null,
+          // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
+          child: GlowAvatar(
+            user: userModel, // Le pasamos el modelo para que detecte si es PREMIUM
+            radius: 24,      // Ajustamos el tamaño para encajar
           ),
         ),
         const SizedBox(width: 12),
