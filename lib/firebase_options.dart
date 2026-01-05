@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '369550718965',
     projectId: 'servicly-92872',
     storageBucket: 'servicly-92872.firebasestorage.app',
-    androidClientId: '369550718965-pr5kbm8797sp8uvokcco6uo9h6n5v34f.apps.googleusercontent.com',
+    androidClientId: '369550718965-dfn0vuusrclg135ni4h7skd5keblo41o.apps.googleusercontent.com',
     iosClientId: '369550718965-8hh0b42945sicl421fvesmv5a6ehh8mf.apps.googleusercontent.com',
     iosBundleId: 'com.example.proveedorServiclyApp',
   );
@@ -75,7 +75,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '369550718965',
     projectId: 'servicly-92872',
     storageBucket: 'servicly-92872.firebasestorage.app',
-    androidClientId: '369550718965-pr5kbm8797sp8uvokcco6uo9h6n5v34f.apps.googleusercontent.com',
+    androidClientId: '369550718965-dfn0vuusrclg135ni4h7skd5keblo41o.apps.googleusercontent.com',
     iosClientId: '369550718965-8hh0b42945sicl421fvesmv5a6ehh8mf.apps.googleusercontent.com',
     iosBundleId: 'com.example.proveedorServiclyApp',
   );

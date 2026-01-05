@@ -7,9 +7,9 @@
 // FIX: GeminiService Singleton Injection
 // ---------------------------------
 
-// Ocultamos conflictos de nombres entre Riverpod y Provider
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider, StreamProvider, ChangeNotifierProvider, Consumer;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // --- FIX WEB: Importante para kIsWeb
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -40,7 +40,7 @@ import 'package:proveedor_servicly_app/core/services/order_service.dart';
 import 'package:proveedor_servicly_app/core/services/notification_service.dart'; 
 
 // --- UTILIDADES ---
-import 'package:proveedor_servicly_app/core/utils/global_navigation.dart'; // <--- IMPORTANTE: Llave de Navegación
+import 'package:proveedor_servicly_app/core/utils/global_navigation.dart'; 
 import 'package:proveedor_servicly_app/core/services/availability_service.dart';
 
 // --- Modelos y ViewModels ---
@@ -66,11 +66,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // ---------------------------------------------------------------------------
 // --- MANEJADOR DE FONDO (BACKGROUND HANDLER) ---
-// Debe estar FUERA de cualquier clase y ser una función top-level
 // ---------------------------------------------------------------------------
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Aseguramos inicialización para que Firebase funcione en segundo plano
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -81,27 +79,46 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_ES', null);
 
-  // Carga de variables de entorno
-  await dotenv.load(fileName: ".env");
+  // --- FIX WEB: Manejo de .env ---
+  // En Web, el .env debe estar en assets. Si falla, que no rompa la app.
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("⚠️ Advertencia: No se pudo cargar .env (Normal si es Web y no está en assets): $e");
+  }
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // --- 1. Registrar manejador de notificaciones en segundo plano ---
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // --- FIX WEB: Background Handler ---
+  // Solo registramos esto si NO es Web. En Web da error.
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
 
-  // --- INICIALIZAR APP CHECK ---
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.debug,
-  );
+  // --- FIX WEB: App Check ---
+  // AppCheck necesita configuración especial para Web (ReCaptcha). 
+  // Por ahora lo activamos SOLO si NO es Web para evitar el crash.
+  if (!kIsWeb) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.appAttest,
+    );
+  } else {
+    // Opcional: Aquí iría la configuración Web con ReCaptcha V3 si la tienes
+    // await FirebaseAppCheck.instance.activate(
+    //   webProvider: ReCaptchaV3Provider('tu-clave-web-recaptcha'),
+    // );
+    print("ℹ️ AppCheck desactivado temporalmente en Web para evitar crash");
+  }
 
   // --- Cargar el servicio de tema ---
   final themeService = ThemeService();
   await themeService.loadTheme(); 
 
   runApp(
-    ProviderScope( // Riverpod Scope
+    ProviderScope( 
       child: MyApp(themeService: themeService), 
     ),
   );
@@ -116,10 +133,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // --- ThemeService ---
         ChangeNotifierProvider.value(value: themeService),
-
-        // --- PROVEEDORES DE SERVICIOS (Singletons) ---
         Provider<StorageService>(create: (_) => StorageService()),
         Provider<ProductService>(create: (_) => ProductService()),
         Provider<CategoryService>(create: (_) => CategoryService()),
@@ -129,18 +143,12 @@ class MyApp extends StatelessWidget {
         Provider<FollowService>(create: (_) => FollowService()),
         Provider<PaymentService>(create: (_) => PaymentService()),
         
-        // Servicio Base de Firestore
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         
         ChangeNotifierProvider(create: (_) => AvailabilityService()),
-        // --- ✅ CORRECCIÓN: GEMINI SERVICE COMO SINGLETON ---
-        // Esto asegura que la instancia (y la API Key) se cree una sola vez
         Provider<GeminiService>(create: (_) => GeminiService()),
-
-        // --- Inyectamos NotificationService ---
         Provider<NotificationService>(create: (_) => NotificationService()),
 
-        // --- AUTH SERVICE (Centraliza la lógica de usuario) ---
         Provider<AuthService>(create: (context) => AuthService(
             firestoreService: context.read<FirestoreService>(),
             firebaseMessaging: FirebaseMessaging.instance,
@@ -152,17 +160,14 @@ class MyApp extends StatelessWidget {
               ProviderService(firestoreService: firestoreService),
         ),
 
-        // --- REPOSITORIOS CORE ---
         Provider<CrmRepository>(create: (_) => CrmRepository()),
 
-        // --- DASHBOARD VIEWMODEL ---
         ChangeNotifierProvider<DashboardMetricsViewModel>(
             create: (context) => DashboardMetricsViewModel(
               context.read<CrmRepository>(), 
             ),
         ),
         
-        // --- REPOSITORIO DE INVENTARIO ---
         Provider<InventoryRepository>(
           create: (_) => InventoryRepository(
             firestore: FirebaseFirestore.instance,
@@ -177,30 +182,23 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        // --- REPOSITORIO DE PRESUPUESTOS (QUOTES) ---
         Provider<QuoteRepository>(create: (_) => QuoteRepository()),
 
-        // --- SERVICIO DE INTELIGENCIA DE COTIZACIONES ---
-        // ✅ CORRECCIÓN: Inyectamos la instancia única de GeminiService
         Provider<QuoteIntelligenceService>(
           create: (context) => QuoteIntelligenceService(
             context.read<GeminiService>(), 
           ),
         ),
 
-        // --- PROVIDERS DE ESTADO ---
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
         ),
         
-        // --- STREAM DE USUARIO (REACTIVO) ---
-        // Aquí ocurre la magia: Escuchamos el stream inteligente de AuthService.
-        // Si el usuario paga, este stream emite el nuevo UserModel automáticamente.
         StreamProvider<UserModel?>(
           create: (context) => context.read<AuthService>().userModelStream,
           initialData: null,
-          catchError: (_, __) => null, // Evita pantallas rojas si Firestore falla
+          catchError: (_, __) => null, 
         ),
 
         ProxyProvider<UserModel?, PermissionsService>(
@@ -209,12 +207,10 @@ class MyApp extends StatelessWidget {
           },
         ),
 
-        // --- VIEWMODELS ADICIONALES ---
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
         ),
 
-        // --- PROVIDER DE PRESUPUESTOS ---
         ChangeNotifierProxyProvider<UserModel?, QuoteProvider>(
           create: (context) => QuoteProvider(
             repository: context.read<QuoteRepository>(),
@@ -227,13 +223,10 @@ class MyApp extends StatelessWidget {
         ),
       ],
       
-      // --- Consumimos ThemeService ---
       child: Consumer<ThemeService>(
         builder: (context, themeService, child) {
           return MaterialApp(
-            // --- AQUÍ CONECTAMOS LA NAVEGACIÓN GLOBAL ---
             navigatorKey: navigatorKey, 
-            
             title: 'Servicly',
             debugShowCheckedModeBanner: false,
             theme: themeService.lightTheme, 

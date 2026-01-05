@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "369550718965-dfn0vuusrclg135ni4h7skd5keblo41o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.proveedor_servicly_app",
+            "certificate_hash": "3ad7ef7b0f0066664af994cc1505273128c16609"
+          }
+        },
+        {
           "client_id": "369550718965-pr5kbm8797sp8uvokcco6uo9h6n5v34f.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
