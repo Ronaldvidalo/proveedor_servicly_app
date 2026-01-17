@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/features/agenda/data/models/agenda_event_model.dart';
-// Importamos el provider del repositorio
 import 'package:proveedor_servicly_app/features/agenda/providers/agenda_providers.dart';
 
 class AddEditEventScreen extends ConsumerStatefulWidget {
@@ -145,12 +144,10 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
         await agendaRepo.addEvent(newEvent);
       }
       
-      // ✅ FIX: Check mounted before using navigator
       if (!mounted) return;
       if (navigator.canPop()) navigator.pop();
       
     } catch (e) {
-      // ✅ FIX: Check mounted before using context
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.redAccent),
@@ -161,38 +158,33 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
   }
   
   Future<void> _deleteEvent() async {
-     if (!_isEditing) return;
-     
-     final agendaRepo = ref.read(agendaRepositoryProvider);
-     final navigator = Navigator.of(context);
-     
-     // QA FIX: Diálogo adaptativo
-     final theme = Theme.of(context);
-     
-     final confirm = await showDialog<bool>(
-       context: context,
-       builder: (ctx) => AlertDialog(
-         backgroundColor: theme.cardTheme.color, // Fondo dinámico
-         title: Text('Eliminar Evento', style: TextStyle(color: theme.colorScheme.onSurface)),
-         content: Text('¿Estás seguro? No se puede deshacer.', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
-         actions: [
-           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-           FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Eliminar')),
-         ],
-       ),
-     );
+      if (!_isEditing) return;
+      final agendaRepo = ref.read(agendaRepositoryProvider);
+      final navigator = Navigator.of(context);
+      final theme = Theme.of(context);
+      
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: theme.cardTheme.color,
+          title: Text('Eliminar Evento', style: TextStyle(color: theme.colorScheme.onSurface)),
+          content: Text('¿Estás seguro? No se puede deshacer.', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Eliminar')),
+          ],
+        ),
+      );
 
-     if (confirm == true) {
-       await agendaRepo.deleteEvent(widget.eventToEdit!.id!);
-       // ✅ FIX: Check mounted before using navigator
-       if (!mounted) return;
-       if (navigator.canPop()) navigator.pop();
-     }
+      if (confirm == true) {
+        await agendaRepo.deleteEvent(widget.eventToEdit!.id!);
+        if (!mounted) return;
+        if (navigator.canPop()) navigator.pop();
+      }
   }
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     
@@ -205,10 +197,10 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
       border: inputDecorationTheme.border,
       focusedBorder: inputDecorationTheme.focusedBorder,
       enabledBorder: inputDecorationTheme.enabledBorder,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Inputs un poco más compactos
     );
     
     return Scaffold(
-      // Fondo dinámico
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(_isEditing ? 'Editar Evento' : 'Nuevo Evento'),
@@ -223,103 +215,185 @@ class _AddEditEventScreenState extends ConsumerState<AddEditEventScreen> {
             )
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            Text("Tipo de Evento", style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _TypeChoiceChip(label: 'Personal', icon: Icons.person, type: EventType.personalReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-                _TypeChoiceChip(label: 'Visita', icon: Icons.business_center, type: EventType.visit, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-                _TypeChoiceChip(label: 'Cita', icon: Icons.video_call, type: EventType.appointment, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-                _TypeChoiceChip(label: 'Pago', icon: Icons.money_off, type: EventType.paymentReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-                _TypeChoiceChip(label: 'Cobro', icon: Icons.attach_money, type: EventType.collectionReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Aumentamos el breakpoint para asegurar espacio para 2 columnas
+          final isWeb = constraints.maxWidth > 800; 
 
-            TextFormField(
-              controller: _titleController,
-              // QA FIX: Texto dinámico
-              style: TextStyle(color: colorScheme.onSurface),
-              decoration: baseInputDecoration.copyWith(
-                labelText: 'Título',
+          // --- DEFINICIÓN DE WIDGETS REUTILIZABLES ---
+          // (Para no repetir código en los dos layouts)
+
+          final titleField = TextFormField(
+            controller: _titleController,
+            style: TextStyle(color: colorScheme.onSurface),
+            decoration: baseInputDecoration.copyWith(labelText: 'Título'),
+            validator: (value) => (value == null || value.isEmpty) ? 'Requerido' : null,
+          );
+
+          final descriptionField = TextFormField(
+            controller: _descriptionController,
+            style: TextStyle(color: colorScheme.onSurface),
+            decoration: baseInputDecoration.copyWith(labelText: 'Descripción (Opcional)', alignLabelWithHint: true),
+            maxLines: isWeb ? 4 : 3, // Un poco más alto en web si hay espacio
+          );
+
+          final typeSelector = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               Text("Tipo de Evento", style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: FontWeight.bold, fontSize: 13)),
+               const SizedBox(height: 8),
+               Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _TypeChoiceChip(label: 'Personal', icon: Icons.person, type: EventType.personalReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                    _TypeChoiceChip(label: 'Visita', icon: Icons.business_center, type: EventType.visit, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                    _TypeChoiceChip(label: 'Cita', icon: Icons.video_call, type: EventType.appointment, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                    _TypeChoiceChip(label: 'Pago', icon: Icons.money_off, type: EventType.paymentReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                    _TypeChoiceChip(label: 'Cobro', icon: Icons.attach_money, type: EventType.collectionReminder, selectedType: _selectedType, onSelected: (t) => setState(() => _selectedType = t)),
+                  ],
+                ),
+            ],
+          );
+
+          final timePickers = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               Text('Horario (${DateFormat('dd/MM').format(_startTime)})', style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16)),
+               const SizedBox(height: 12),
+               Row(
+                  children: [
+                    Expanded(child: _TimePickerTile(label: 'Inicio', time: TimeOfDay.fromDateTime(_startTime), onTap: () => _pickTime(true))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _TimePickerTile(label: 'Fin', time: TimeOfDay.fromDateTime(_endTime), onTap: () => _pickTime(false))),
+                  ],
+                ),
+            ],
+          );
+
+          final saveButton = SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isLoading ? null : _saveEvent,
+              icon: _isLoading 
+                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary))
+                : const Icon(Icons.save_alt_outlined),
+              label: Text(_isEditing ? 'Guardar Cambios' : 'Crear Evento'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              validator: (value) => (value == null || value.isEmpty) ? 'Requerido' : null,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              style: TextStyle(color: colorScheme.onSurface),
-              decoration: baseInputDecoration.copyWith(
-                labelText: 'Descripción (Opcional)',
-              ),
-              maxLines: 3,
-            ),
-            
-            const SizedBox(height: 32),
-            Text('Horario (${DateFormat('dd/MM').format(_startTime)})', style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _TimePickerTile(
-                    label: 'Inicio',
-                    time: TimeOfDay.fromDateTime(_startTime),
-                    onTap: () => _pickTime(true),
+          );
+
+          // ----------------------------------------------------
+          // 🖥️ DISEÑO WEB: TARJETA REORGANIZADA (2 COLUMNAS)
+          // ----------------------------------------------------
+          if (isWeb) {
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Container(
+                  // Hacemos la tarjeta un poco más ancha para que quepan las 2 columnas cómodamente
+                  width: 750, 
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: theme.cardTheme.color,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.2)),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 4))]
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isEditing ? "Editar detalles" : "Detalles del evento",
+                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // --- AQUÍ ESTÁ LA MAGIA: ROW PARA DIVIDIR EN COLUMNAS ---
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // COLUMNA IZQUIERDA (Inputs de texto y Tipo) - 60% ancho
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  titleField,
+                                  const SizedBox(height: 16),
+                                  descriptionField,
+                                  const SizedBox(height: 24),
+                                  typeSelector,
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(width: 32), // Espacio entre columnas
+
+                            // COLUMNA DERECHA (Horario y Botón) - 40% ancho
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  timePickers,
+                                  const SizedBox(height: 32),
+                                  saveButton,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _TimePickerTile(
-                    label: 'Fin',
-                    time: TimeOfDay.fromDateTime(_endTime),
-                    onTap: () => _pickTime(false),
-                  ),
-                ),
+              ),
+            );
+          }
+
+          // ----------------------------------------------------
+          // 📱 DISEÑO MÓVIL: LISTA VERTICAL (Original)
+          // ----------------------------------------------------
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: [
+                typeSelector,
+                const SizedBox(height: 24),
+                titleField,
+                const SizedBox(height: 16),
+                descriptionField,
+                const SizedBox(height: 32),
+                timePickers,
+                const SizedBox(height: 32),
+                saveButton,
               ],
             ),
-
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _isLoading ? null : _saveEvent,
-                icon: _isLoading 
-                  ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary))
-                  : const Icon(Icons.save_alt_outlined),
-                label: Text(_isEditing ? 'Guardar Cambios' : 'Crear Evento'),
-                // El estilo FilledButton ya viene del tema
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
+
+// --- WIDGETS AUXILIARES (Sin cambios, solo usando withValues) ---
 
 class _TimePickerTile extends StatelessWidget {
   final String label;
   final TimeOfDay time;
   final VoidCallback onTap;
 
-  const _TimePickerTile({
-    required this.label,
-    required this.time,
-    required this.onTap,
-  });
+  const _TimePickerTile({required this.label, required this.time, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Colores dinámicos
     final theme = Theme.of(context);
     
     return InkWell(
@@ -328,20 +402,18 @@ class _TimePickerTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          // Fondo tarjeta del tema
           color: theme.cardTheme.color,
           borderRadius: BorderRadius.circular(12),
-          // Borde sutil en modo claro
           border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5))
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
+            Text(label, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12)),
             const SizedBox(height: 4),
             Text(
               time.format(context),
-              style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 22),
+              style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 20),
             ),
           ],
         ),
@@ -350,7 +422,6 @@ class _TimePickerTile extends StatelessWidget {
   }
 }
 
-// Widget Interno para los Chips de Selección
 class _TypeChoiceChip extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -358,37 +429,24 @@ class _TypeChoiceChip extends StatelessWidget {
   final EventType selectedType;
   final ValueChanged<EventType> onSelected;
 
-  const _TypeChoiceChip({
-    required this.label,
-    required this.icon,
-    required this.type,
-    required this.selectedType,
-    required this.onSelected,
-  });
+  const _TypeChoiceChip({required this.label, required this.icon, required this.type, required this.selectedType, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Colores dinámicos
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isSelected = type == selectedType;
     
     return ChoiceChip(
       label: Text(label),
-      // Icono: Negro si seleccionado, del color del texto si no
-      avatar: Icon(icon, size: 18, color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface),
+      avatar: Icon(icon, size: 16, color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface),
       selected: isSelected,
       onSelected: (_) => onSelected(type),
-      
-      // Colores de selección desde el tema
       selectedColor: colorScheme.primary,
       backgroundColor: theme.cardTheme.color,
-      
-      // Texto: Negro si seleccionado, del color de superficie si no
-      labelStyle: TextStyle(color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface),
-      
-      // Borde sutil cuando no está seleccionado
+      labelStyle: TextStyle(color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface, fontSize: 13),
       side: isSelected ? BorderSide.none : BorderSide(color: theme.dividerColor),
+      padding: const EdgeInsets.symmetric(horizontal: 4), // Chips más compactos
     );
   }
 }

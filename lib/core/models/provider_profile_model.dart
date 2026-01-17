@@ -42,8 +42,11 @@ class ProviderProfileModel {
 
   // --- Campos Adicionales ---
   final String? slogan;
-  final double? averageRating;
-  final int? reviewCount;
+  
+  // ✅ CAMPOS ESTANDARIZADOS PARA RATING
+  final double ratingAvg;   
+  final int ratingCount;    
+  
   final String? openingHours;
   final String? phone;
   final String? whatsapp;
@@ -86,10 +89,14 @@ class ProviderProfileModel {
   final bool showQuotesModule;
 
   // --- NUEVOS CAMPOS DE DISPONIBILIDAD TÉCNICA ---
-  /// Mapa de horarios: Llave es el día (1-7), Valor es una lista de rangos
   final Map<int, List<TimeRange>>? weeklySchedule;
   final int slotDuration; 
   final bool worksOnHolidays; 
+
+  // Metadatos
+  final bool isVerified;
+  final bool isActive;
+  final DateTime? createdAt;
 
   const ProviderProfileModel({
     required this.id,
@@ -105,8 +112,11 @@ class ProviderProfileModel {
     this.publicProfileTheme,
     this.address,
     this.slogan,
-    this.averageRating,
-    this.reviewCount,
+    
+    // ✅ Inicialización por defecto
+    this.ratingAvg = 0.0,
+    this.ratingCount = 0,
+    
     this.openingHours,
     this.phone,
     this.whatsapp,
@@ -144,16 +154,17 @@ class ProviderProfileModel {
     this.weeklySchedule,
     this.slotDuration = 30,
     this.worksOnHolidays = false,
+    this.isVerified = false,
+    this.isActive = true,
+    this.createdAt,
   });
 
   factory ProviderProfileModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final nested = data['personalization'] as Map<String, dynamic>? ?? {};
     
-    // Función de ayuda robusta para buscar en ambos niveles
     dynamic get(String key) => data[key] ?? nested[key];
 
-    // Limpieza de logo para evitar cargar videos .mp4 como imágenes
     String rawLogo = get('logoUrl') as String? ?? '';
     String safeLogo = rawLogo.toLowerCase().contains('.mp4') ? '' : rawLogo;
 
@@ -165,12 +176,11 @@ class ProviderProfileModel {
     final bookingModule = (get('bookingModule') as Map<String, dynamic>?) ?? {};
     final quotesModule = (get('quotesModule') as Map<String, dynamic>?) ?? {};
 
-    // --- Lógica de parseo para weeklySchedule ---
     final scheduleData = get('weeklySchedule') as Map<String, dynamic>?;
     Map<int, List<TimeRange>>? parsedSchedule;
     if (scheduleData != null) {
       parsedSchedule = scheduleData.map((key, value) {
-        final dayKey = int.tryParse(key) ?? 0;
+        final dayKey = int.tryParse(key.toString()) ?? 0;
         final slots = (value as List<dynamic>?)?.map((s) {
           return TimeRange.fromMap(Map<String, dynamic>.from(s as Map));
         }).toList();
@@ -190,8 +200,11 @@ class ProviderProfileModel {
       address: get('address') as String?,
       planType: data['planType'] as String? ?? 'free',
       slogan: get('slogan') as String?,
-      averageRating: (get('ratingAvg') ?? get('ranking_promedio') ?? get('averageRating') as num?)?.toDouble(),
-      reviewCount: (get('ratingCount') ?? get('total_valoraciones') ?? get('reviewCount') as num?)?.toInt(),
+      
+      // ✅ Lectura robusta de calificaciones
+      ratingAvg: (get('ratingAvg') ?? get('ranking_promedio') ?? get('averageRating') as num?)?.toDouble() ?? 0.0,
+      ratingCount: (get('ratingCount') ?? get('total_valoraciones') ?? get('reviewCount') as num?)?.toInt() ?? 0,
+      
       openingHours: get('openingHours') as String?,
       phone: get('phone') as String?,
       whatsapp: get('whatsapp') as String?,
@@ -231,6 +244,12 @@ class ProviderProfileModel {
       weeklySchedule: parsedSchedule,
       slotDuration: data['slotDuration'] as int? ?? 30,
       worksOnHolidays: data['worksOnHolidays'] as bool? ?? false,
+      
+      isVerified: data['isVerified'] ?? false,
+      isActive: data['isActive'] ?? true,
+      createdAt: data['createdAt'] != null 
+          ? (data['createdAt'] as Timestamp).toDate() 
+          : null,
     );
   }
 
@@ -247,8 +266,8 @@ class ProviderProfileModel {
     String? address,
     String? planType,
     String? slogan,
-    double? averageRating,
-    int? reviewCount,
+    double? ratingAvg,
+    int? ratingCount, 
     String? openingHours,
     String? phone,
     String? whatsapp,
@@ -284,6 +303,9 @@ class ProviderProfileModel {
     Map<int, List<TimeRange>>? weeklySchedule,
     int? slotDuration,
     bool? worksOnHolidays,
+    bool? isVerified,
+    bool? isActive,
+    DateTime? createdAt, // ✅ Añadido para evitar 'unnecessary_this' si se usaba
   }) {
     return ProviderProfileModel(
       id: id ?? this.id,
@@ -298,8 +320,11 @@ class ProviderProfileModel {
       address: address ?? this.address,
       planType: planType ?? this.planType,
       slogan: slogan ?? this.slogan,
-      averageRating: averageRating ?? this.averageRating,
-      reviewCount: reviewCount ?? this.reviewCount,
+      
+      // ✅ CORRECCIÓN 1: Eliminado el parámetro 'reviewCount' inexistente
+      ratingAvg: ratingAvg ?? this.ratingAvg, 
+      ratingCount: ratingCount ?? this.ratingCount, 
+      
       openingHours: openingHours ?? this.openingHours,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
@@ -335,6 +360,10 @@ class ProviderProfileModel {
       weeklySchedule: weeklySchedule ?? this.weeklySchedule,
       slotDuration: slotDuration ?? this.slotDuration,
       worksOnHolidays: worksOnHolidays ?? this.worksOnHolidays,
+      isVerified: isVerified ?? this.isVerified,
+      isActive: isActive ?? this.isActive,
+      // ✅ CORRECCIÓN 2: Eliminado 'this.' redundante
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -343,7 +372,8 @@ class ProviderProfileModel {
       'providerId': providerId,
       'businessName': businessName,
       'logoUrl': logoUrl,
-      'primaryColor': brandColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2),
+      // ✅ CORRECCIÓN 3: Uso de toARGB32() en lugar de .value (deprecated)
+      'primaryColor': '#${brandColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
       'profileType': profileType,
       'planType': planType,
       'isAvailable': isAvailable,
@@ -363,6 +393,13 @@ class ProviderProfileModel {
       'quotesModule': {'show': showQuotesModule},
       'slotDuration': slotDuration,
       'worksOnHolidays': worksOnHolidays,
+      
+      'ratingAvg': ratingAvg,
+      'ratingCount': ratingCount,
+      
+      'isVerified': isVerified,
+      'isActive': isActive,
+      'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     };
 
     if (weeklySchedule != null) {
@@ -382,8 +419,6 @@ class ProviderProfileModel {
     addIfValid('contactEmail', contactEmail);
     addIfValid('address', address);
     addIfValid('slogan', slogan);
-    addIfValid('averageRating', averageRating);
-    addIfValid('reviewCount', reviewCount);
     addIfValid('openingHours', openingHours);
     addIfValid('phone', phone);
     addIfValid('whatsapp', whatsapp);
@@ -416,6 +451,12 @@ Color? _colorFromHex(String? hexColor) {
   if (hexCode.length == 6) {
     try {
       return Color(int.parse('FF$hexCode', radix: 16));
+    } catch (e) {
+      return null;
+    }
+  } else if (hexCode.length == 8) {
+     try {
+      return Color(int.parse(hexCode, radix: 16));
     } catch (e) {
       return null;
     }

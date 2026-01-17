@@ -12,19 +12,20 @@ import 'package:provider/provider.dart';
 // --- Importaciones de Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/auth_service.dart';
-import 'package:proveedor_servicly_app/core/services/theme_service.dart';
+// CAMBIO 1: Importamos ThemeProvider en lugar de ThemeService
+import 'package:proveedor_servicly_app/providers/theme_provider.dart';
 import 'package:proveedor_servicly_app/shared/theme/screens/theme_selection_screen.dart';
 
 /// Encabezado reutilizable del Dashboard que muestra información del usuario
 /// y contiene los botones globales de Tema, Ayuda y Cerrar Sesión.
 class DashboardHeader extends StatelessWidget {
   final UserModel userModel;
-  final VoidCallback? onHelpTap; // <-- ¡NUEVO PARÁMETRO!
+  final VoidCallback? onHelpTap; 
   
   const DashboardHeader({
     super.key, 
     required this.userModel,
-    this.onHelpTap, // <-- Recibimos la función
+    this.onHelpTap, 
   }); 
 
   @override
@@ -108,10 +109,6 @@ class DashboardHeader extends StatelessWidget {
   }
 }
 
-// ... (El resto del archivo _UserActionsMenu y _confirmLogout se mantiene IGUAL)
-// Solo asegúrate de incluir las clases _UserActionsMenu y _confirmLogout aquí abajo 
-// tal como estaban en la versión anterior para que el archivo compile.
-
 /// Un widget que combina el Avatar del usuario con un PopupMenu
 class _UserActionsMenu extends StatelessWidget {
   final UserModel userModel;
@@ -126,8 +123,9 @@ class _UserActionsMenu extends StatelessWidget {
     final personalization = userModel.personalization;
     final String? logoUrl = personalization['logoUrl'] as String?;
     
-    return Consumer<ThemeService>(
-      builder: (context, themeService, child) {
+    // CAMBIO 2: Escuchamos ThemeProvider en lugar de ThemeService
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
         return PopupMenuButton<String>(
           onSelected: (value) async {
             if (value == 'toggle_theme') {

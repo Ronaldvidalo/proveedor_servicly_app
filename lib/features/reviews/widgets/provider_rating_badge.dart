@@ -27,9 +27,10 @@ class ProviderRatingBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // 2. Extraer datos seguros
-    final double rating = profile?.averageRating ?? 0.0;
-    final int count = profile?.reviewCount ?? 0;
+    // 2. Extraer datos seguros (Usando los nuevos nombres del modelo)
+    // Nota: ratingAvg y ratingCount ya no son nullable en el modelo, pero profile sí puede serlo.
+    final double rating = profile?.ratingAvg ?? 0.0;
+    final int count = profile?.ratingCount ?? 0;
 
     // --- CASO: NUEVO (0 reseñas) ---
     if (count == 0) {

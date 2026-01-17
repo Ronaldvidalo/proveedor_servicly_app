@@ -9,11 +9,15 @@ class CatalogQuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String ratingText = profile.averageRating != null
-        ? profile.averageRating!.toStringAsFixed(1)
-        : '5.0';
-    final String reviewCountText = profile.reviewCount != null && profile.reviewCount! > 0
-        ? '(${profile.reviewCount} Reseñas)'
+    // CORRECCIÓN 1: Usar los nuevos campos 'ratingAvg' y 'ratingCount' del modelo actualizado.
+    // Como ya no son nulos (tienen valores por defecto en el modelo), la lógica es más simple.
+    
+    final String ratingText = profile.ratingAvg > 0
+        ? profile.ratingAvg.toStringAsFixed(1)
+        : 'Nuevo'; // O '5.0' si prefieres mantener el estilo anterior
+
+    final String reviewCountText = profile.ratingCount > 0
+        ? '(${profile.ratingCount} Reseñas)'
         : '(Sin Reseñas)';
 
     return SliverToBoxAdapter(
@@ -48,7 +52,6 @@ class CatalogQuickActions extends StatelessWidget {
             const SizedBox(height: 16),
             
             // --- Botón de Acción Principal Compacto y Estilizado ---
-            // Eliminamos el double.infinity agresivo y damos un tamaño más armónico
             Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 280),
@@ -62,7 +65,8 @@ class CatalogQuickActions extends StatelessWidget {
                           ? Colors.white 
                           : Colors.black,
                       elevation: 4,
-                      shadowColor: profile.brandColor.withOpacity(0.4),
+                      // CORRECCIÓN 2: Usar withValues(alpha: ...) en lugar de withOpacity (Deprecated)
+                      shadowColor: profile.brandColor.withValues(alpha: 0.4),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25), // Bordes muy redondeados tipo pastilla
                       ),

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data'; // Necesario para Uint8List en Web
+import 'package:flutter/foundation.dart' show kIsWeb; // Para detectar plataforma
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,6 +20,8 @@ import 'package:proveedor_servicly_app/core/services/geocoding_service.dart';
 
 // --- Navegación ---
 import 'package:proveedor_servicly_app/features/auth/widgets/auth_wrapper.dart';
+// IMPORTANTE: Asegúrate de que esta ruta sea correcta según tu estructura
+import 'package:proveedor_servicly_app/widgets/navigation/servicly_sidebar.dart';
 
 // --- IMPORTS DE LA IA ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
@@ -39,9 +43,8 @@ Color? _colorFromHex(String? hexColor) {
   if (hexColor == null || hexColor.isEmpty) return null;
   final hexCode = hexColor.replaceAll('#', '');
   if (hexCode.length == 6) {
-    final validHexCode = 'FF$hexCode';
     try {
-      return Color(int.parse(validHexCode, radix: 16));
+      return Color(int.parse('FF$hexCode', radix: 16));
     } catch (e) {
       return null;
     }
@@ -52,7 +55,6 @@ Color? _colorFromHex(String? hexColor) {
 class BrandSettingsScreen extends StatefulWidget {
   final UserModel user;
   final ProviderProfileModel? brandProfile; 
-  // Recibe la plantilla seleccionada si es creación nueva
   final String? initialTemplate;
 
   const BrandSettingsScreen({
@@ -69,7 +71,10 @@ class BrandSettingsScreen extends StatefulWidget {
 class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // --- Claves Globales para el Tour (Showcase) ---
+  // --- Estado de Cambios Sin Guardar ---
+  bool _hasUnsavedChanges = false;
+
+  // --- Claves Globales para el Tour ---
   final GlobalKey _keyIdentitySection = GlobalKey();
   final GlobalKey _keyColorSection = GlobalKey();
   final GlobalKey _keyThemeSection = GlobalKey();
@@ -84,7 +89,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   late TextEditingController _contactEmailController;
   late TextEditingController _countryController;
 
-  // Variable NO nullable (por eso daba error antes)
   String _selectedFormat = 'catalog'; 
   String _selectedPublicTheme = 'cyber_glow';
 
@@ -117,18 +121,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _businessNameController = TextEditingController();
-    _sloganController = TextEditingController();
-    _addressController = TextEditingController();
-    _contactEmailController = TextEditingController();
-    _countryController = TextEditingController();
-    _phoneController = TextEditingController();
-    _whatsappController = TextEditingController();
-    _websiteController = TextEditingController();
-    _instagramController = TextEditingController();
-    _facebookController = TextEditingController();
-    _tiktokController = TextEditingController();
-
+    _initControllers();
     _initializeFields(widget.brandProfile);
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -138,6 +131,68 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _voiceService.player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _isSpeaking = state == PlayerState.playing);
     });
+  }
+
+  void _initControllers() {
+    // Añadimos listener para detectar cambios
+    _businessNameController = TextEditingController()..addListener(_markAsDirty);
+    _sloganController = TextEditingController()..addListener(_markAsDirty);
+    _addressController = TextEditingController()..addListener(_markAsDirty);
+    _contactEmailController = TextEditingController()..addListener(_markAsDirty);
+    _countryController = TextEditingController(); // País suele ser automático/fijo
+    _phoneController = TextEditingController()..addListener(_markAsDirty);
+    _whatsappController = TextEditingController()..addListener(_markAsDirty);
+    _websiteController = TextEditingController()..addListener(_markAsDirty);
+    _instagramController = TextEditingController()..addListener(_markAsDirty);
+    _facebookController = TextEditingController()..addListener(_markAsDirty);
+    _tiktokController = TextEditingController()..addListener(_markAsDirty);
+  }
+
+  void _markAsDirty() {
+    if (!_hasUnsavedChanges) {
+      setState(() => _hasUnsavedChanges = true);
+    }
+  }
+
+  // --- PROTECCIÓN DE NAVEGACIÓN ---
+  
+  // 1. Intercepta el botón Atrás (Android/Browser)
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) return true;
+
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Descartar cambios?'),
+        content: const Text('Tienes cambios sin guardar en tu tienda. ¿Seguro que quieres salir?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false), // Quedarse
+            child: const Text('SEGUIR EDITANDO'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.of(context).pop(true), // Salir
+            child: const Text('DESCARTAR Y SALIR'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldDiscard ?? false;
+  }
+
+  // 2. Intercepta la navegación del Sidebar
+  void _handleSidebarNavigation(int index) async {
+    // Si hay cambios, pedimos confirmación primero
+    if (_hasUnsavedChanges) {
+      final confirm = await _onWillPop();
+      if (!confirm) return; // Usuario canceló
+    }
+
+    if (!mounted) return;
+    // Si confirma, salimos de la pantalla de configuración
+    Navigator.of(context).pop(); 
   }
 
   Future<void> _checkIfFirstTime() async {
@@ -169,27 +224,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     await _voiceService.speak(text);
   }
 
-  String _getScriptForStep(GlobalKey key) {
-    if (key == _keyIdentitySection) return "Aquí define el nombre y logo de ESTA tienda.";
-    if (key == _keyColorSection) return "Cada tienda puede tener su propio color.";
-    if (key == _keySaveButton) return "Guarda para publicar este perfil.";
-    return "";
-  }
-
   void _onShowcaseStepStart(int? index, GlobalKey key) {
-    String script = _getScriptForStep(key);
     if (key.currentContext != null) {
-      Scrollable.ensureVisible(
-        key.currentContext!, 
-        duration: const Duration(milliseconds: 600), 
-        curve: Curves.easeInOut, 
-        alignment: 0.5
-      );
-    }
-    if (script.isNotEmpty) {
-      Future.delayed(const Duration(milliseconds: 400), () { 
-        if (mounted) _speak(script); 
-      });
+      Scrollable.ensureVisible(key.currentContext!, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut, alignment: 0.5);
     }
   }
 
@@ -202,7 +239,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
   }
 
   void _initializeFields(ProviderProfileModel? brand) {
-    // Usamos 'personalization' como fallback si no hay brand
     final legacyData = widget.user.personalization;
 
     _businessNameController.text = brand?.businessName ?? widget.user.displayName ?? '';
@@ -215,7 +251,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _currentDialCode = _countryDialCodes[countryCode] ?? '+54';
 
     String rawPhone = brand?.phone ?? (legacyData['phone'] as String?) ?? '';
-    
     if (rawPhone.startsWith(_currentDialCode)) {
       _phoneController.text = rawPhone.substring(_currentDialCode.length).trim();
     } else {
@@ -234,8 +269,6 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _facebookController.text = brand?.facebook ?? '';
     _tiktokController.text = brand?.tiktok ?? '';
 
-    // --- CORRECCIÓN DEFINITIVA DE ASIGNACIÓN (OPERADOR ??) ---
-    // Usamos '??' para asegurar que nunca se asigne un null a _selectedFormat
     if (brand != null) {
         _selectedFormat = brand.publicProfileTemplate ?? 'catalog';
     } else {
@@ -254,6 +287,11 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     _selectedPublicTheme = brand?.publicProfileTheme ?? 'cyber_glow';
     _weeklySchedule = brand?.weeklySchedule ?? {};
     _worksOnHolidays = brand?.worksOnHolidays ?? false;
+
+    // Resetear flag inicial
+    Future.delayed(Duration.zero, () {
+      if (mounted) setState(() => _hasUnsavedChanges = false);
+    });
   }
 
   @override
@@ -277,7 +315,12 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-      if (image != null) setState(() => _selectedImageFile = image);
+      if (image != null) {
+        setState(() {
+          _selectedImageFile = image;
+          _markAsDirty(); // Marcar cambio
+        });
+      }
     } catch (e) {
       _showSnackbar('Error al seleccionar la imagen: $e', isError: true);
     }
@@ -285,8 +328,8 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
 
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate()) {
-      _speak("Bancame, hay algunos campos con errores arriba. Revisalos.");
-      _showSnackbar("Revisa los campos marcados en rojo.", isError: true);
+      _speak("Bancame, hay campos obligatorios sin completar. Fíjate los asteriscos rojos.");
+      _showSnackbar("Completa los campos obligatorios marcados con (*).", isError: true);
       return;
     }
 
@@ -310,16 +353,23 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       // 1. Determinar ID del documento
       String docId;
       if (widget.brandProfile != null) {
-         docId = widget.brandProfile!.id; // Editando existente
+         docId = widget.brandProfile!.id; 
       } else {
-         // Generamos un ID nuevo en la colección raíz
          docId = FirebaseFirestore.instance.collection('brandProfiles').doc().id; 
       }
 
-      // 2. Subir imagen (Usamos el docId para carpeta única)
+      // 2. Subir imagen (HÍBRIDO: WEB/MOBILE)
       if (_selectedImageFile != null) {
         final String storagePath = 'brandProfiles/${userModel.uid}/$docId/logo.jpg';
-        newLogoUrl = await storageService.uploadFileWithProgress(File(_selectedImageFile!.path), storagePath, (progress) {});
+        
+        if (kIsWeb) {
+            // --- WEB: Usamos bytes ---
+            final Uint8List bytes = await _selectedImageFile!.readAsBytes();
+            newLogoUrl = await storageService.uploadBytes(bytes, storagePath);
+        } else {
+            // --- MÓVIL: Usamos File ---
+            newLogoUrl = await storageService.uploadFileWithProgress(File(_selectedImageFile!.path), storagePath, (progress) {});
+        }
       }
 
       // 3. Geocoding
@@ -351,7 +401,7 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       // 4. Construir Data
       final Map<String, dynamic> brandData = {
         'id': docId,
-        'providerId': userModel.uid, // Vincula la tienda al usuario
+        'providerId': userModel.uid, 
         'isActive': true, 
         'businessName': _businessNameController.text.trim(),
         'slogan': _sloganController.text.trim(),
@@ -372,17 +422,16 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         'weeklySchedule': serializedSchedule,
         'worksOnHolidays': _worksOnHolidays,
         'updatedAt': FieldValue.serverTimestamp(),
-        // Si es nuevo, agregamos fecha de creación
         if (widget.brandProfile == null) 'createdAt': FieldValue.serverTimestamp(),
       };
 
       if (newLatitude != null) brandData['latitude'] = newLatitude;
       if (newLongitude != null) brandData['longitude'] = newLongitude;
 
-      // 5. GUARDAR USANDO EL SERVICIO (A la colección raíz)
+      // 5. GUARDAR
       await firestoreService.setBrandProfile(userModel.uid, brandData, docId: docId);
 
-      // 6. Actualizar User (Flags generales)
+      // 6. Actualizar User
       await firestoreService.updateUser(userModel.uid, {
         'isProfileComplete': true, 
         'publicProfileCreated': true,
@@ -394,6 +443,9 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
         const SnackBar(content: Text('¡Tienda guardada con éxito!'), backgroundColor: Color(0xFF00FF7F))
       );
 
+      // Limpiamos cambios
+      setState(() => _hasUnsavedChanges = false);
+
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const AuthWrapper()), 
         (route) => false
@@ -403,8 +455,8 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       debugPrint("Error crítico al guardar: $e");
       if (mounted) {
         setState(() => _isLoading = false);
-        _showSnackbar('Error al guardar cambios.', isError: true);
-        _speak("Hubo un problema guardando. Intenta de nuevo.");
+        _showSnackbar('Error al guardar cambios: ${e.toString()}', isError: true);
+        _speak("Ups, hubo un error técnico al guardar.");
       }
     }
   }
@@ -422,222 +474,340 @@ class BrandSettingsScreenState extends State<BrandSettingsScreen> {
       scaffoldBackgroundColor: publicTheme.background,
     );
 
-    return ShowCaseWidget(
-      onStart: (index, key) => _onShowcaseStepStart(index, key),
-      onComplete: (index, key) { 
-        if (index == 4) _speak("¡Todo listo! Tienes una marca increíble."); 
+    final colors = previewTheme.colorScheme;
+    final inputDecoration = InputDecoration(
+      filled: true, 
+      fillColor: colors.surface, 
+      labelStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.7)), 
+      hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.4)), 
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.primary, width: 2)), 
+      errorStyle: TextStyle(color: colors.error.withValues(alpha: 0.9))
+    );
+
+    // PopScope: Protege la salida (Botón Atrás)
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) Navigator.pop(context);
       },
-      builder: (context) {
-        _showCaseContext = context;
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(widget.brandProfile == null ? 'Nueva Tienda' : 'Editar Tienda'),
-            backgroundColor: appTheme.scaffoldBackgroundColor, 
-            foregroundColor: appTheme.colorScheme.onSurface, 
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.help_outline_rounded),
-                tooltip: 'Iniciar Tour Guiado',
-                onPressed: () {
-                    _speak("Reiniciando el tour guiado.");
-                    _startTour();
-                },
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0, left: 8.0), 
-                child: Center(
-                  child: ServiAvatar(
-                    isSpeaking: _isSpeaking, 
-                    size: 35, 
-                    onTap: _giveContextualHelp
+      child: ShowCaseWidget(
+        onStart: (index, key) => _onShowcaseStepStart(index, key),
+        onComplete: (index, key) { 
+          if (index == 4) _speak("¡Todo listo! Tienes una marca increíble."); 
+        },
+        builder: (context) {
+          _showCaseContext = context;
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(widget.brandProfile == null ? 'Nueva Tienda' : 'Estudio de Diseño'),
+              backgroundColor: appTheme.scaffoldBackgroundColor, 
+              foregroundColor: appTheme.colorScheme.onSurface, 
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.help_outline_rounded),
+                  tooltip: 'Iniciar Tour Guiado',
+                  onPressed: () {
+                      _speak("Reiniciando el tour guiado.");
+                      _startTour();
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0, left: 8.0), 
+                  child: Center(
+                    child: ServiAvatar(
+                      isSpeaking: _isSpeaking, 
+                      size: 35, 
+                      onTap: _giveContextualHelp
+                    )
                   )
                 )
-              )
-            ],
-          ),
-          backgroundColor: previewTheme.scaffoldBackgroundColor,
-          body: Theme(
-            data: previewTheme,
-            child: Builder(builder: (context) {
-              final theme = Theme.of(context);
-              final colors = theme.colorScheme;
-              final inputDecoration = InputDecoration(
-                filled: true, 
-                fillColor: colors.surface, 
-                labelStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.7)), 
-                hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.4)), 
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), 
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colors.primary, width: 2)), 
-                errorStyle: TextStyle(color: colors.error.withValues(alpha: 0.9))
-              );
+              ],
+            ),
+            backgroundColor: previewTheme.scaffoldBackgroundColor,
+            // LayoutBuilder para decidir diseño Web vs Mobile
+            body: Theme(
+              data: previewTheme,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // --- WEB: > 900px ---
+                  if (constraints.maxWidth > 900) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // SIDEBAR INTEGRADO CON PROTECCIÓN
+                        ServiclySidebar(
+                          selectedIndex: 3, // Marcamos 'Ajustes' como activo
+                          onDestinationSelected: _handleSidebarNavigation,
+                        ),
+                        // CONTENIDO
+                        Expanded(child: _buildWebLayout(previewTheme, inputDecoration)),
+                      ],
+                    );
+                  } else {
+                    // --- MOBILE ---
+                    return _buildMobileLayout(previewTheme, inputDecoration);
+                  }
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-              return Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 700),
-                      child: Column(
-                        children: [
-                          BrandSectionCard(title: 'Identidad de Marca (Público)', children: [
-                            Showcase(
-                              key: _keyIdentitySection, 
-                              title: 'Tu Marca', 
-                              description: 'Sube tu logo y define el nombre de tu negocio.', 
-                              child: IdentityCard(
-                                imageFile: _selectedImageFile, 
-                                existingLogoUrl: _existingLogoUrl, 
-                                nameController: _businessNameController, 
-                                decoration: inputDecoration, 
-                                onTapLogo: _pickImage
-                              )
-                            ),
-                            const SizedBox(height: 24),
-                            Showcase(
-                              key: _keyColorSection, 
-                              title: 'Color de Acento', 
-                              description: 'Elige un color que represente tu marca.', 
-                              child: ColorSelector(
-                                title: 'Color de Acento (Público)', 
-                                predefinedColors: _predefinedBrandColors, 
-                                selectedColor: _selectedBrandColor, 
-                                onColorSelected: (color) => setState(() => _selectedBrandColor = color)
-                              )
-                            ),
-                            const SizedBox(height: 24),
-                            Showcase(
-                              key: _keyThemeSection, 
-                              title: 'Atmósfera (Skin)', 
-                              description: 'Selecciona el estilo de fondo para tu página.', 
-                              child: ThemeSelector(
-                                selectedThemeId: _selectedPublicTheme, 
-                                onThemeSelected: (themeId) => setState(() => _selectedPublicTheme = themeId)
-                              )
-                            ),
-                          ]),
-                          
-                          const SizedBox(height: 24),
-                          
-                          BrandSectionCard(title: 'Formato de Perfil Público', subtitle: 'Elige cómo verán tus clientes tu página.', children: [
-                            Showcase(
-                              key: _keyFormatSection, 
-                              title: 'Diseño de Página', 
-                              description: '¿Vendes productos o servicios?', 
-                              child: TemplateSelector(
-                                selectedFormat: _selectedFormat, 
-                                onFormatSelected: (format) => setState(() => _selectedFormat = format)
-                              )
-                            ),
-                          ]),
-                          
-                          const SizedBox(height: 24),
+  // --- LAYOUTS ---
 
-                          if (_selectedFormat == 'catalog')
-                            BrandSectionCard(
-                              title: 'Gestión de Agenda', 
-                              subtitle: 'Define tus horarios para recibir turnos automáticamente.', 
-                              children: [
-                                WeeklyScheduleEditor(
-                                  initialSchedule: _weeklySchedule, 
-                                  initialWorksOnHolidays: _worksOnHolidays,
-                                  accentColor: _selectedBrandColor,
-                                  onChanged: (newSchedule, worksHolidays) {
-                                    setState(() {
-                                      _weeklySchedule = newSchedule;
-                                      _worksOnHolidays = worksHolidays;
-                                    });
-                                  },
-                                ),
-                              ]
-                            ),
+  Widget _buildMobileLayout(ThemeData theme, InputDecoration inputDecoration) {
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            // En móvil usamos el espaciado normal (24.0)
+            BrandSectionCard(
+               title: 'Identidad de Marca (Público)', 
+               children: _buildIdentityWidgets(inputDecoration, gap: 24.0)
+            ),
+            const SizedBox(height: 24),
+            _buildConfigSection(inputDecoration),
+            const SizedBox(height: 48),
+            _buildSaveButton(theme.colorScheme),
+            const SizedBox(height: 48),
+          ],
+        ),
+      ),
+    );
+  }
 
-                          if (_selectedFormat == 'catalog') const SizedBox(height: 24),
-                          
-                          BrandSectionCard(title: 'Contenido del Perfil', children: [
-                            TextFormField(
-                              controller: _sloganController, 
-                              style: TextStyle(color: colors.onSurface), 
-                              decoration: inputDecoration.copyWith(
-                                labelText: 'Slogan o Mensaje de Bienvenida', 
-                                prefixIcon: Icon(Icons.campaign_outlined, color: colors.onSurface.withValues(alpha: 0.7))
-                              ), 
-                              maxLength: 150
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _addressController, 
-                              style: TextStyle(color: colors.onSurface), 
-                              decoration: inputDecoration.copyWith(
-                                labelText: 'Dirección o Zona de Cobertura', 
-                                helperText: 'Se usará para mostrar "Cerca de mí" en el mapa', 
-                                helperStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.6)), 
-                                prefixIcon: Icon(Icons.location_on_outlined, color: colors.onSurface.withValues(alpha: 0.7))
-                              )
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _countryController, 
-                              readOnly: true, 
-                              style: TextStyle(color: colors.onSurface.withValues(alpha: 0.5)), 
-                              decoration: inputDecoration.copyWith(
-                                labelText: 'País', 
-                                prefixIcon: Icon(Icons.flag_outlined, color: colors.onSurface.withValues(alpha: 0.5))
-                              )
-                            ),
-                          ]),
-                          
-                          const SizedBox(height: 24),
-                          
-                          ContactInfoSection(
-                            decoration: inputDecoration, 
-                            phoneController: _phoneController, 
-                            whatsappController: _whatsappController, 
-                            websiteController: _websiteController, 
-                            instagramController: _instagramController, 
-                            facebookController: _facebookController, 
-                            tiktokController: _tiktokController, 
-                            dialCode: _currentDialCode
+  Widget _buildWebLayout(ThemeData theme, InputDecoration inputDecoration) {
+    return Form(
+      key: _formKey,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // COLUMNA IZQUIERDA: VISUAL + BOTÓN (Compacta)
+                Expanded(
+                  flex: 4,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Contenedor Compacto Personalizado para Web
+                        Container(
+                          padding: const EdgeInsets.all(16.0), // Padding reducido
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
                           ),
-                          
-                          const SizedBox(height: 24),
-                          PaymentMethodsCard(user: widget.user),
-                          const SizedBox(height: 48),
-                          
-                          Showcase(
-                            key: _keySaveButton, 
-                            title: 'Publicar', 
-                            description: 'Guarda para que tus clientes vean los cambios.', 
-                            child: SizedBox(
-                              height: 54, 
-                              width: double.infinity, 
-                              child: FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: colors.primary, 
-                                  foregroundColor: colors.onPrimary,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                                ), 
-                                onPressed: _isLoading ? null : _saveSettings, 
-                                child: _isLoading 
-                                  ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 3) 
-                                  : const Text('GUARDAR Y PUBLICAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1))
-                              )
-                            )
+                          child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+                               Text('Identidad de Marca', style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16)),
+                               const SizedBox(height: 16),
+                               // Widgets con gap reducido (8.0) para ver botón
+                               ..._buildIdentityWidgets(inputDecoration, gap: 8.0),
+                             ],
                           ),
-                          const SizedBox(height: 48),
-                        ],
-                      ),
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        _buildSaveButton(theme.colorScheme),
+                      ],
                     ),
                   ),
                 ),
-              );
-            }),
+                
+                const SizedBox(width: 32),
+                
+                // COLUMNA DERECHA: DATOS
+                Expanded(
+                  flex: 6,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("DATOS DEL NEGOCIO", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        const SizedBox(height: 16),
+                        _buildConfigSection(inputDecoration),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGETS REUTILIZABLES ---
+
+  List<Widget> _buildIdentityWidgets(InputDecoration inputDecoration, {required double gap}) {
+    return [
+      Showcase(
+        key: _keyIdentitySection, 
+        title: 'Tu Marca', 
+        description: 'Sube tu logo y define el nombre.', 
+        child: IdentityCard(
+          imageFile: _selectedImageFile, 
+          existingLogoUrl: _existingLogoUrl, 
+          nameController: _businessNameController, 
+          decoration: inputDecoration.copyWith(labelText: 'Nombre del Negocio *'), 
+          onTapLogo: _pickImage
+        )
+      ),
+      SizedBox(height: gap),
+      Showcase(
+        key: _keyColorSection, 
+        title: 'Color de Acento', 
+        description: 'Elige un color.', 
+        child: ColorSelector(
+          title: 'Color de Acento', 
+          predefinedColors: _predefinedBrandColors, 
+          selectedColor: _selectedBrandColor, 
+          onColorSelected: (color) { setState(() => _selectedBrandColor = color); _markAsDirty(); }
+        )
+      ),
+      SizedBox(height: gap),
+      Showcase(
+        key: _keyThemeSection, 
+        title: 'Atmósfera', 
+        description: 'Fondo de pantalla.', 
+        child: ThemeSelector(
+          selectedThemeId: _selectedPublicTheme, 
+          onThemeSelected: (themeId) { setState(() => _selectedPublicTheme = themeId); _markAsDirty(); }
+        )
+      ),
+    ];
+  }
+
+  Widget _buildConfigSection(InputDecoration inputDecoration) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        BrandSectionCard(title: 'Formato de Perfil Público', subtitle: 'Elige cómo verán tus clientes tu página.', children: [
+            Showcase(
+              key: _keyFormatSection, 
+              title: 'Diseño de Página', 
+              description: '¿Vendes productos o servicios?', 
+              child: TemplateSelector(
+                selectedFormat: _selectedFormat, 
+                onFormatSelected: (format) { setState(() => _selectedFormat = format); _markAsDirty(); }
+              )
+            ),
+        ]),
+        const SizedBox(height: 24),
+
+        if (_selectedFormat == 'catalog') ...[
+           BrandSectionCard(
+              title: 'Gestión de Agenda', 
+              subtitle: 'Define tus horarios para recibir turnos automáticamente.', 
+              children: [
+                WeeklyScheduleEditor(
+                  initialSchedule: _weeklySchedule, 
+                  initialWorksOnHolidays: _worksOnHolidays,
+                  accentColor: _selectedBrandColor,
+                  onChanged: (newSchedule, worksHolidays) {
+                    setState(() {
+                      _weeklySchedule = newSchedule;
+                      _worksOnHolidays = worksHolidays;
+                    });
+                    _markAsDirty();
+                  },
+                ),
+              ]
+            ),
+            const SizedBox(height: 24),
+        ],
+
+        BrandSectionCard(title: 'Contenido del Perfil', children: [
+            TextFormField(
+              controller: _sloganController, 
+              style: TextStyle(color: colors.onSurface), 
+              decoration: inputDecoration.copyWith(
+                labelText: 'Slogan o Mensaje de Bienvenida', 
+                prefixIcon: Icon(Icons.campaign_outlined, color: colors.onSurface.withValues(alpha: 0.7))
+              ), 
+              maxLength: 150
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _addressController, 
+              style: TextStyle(color: colors.onSurface), 
+              validator: (val) => (val == null || val.isEmpty) ? 'Requerido' : null,
+              decoration: inputDecoration.copyWith(
+                labelText: 'Dirección o Zona de Cobertura *', 
+                helperText: 'Se usará para mostrar "Cerca de mí" en el mapa', 
+                helperStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.6)), 
+                prefixIcon: Icon(Icons.location_on_outlined, color: colors.onSurface.withValues(alpha: 0.7))
+              )
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _countryController, 
+              readOnly: true, 
+              style: TextStyle(color: colors.onSurface.withValues(alpha: 0.5)), 
+              decoration: inputDecoration.copyWith(
+                labelText: 'País', 
+                prefixIcon: Icon(Icons.flag_outlined, color: colors.onSurface.withValues(alpha: 0.5))
+              )
+            ),
+        ]),
+        
+        const SizedBox(height: 24),
+        
+        ContactInfoSection(
+          decoration: inputDecoration, 
+          phoneController: _phoneController, 
+          whatsappController: _whatsappController, 
+          websiteController: _websiteController, 
+          instagramController: _instagramController, 
+          facebookController: _facebookController, 
+          tiktokController: _tiktokController, 
+          dialCode: _currentDialCode
+        ),
+        
+        const SizedBox(height: 24),
+        PaymentMethodsCard(user: widget.user),
+      ],
+    );
+  }
+
+  Widget _buildSaveButton(ColorScheme colors) {
+    return Showcase(
+      key: _keySaveButton, 
+      title: 'Publicar', 
+      description: 'Guarda para que tus clientes vean los cambios.', 
+      child: SizedBox(
+        height: 54, 
+        width: double.infinity, 
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: colors.primary, 
+            foregroundColor: colors.onPrimary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+          ), 
+          onPressed: _isLoading ? null : _saveSettings, 
+          child: _isLoading 
+            ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 3) 
+            : const Text('GUARDAR Y PUBLICAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1))
+        )
+      )
     );
   }
 

@@ -1,151 +1,288 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Definimos los colores base de tu tema "Cyber Glow"
-const Color _cyberPrimary = Color(0xFF00BFFF); // Azul eléctrico brillante
-const Color _cyberBackground = Color(0xFF1A1A2E); // Azul oscuro casi negro
-const Color _cyberSurface = Color(0xFF2D2D5A); // Superficie ligeramente más clara
+// =============================================================================
+// 1. DEFINICIONES VISUALES (TU CÓDIGO ORIGINAL MEJORADO)
+// =============================================================================
 
-class ThemeProvider with ChangeNotifier {
-  // Por defecto, empezamos en modo oscuro (puedes cambiarlo a 'false' si prefieres)
-  bool _isDarkMode = true;
+// --- COLORES BASE ---
+const Color _darkBackground = Color(0xFF1A1A2E);
+const Color _darkSurface = Color(0xFF2D2D5A);
+const Color _darkTextPrimary = Colors.white;
+const Color _darkTextSecondary = Color.fromARGB(179, 234, 195, 195);
 
-  // Getter para que el resto de la app sepa el estado actual
-  bool get isDarkMode => _isDarkMode;
+const Color _lightBackground = Color(0xFFF0F2F5);
+const Color _lightSurface = Color(0xFFFFFFFF);
+const Color _lightTextPrimary = Color(0xFF1A1A2E);
+const Color _lightTextSecondary = Color(0xFF6B7280);
 
-  // Método para obtener el tema actual
-  ThemeData get currentTheme => _isDarkMode ? darkTheme : lightTheme;
+// --- PALETAS DE ACENTO ---
+const Color _darkAccentBlue = Color(0xFF00BFFF);
+const Color _darkAccentGreen = Color(0xFF00FF7F);
+const Color _darkAccentPink = Color(0xFFFF00FF);
+const Color _darkAccentOrange = Color(0xFFFFA500);
 
-  // Método para alternar el tema
-  void toggleTheme() {
-    _isDarkMode = !_isDarkMode;
-    notifyListeners(); // Notifica a todos los 'listeners' (como el Consumer) que el estado cambió
+const Color _lightAccentBlue = Color(0xFF0056D2);
+const Color _lightAccentGreen = Color(0xFF007A33);
+const Color _lightAccentPink = Color(0xFFB0003A);
+const Color _lightAccentOrange = Color(0xFFC63F00);
+
+enum AppPalette {
+  blue,
+  green,
+  pink,
+  orange,
+}
+
+class AppThemes {
+  static final Map<AppPalette, ThemeData> darkThemes = {
+    AppPalette.blue: _buildDarkTheme(_darkAccentBlue),
+    AppPalette.green: _buildDarkTheme(_darkAccentGreen),
+    AppPalette.pink: _buildDarkTheme(_darkAccentPink),
+    AppPalette.orange: _buildDarkTheme(_darkAccentOrange),
+  };
+
+  static final Map<AppPalette, ThemeData> lightThemes = {
+    AppPalette.blue: _buildLightTheme(_lightAccentBlue),
+    AppPalette.green: _buildLightTheme(_lightAccentGreen),
+    AppPalette.pink: _buildLightTheme(_lightAccentPink),
+    AppPalette.orange: _buildLightTheme(_lightAccentOrange),
+  };
+
+  // --- BUILDER TEMA OSCURO ---
+  static ThemeData _buildDarkTheme(Color accentColor) {
+    final baseTheme = ThemeData.dark();
+    final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
+      bodyColor: _darkTextSecondary,
+      displayColor: _darkTextPrimary,
+    );
+
+    return baseTheme.copyWith(
+      brightness: Brightness.dark,
+      primaryColor: accentColor,
+      scaffoldBackgroundColor: _darkBackground,
+      cardColor: _darkSurface,
+      dividerColor: Colors.white.withValues(alpha: 0.2),
+      
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: accentColor,
+        brightness: Brightness.dark,
+        primary: accentColor,
+        onPrimary: Colors.black,
+        secondary: _darkAccentPink,
+        surface: _darkSurface,
+        onSurface: _darkTextPrimary,
+        error: Colors.redAccent,
+      ).copyWith(surface: _darkSurface),
+      
+      textTheme: textTheme,
+      
+      appBarTheme: AppBarTheme(
+        backgroundColor: _darkBackground,
+        elevation: 0,
+        foregroundColor: _darkTextPrimary,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: _darkTextPrimary
+        ),
+      ),
+      
+      cardTheme: CardThemeData(
+        color: _darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Colors.transparent),
+        ),
+        margin: EdgeInsets.zero, // Importante para layouts web
+      ),
+
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: _darkBackground,
+        selectedItemColor: accentColor,
+        unselectedItemColor: Colors.white38,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+      ),
+
+      // Agregamos esto para el Sidebar y Agenda
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: _darkSurface,
+        prefixIconColor: accentColor,
+        labelStyle: const TextStyle(color: Colors.white60),
+        hintStyle: const TextStyle(color: Colors.white24),
+        border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(12)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: accentColor, width: 2),
+        ),
+      ),
+
+      iconTheme: const IconThemeData(color: Colors.white70),
+      
+      // Agregado para los botones de Agenda
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: accentColor,
+          foregroundColor: Colors.black,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
   }
 
-  // --- Definición del Tema Oscuro (Cyber Glow) ---
-  static final ThemeData darkTheme = ThemeData(
-    brightness: Brightness.dark,
-    primaryColor: _cyberPrimary,
-    scaffoldBackgroundColor: _cyberBackground,
-    colorScheme: const ColorScheme.dark(
-      primary: _cyberPrimary,
-      secondary: _cyberPrimary,
-      surface: _cyberSurface,
-      onPrimary: Colors.black, // Color del texto sobre 'primary'
-      onSecondary: Colors.black,
-      onSurface: Colors.white,
-      error: Colors.redAccent,
-      onError: Colors.white,
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: _cyberBackground, // AppBar transparente o del color de fondo
-      elevation: 0,
-      iconTheme: IconThemeData(color: Colors.white),
-      titleTextStyle: TextStyle(
-          color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-    ),
-    bottomNavigationBarTheme: BottomNavigationBarThemeData(
-      backgroundColor: _cyberSurface,
-      selectedItemColor: _cyberPrimary,
-      unselectedItemColor: Colors.white70,
-      type: BottomNavigationBarType.fixed,
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: _cyberPrimary,
-        foregroundColor: Colors.black, // Texto de los botones
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+ // --- BUILDER TEMA CLARO (MEJORADO) ---
+  static ThemeData _buildLightTheme(Color accentColor) {
+    final baseTheme = ThemeData.light();
+    final textTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
+      bodyColor: _lightTextPrimary,      
+      displayColor: _lightTextPrimary,   
+    );
+    
+    return baseTheme.copyWith(
+      brightness: Brightness.light,
+      primaryColor: accentColor,
+      // Usamos el fondo grisáceo para mejor contraste
+      scaffoldBackgroundColor: _lightBackground, 
+      cardColor: _lightSurface,
+      dividerColor: Colors.black.withValues(alpha: 0.06),
+      
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: accentColor,
+        brightness: Brightness.light,
+        primary: accentColor,
+        onPrimary: Colors.white,
+        secondary: _lightAccentPink, 
+        surface: _lightSurface, 
+        onSurface: _lightTextPrimary,
+        error: Colors.red.shade700,
+        outline: _lightTextSecondary,
+      ).copyWith(surface: _lightSurface),
+      
+      textTheme: textTheme,
+      
+      appBarTheme: AppBarTheme(
+        backgroundColor: _lightSurface, // AppBar blanco
+        elevation: 0,
+        foregroundColor: _lightTextPrimary,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold, 
+          color: _lightTextPrimary
         ),
+        iconTheme: IconThemeData(color: _lightTextPrimary),
+        shape: Border(bottom: BorderSide(color: Colors.black.withValues(alpha: 0.05))),
       ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _cyberPrimary,
-        side: const BorderSide(color: _cyberPrimary, width: 2),
+      
+      cardTheme: CardThemeData(
+        color: _lightSurface,
+        elevation: 0, 
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          // Borde sutil para separar del fondo gris
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.08), width: 1),
         ),
+        margin: EdgeInsets.zero,
       ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: _cyberPrimary,
-      ),
-    ),
-    iconTheme: const IconThemeData(
-      color: _cyberPrimary,
-    ),
-    tooltipTheme: TooltipThemeData(
-      decoration: BoxDecoration(
-        color: _cyberSurface,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      textStyle: const TextStyle(color: Colors.white),
-    ),
-    // ... puedes añadir más personalizaciones aquí (textTheme, cardTheme, etc.)
-  );
 
-  // --- Definición del Tema Claro (Básico) ---
-  static final ThemeData lightTheme = ThemeData(
-    brightness: Brightness.light,
-    primaryColor: _cyberPrimary, // Mantenemos el azul como acento
-    scaffoldBackgroundColor: const Color(0xFFF4F6F8), // Un gris muy claro
-    colorScheme: ColorScheme.light(
-      primary: _cyberPrimary,
-      secondary: _cyberPrimary,
-      surface: Colors.white, // Tarjetas y superficies blancas
-      onPrimary: Colors.white, // Texto sobre el color primario
-      onSecondary: Colors.black,
-      onSurface: Colors.black87,
-      error: Colors.red,
-      onError: Colors.white,
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white, // AppBar blanco
-      elevation: 1,
-      iconTheme: IconThemeData(color: Colors.black87),
-      titleTextStyle: TextStyle(
-          color: Colors.black87, fontSize: 20, fontWeight: FontWeight.bold),
-    ),
-    bottomNavigationBarTheme: BottomNavigationBarThemeData(
-      backgroundColor: Colors.white,
-      selectedItemColor: _cyberPrimary,
-      unselectedItemColor: Colors.grey.shade600,
-      type: BottomNavigationBarType.fixed,
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: _cyberPrimary,
-        foregroundColor: Colors.white, // Texto blanco sobre azul
-        shape: RoundedRectangleBorder(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: _lightSurface,
+        selectedItemColor: accentColor,
+        unselectedItemColor: _lightTextSecondary,
+        type: BottomNavigationBarType.fixed,
+        elevation: 10,
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        prefixIconColor: accentColor,
+        labelStyle: TextStyle(color: _lightTextSecondary),
+        hintStyle: TextStyle(color: _lightTextPrimary.withValues(alpha: 0.4)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+        focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: accentColor, width: 2),
         ),
       ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _cyberPrimary,
-        side: const BorderSide(color: _cyberPrimary, width: 2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+      
+      iconTheme: IconThemeData(color: _lightTextSecondary),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: accentColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          elevation: 2,
         ),
       ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: _cyberPrimary,
-      ),
-    ),
-    iconTheme: const IconThemeData(
-      color: _cyberPrimary,
-    ),
-    tooltipTheme: TooltipThemeData(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      textStyle: const TextStyle(color: Colors.white),
-    ),
-    // ...
-  );
+    );
+  }
+} 
+
+// =============================================================================
+// 2. GESTIÓN DE ESTADO (PROVIDER + PERSISTENCIA)
+// =============================================================================
+
+class ThemeProvider with ChangeNotifier {
+  // Estado privado
+  bool _isDarkMode = true;
+  AppPalette _currentPalette = AppPalette.blue;
+
+  // Constructor: Carga preferencias al iniciar
+  ThemeProvider() {
+    _loadFromPrefs();
+  }
+
+  // Getters públicos
+  bool get isDarkMode => _isDarkMode;
+  AppPalette get currentPalette => _currentPalette;
+
+  // Obtener el ThemeData actual basado en el estado
+  ThemeData get currentTheme {
+    final themeMap = _isDarkMode ? AppThemes.darkThemes : AppThemes.lightThemes;
+    return themeMap[_currentPalette] ?? themeMap[AppPalette.blue]!;
+  }
+
+  // --- ACCIONES ---
+
+  // Alternar modo Oscuro/Claro
+  void toggleTheme() {
+    _isDarkMode = !_isDarkMode;
+    _saveToPrefs();
+    notifyListeners();
+  }
+
+  // Cambiar paleta de colores (Por si quieres implementar un selector de colores luego)
+  void changePalette(AppPalette palette) {
+    _currentPalette = palette;
+    _saveToPrefs();
+    notifyListeners();
+  }
+
+  // --- PERSISTENCIA (SharedPreferences) ---
+
+  Future<void> _loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isDarkMode = prefs.getBool('isDarkMode') ?? true;
+    
+    // Cargar paleta guardada (por índice)
+    final paletteIndex = prefs.getInt('paletteIndex') ?? 0;
+    if (paletteIndex >= 0 && paletteIndex < AppPalette.values.length) {
+      _currentPalette = AppPalette.values[paletteIndex];
+    }
+    
+    notifyListeners();
+  }
+
+  Future<void> _saveToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', _isDarkMode);
+    await prefs.setInt('paletteIndex', _currentPalette.index);
+  }
 }

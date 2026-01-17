@@ -4,7 +4,7 @@
 // Update: Integración completa de Módulos Presupuesto (Quotes), Inventario e IA
 // Update: Integración de Notificaciones Push (Firebase Messaging) + Navegación Global
 // Update: Implementación de Reactividad de Suscripciones (UserModel Stream)
-// FIX: GeminiService Singleton Injection
+// FIX: Migración completa a ThemeProvider (Centralizado)
 // ---------------------------------
 
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider, StreamProvider, ChangeNotifierProvider, Consumer;
@@ -21,8 +21,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'firebase_options.dart';
 
-// --- SERVICIOS DE TEMA ---
-import 'package:proveedor_servicly_app/core/services/theme_service.dart';
+// --- SERVICIOS DE TEMA (CORREGIDO) ---
+import 'package:proveedor_servicly_app/providers/theme_provider.dart';
 
 // --- Servicios Core ---
 import 'core/services/auth_service.dart';
@@ -72,7 +72,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  print("🌙 Mensaje recibido en segundo plano: ${message.messageId}");
+  debugPrint("🌙 Mensaje recibido en segundo plano: ${message.messageId}");
 }
 
 void main() async {
@@ -80,11 +80,10 @@ void main() async {
   await initializeDateFormatting('es_ES', null);
 
   // --- FIX WEB: Manejo de .env ---
-  // En Web, el .env debe estar en assets. Si falla, que no rompa la app.
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    print("⚠️ Advertencia: No se pudo cargar .env (Normal si es Web y no está en assets): $e");
+    debugPrint("⚠️ Advertencia: No se pudo cargar .env (Normal si es Web y no está en assets): $e");
   }
 
   await Firebase.initializeApp(
@@ -92,48 +91,40 @@ void main() async {
   );
 
   // --- FIX WEB: Background Handler ---
-  // Solo registramos esto si NO es Web. En Web da error.
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
 
   // --- FIX WEB: App Check ---
-  // AppCheck necesita configuración especial para Web (ReCaptcha). 
-  // Por ahora lo activamos SOLO si NO es Web para evitar el crash.
   if (!kIsWeb) {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
       appleProvider: AppleProvider.appAttest,
     );
   } else {
-    // Opcional: Aquí iría la configuración Web con ReCaptcha V3 si la tienes
-    // await FirebaseAppCheck.instance.activate(
-    //   webProvider: ReCaptchaV3Provider('tu-clave-web-recaptcha'),
-    // );
-    print("ℹ️ AppCheck desactivado temporalmente en Web para evitar crash");
+    debugPrint("ℹ️ AppCheck desactivado temporalmente en Web para evitar crash");
   }
 
-  // --- Cargar el servicio de tema ---
-  final themeService = ThemeService();
-  await themeService.loadTheme(); 
+  // --- CAMBIO: Ya no inicializamos ThemeService aquí ---
+  // El ThemeProvider se inicializa dentro del árbol de widgets.
 
   runApp(
-    ProviderScope( 
-      child: MyApp(themeService: themeService), 
+    const ProviderScope( 
+      child: MyApp(), // MyApp ya no necesita argumentos
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final ThemeService themeService;
-  
-  const MyApp({super.key, required this.themeService});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: themeService),
+        // --- CAMBIO: Inyectamos ThemeProvider aquí ---
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        
         Provider<StorageService>(create: (_) => StorageService()),
         Provider<ProductService>(create: (_) => ProductService()),
         Provider<CategoryService>(create: (_) => CategoryService()),
@@ -223,15 +214,19 @@ class MyApp extends StatelessWidget {
         ),
       ],
       
-      child: Consumer<ThemeService>(
-        builder: (context, themeService, child) {
+      // --- CAMBIO: Consumimos ThemeProvider ---
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
           return MaterialApp(
             navigatorKey: navigatorKey, 
             title: 'Servicly',
             debugShowCheckedModeBanner: false,
-            theme: themeService.lightTheme, 
-            darkTheme: themeService.darkTheme,
-            themeMode: ThemeMode.system, 
+            
+            // --- CAMBIO: Lógica de Tema Simplificada ---
+            // 'currentTheme' ya devuelve el ThemeData correcto (Oscuro o Claro)
+            // según la configuración interna del provider.
+            theme: themeProvider.currentTheme,
+            
             home: const SplashScreen(), 
           );
         },

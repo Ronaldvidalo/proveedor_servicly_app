@@ -5,14 +5,13 @@
 // UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
 // UPDATE: Integración Notificaciones Push (Cliente)
 // UPDATE: Integración IA Servi (Conserje Virtual 360)
+// UPDATE 07/01/2026: Smart Featured Section (Zero whitespace)
 // ---------------------------------
 
 import 'package:flutter/material.dart';
 
 // --- MANEJO DE CONFLICTOS DE IMPORTS (Provider vs Riverpod) ---
-// Importamos provider con alias para el Widget wrapper
 import 'package:provider/provider.dart' as provider_pkg; 
-// Importamos provider normal (ocultando conflictos) para usar context.read()
 import 'package:provider/provider.dart' hide Provider, Consumer, StreamProvider, ChangeNotifierProvider, FutureProvider; 
 import 'package:flutter_riverpod/flutter_riverpod.dart'; 
 
@@ -31,7 +30,7 @@ import 'package:proveedor_servicly_app/core/utils/distance_utils.dart';
 
 // --- IMPORTACIÓN DE WIDGETS REUTILIZABLES ---
 import 'package:proveedor_servicly_app/widgets/cards/provider_card.dart'; 
-import 'package:proveedor_servicly_app/widgets/video_showcase_section.dart';
+import 'package:proveedor_servicly_app/widgets/smart_featured_section.dart'; 
 
 // --- IMPORTACIONES DE NAVEGACIÓN ---
 import 'package:proveedor_servicly_app/features/orders/screens/client_orders_screen.dart'; 
@@ -42,7 +41,7 @@ import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:audioplayers/audioplayers.dart'; // Para el estado del player
+import 'package:audioplayers/audioplayers.dart'; 
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -78,8 +77,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   bool _isThinking = false;
   // ------------------------------
 
-  // DEFINICIÓN DE PESTAÑAS (Coinciden con publicProfileTemplate en BD)
-  // IMPORTANTE: Estos IDs deben ser iguales a los que guardamos en BrandSettings
+  // DEFINICIÓN DE PESTAÑAS
   final List<Map<String, String>> _profileTypes = [
     {'id': 'all', 'label': 'Descubrir'},
     {'id': 'store', 'label': 'Tiendas'},
@@ -94,7 +92,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     _tabController = TabController(length: _profileTypes.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        setState(() {}); // Reconstruir al cambiar tab
+        setState(() {}); 
       }
     });
     _searchController.addListener(() {
@@ -107,10 +105,8 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     });
 
     // --- SOLICITUD DE NOTIFICACIONES (CLIENTE) ---
-    // Esto asegura que el cliente reciba alertas de sus pedidos
     WidgetsBinding.instance.addPostFrameCallback((_) async {
        if (!mounted) return; 
-       // Usamos context.read del paquete Provider (gracias al import oculto arriba)
        final notificationService = context.read<NotificationService>();
        await notificationService.init();
        
@@ -124,7 +120,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
-    // Limpieza de Servi
     _voiceService.dispose();
     _speech.stop();
     super.dispose();
@@ -135,23 +130,18 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     if (_isThinking) return;
 
     if (_isListening) {
-      // Si está escuchando y toco, forzamos parada y proceso lo que tenga
       _speech.stop(); 
       setState(() => _isListening = false);
     } else if (_isSpeaking) {
-      // Si está hablando y toco, se calla
       await _voiceService.stop();
       setState(() => _isSpeaking = false);
     } else {
-      // Si está quieto, saludo inicial o escucha directa
       if (_searchTerm.isEmpty) {
-         await _speak("Hola, soy Servi. ¿Buscás algún producto, tienda o servicio cerca?");
-         // Pequeña pausa para que termine de hablar antes de escuchar
-         await Future.delayed(const Duration(milliseconds: 2500)); 
-         if (mounted) _listen();
+          await _speak("Hola, soy Servi. ¿Buscás algún producto, tienda o servicio cerca?");
+          await Future.delayed(const Duration(milliseconds: 2500)); 
+          if (mounted) _listen();
       } else {
-         // Si ya hay búsqueda, escucha directo
-         _listen();
+          _listen();
       }
     }
   }
@@ -194,9 +184,8 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     });
 
     try {
-        final userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest'; // Soporte para invitados
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest'; 
         
-        // Conectamos con el Cerebro 360
         final geminiService = GeminiService();
         final apiConnector = ServiApiConnectorService(geminiService); 
         
@@ -205,22 +194,16 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
         String voiceText = response['TEXTO_VOZ'] ?? "Listo.";
         
         // --- MAGIA: APLICAR FILTROS AUTOMÁTICOS ---
-        // Si Servi detectó una intención clara, actualizamos la UI del Marketplace
-        
-        // 1. Si encontró profesionales/tiendas en la respuesta, filtramos por la query original
-        // Esto permite que si dices "Zapatos", el buscador se ponga en "Zapatos"
         if (response.containsKey('PROFESIONALES_ENCONTRADOS') || response.containsKey('PRODUCTOS_MERCADO')) {
             _searchController.text = query; 
             voiceText = "Encontré estas opciones para vos.";
         }
         
-        // 2. Si es búsqueda de cercanía
         if (query.toLowerCase().contains('cerca') && !_isNearbyFilterActive) {
-            _toggleNearbyFilter(); // Activamos el filtro GPS visualmente
+            _toggleNearbyFilter();
             voiceText = "Buscando opciones cercanas a tu ubicación.";
         }
 
-        // Feedback de voz
         await _speak(voiceText);
 
     } catch (e) {
@@ -277,9 +260,10 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
+        // CAMBIO: Quitamos el _UserAvatarMenu de aquí porque ya está en el Sidebar
         actions: const [
-          _UserAvatarMenu(), 
-          SizedBox(width: 8),
+           // Solo dejamos un SizedBox por si necesitamos espaciado
+           SizedBox(width: 16),
         ],
       ),
       body: CustomScrollView(
@@ -288,28 +272,32 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             pinned: true,
             floating: true,
             backgroundColor: theme.scaffoldBackgroundColor,
-            elevation: 2,
-            shadowColor: theme.shadowColor.withValues(alpha: 0.1),
+            elevation: 0,
+            shadowColor: Colors.transparent, 
             titleSpacing: 0,
             title: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: TextField(
-                controller: _searchController, // Servi escribirá aquí automáticamente
+                controller: _searchController, 
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Busca nombre, servicio o dirección...',
                   hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
                   prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withValues(alpha: 0.6)),
                   filled: true,
-                  fillColor: theme.cardTheme.color,
+                  fillColor: theme.cardTheme.color, 
                   contentPadding: EdgeInsets.zero,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: theme.dividerColor.withValues(alpha: 0.1)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide(color: theme.dividerColor.withValues(alpha: 0.1)),
                   ),
                 ),
               ),
@@ -325,19 +313,40 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
             ),
           ),
           
-          _buildSectionTitle(context, 'Destacados', theme),
-          
-          const SliverToBoxAdapter(
-            child: VideoShowcaseSection(),
+          // --- SECCIÓN DESTACADOS INTELIGENTE (MEJORADA) ---
+          SliverToBoxAdapter(
+            child: StreamBuilder<List<ProviderProfileModel>>(
+              // Usamos getProviders para los destacados. 
+              stream: marketplaceService.getProviders(profileType: 'store'), 
+              builder: (context, snapshot) {
+                // Filtramos solo los que tengan calificación alta para simular "Destacados"
+                final featured = (snapshot.data ?? []).where((p) => (p.ratingAvg) >= 4.5).take(5).toList();
+                
+                return SmartFeaturedSection<ProviderProfileModel>(
+                  title: 'Tiendas Destacadas',
+                  items: featured,
+                  isLoading: snapshot.connectionState == ConnectionState.waiting,
+                  height: 210, 
+                  onSeeAllTap: () => _tabController.animateTo(1), // Ir a tab Tiendas
+                  itemBuilder: (context, provider) {
+                    return SizedBox(
+                      width: 280, 
+                      child: ProviderCard(provider: provider),
+                    );
+                  },
+                );
+              },
+            ),
           ),
+          // ----------------------------------------------------
 
           _buildSectionTitle(context, 'Filtrar resultados', theme),
           _buildFilterRow(context, marketplaceService, locationState, theme),
           
+          // --- LISTA PRINCIPAL DE RESULTADOS ---
           StreamBuilder<List<ProviderProfileModel>>(
-            // Solicitamos TODOS y filtramos localmente para mayor control en debug
             stream: marketplaceService.getProviders(
-              profileType: null, // Traemos todo para filtrar en cliente y ver qué pasa
+              profileType: null, 
               categoryName: _selectedCategory,
             ),
             builder: (context, snapshot) {
@@ -348,19 +357,16 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                 return _ErrorState(error: snapshot.error.toString());
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                // debugPrint("Marketplace: La base de datos 'brandProfiles' parece vacía o sin permisos.");
                 return const _EmptyState();
               }
 
               var providers = snapshot.data!;
               
-              // --- FILTRO MANUAL (DEBUGGEABLE) ---
+              // --- FILTROS EN CLIENTE ---
               
-              // 1. Filtro por Pestaña (Store, Catalog, etc.)
+              // 1. Filtro por Pestaña
               if (selectedProfileType != 'all') {
                 providers = providers.where((p) {
-                  // Comparamos contra publicProfileTemplate O profileType para asegurar compatibilidad
-                  // Si es nulo, asumimos 'cv'
                   final template = p.publicProfileTemplate?.toLowerCase() ?? p.profileType.toLowerCase();
                   return template == selectedProfileType.toLowerCase();
                 }).toList();
@@ -372,7 +378,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                 providers = providers.where((p) {
                   final nameMatch = p.businessName.toLowerCase().contains(term);
                   final addressMatch = (p.address?.toLowerCase() ?? '').contains(term);
-                  // NUEVO: Permitimos buscar por Categoría para que Servi funcione mejor (Ej: "Plomero")
                   final categoryMatch = (p.mainCategory?.toLowerCase() ?? '').contains(term);
                   return nameMatch || addressMatch || categoryMatch;
                 }).toList();
@@ -392,7 +397,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                     double distB = DistanceUtils.getDistanceInMeters(userPosition.latitude, userPosition.longitude, latB, lngB);
                     return distA.compareTo(distB);
                   }
-                  return 0; // Sin cambios si no tienen ubicación
+                  return 0; 
                 });
               }
 
@@ -417,13 +422,15 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               }
 
               return SliverPadding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), // Padding inferior extra para el FAB
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 300,
+                    // CAMBIO: Reducimos el ancho máximo para que quepan más tarjetas (antes 350)
+                    maxCrossAxisExtent: 280, 
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 0.85,
+                    // CAMBIO: Ajustamos la relación de aspecto para que no sean tan altas
+                    childAspectRatio: 0.9, 
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -439,7 +446,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                         distanceText = "Ver ubicación"; 
                       }
 
-                      // Usamos tu tarjeta ProviderCard que ya tiene la navegación integrada
                       return ProviderCard(
                         provider: provider, 
                         distanceText: distanceText,
@@ -459,7 +465,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   Widget _buildSectionTitle(BuildContext context, String title, ThemeData theme) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0), // Menos padding superior
         child: Text(
           title,
           style: theme.textTheme.titleMedium?.copyWith(
@@ -551,102 +557,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
           ],
         ),
       ),
-    );
-  }
-}
-
-// ===================================================================
-// --- WIDGETS AUXILIARES ---
-// ===================================================================
-
-class _UserAvatarMenu extends StatelessWidget {
-  const _UserAvatarMenu();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final user = FirebaseAuth.instance.currentUser;
-    final initials = user?.displayName?.isNotEmpty == true ? user!.displayName![0].toUpperCase() : 'U';
-
-    return PopupMenuButton<String>(
-      offset: const Offset(0, 50), // Desplazar el menú hacia abajo
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      icon: CircleAvatar(
-        backgroundColor: colorScheme.primary,
-        child: Text(initials, style: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
-      ),
-      onSelected: (value) {
-        switch (value) {
-          // --- AQUÍ ESTÁ LA NAVEGACIÓN A MIS COMPRAS ---
-          case 'orders':
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientOrdersScreen()));
-            break;
-          case 'profile':
-            // TODO: Navegar a pantalla de perfil de cliente
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Próximamente: Perfil de Cliente")));
-            break;
-          case 'favorites':
-            // TODO: Navegar a favoritos
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Próximamente: Favoritos")));
-            break;
-          case 'logout':
-            context.read<AuthService>().signOut();
-            break;
-        }
-      },
-      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        // Encabezado del menú
-        PopupMenuItem<String>(
-          enabled: false, // No seleccionable
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(user?.displayName ?? "Usuario", style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-              // ✅ Fix: withValues instead of withOpacity
-              Text(user?.email ?? "", style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.6))),
-              const Divider(),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'orders',
-          child: ListTile(
-            leading: Icon(Icons.shopping_bag_outlined),
-            title: Text('Mis Compras'),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'favorites',
-          child: ListTile(
-            leading: Icon(Icons.favorite_border),
-            title: Text('Favoritos'),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'profile',
-          child: ListTile(
-            leading: Icon(Icons.person_outline),
-            title: Text('Mi Perfil'),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'logout',
-          child: ListTile(
-            leading: Icon(Icons.logout, color: Colors.redAccent),
-            title: Text('Cerrar Sesión', style: TextStyle(color: Colors.redAccent)),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-          ),
-        ),
-      ],
     );
   }
 }
