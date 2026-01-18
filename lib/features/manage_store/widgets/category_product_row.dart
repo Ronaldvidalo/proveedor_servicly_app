@@ -119,7 +119,7 @@ class CategoryProductRow extends StatelessWidget {
                           brandColor: const Color(0xFF00BFFF),
                           isEditable: true, // <--- IMPORTANTE: MODO GESTOR ACTIVADO
                           onTap: () => Navigator.push(context, MaterialPageRoute(
-                            builder: (_) => AddEditProductScreen(user: user, productToEdit: product),
+                            builder: (_) => AddEditProductScreen(user: user, product: product),
                           )),
                         ),
                       ),

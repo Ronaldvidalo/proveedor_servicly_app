@@ -23,7 +23,8 @@ class TimeRange {
 
 class ProviderProfileModel {
   final String id;
-  final String providerId;
+  // Es String NO NULO. Si viene nulo de Firebase, fromFirestore le asigna doc.id
+  final String providerId; 
   final String businessName;
   final String logoUrl;
   final Color brandColor;
@@ -190,6 +191,7 @@ class ProviderProfileModel {
 
     return ProviderProfileModel(
       id: doc.id,
+      // AQUÍ SE ASEGURA QUE NUNCA SEA NULO
       providerId: data['providerId'] as String? ?? doc.id,
       businessName: get('businessName') as String? ?? 'Nombre del Negocio',
       logoUrl: safeLogo,
@@ -201,9 +203,9 @@ class ProviderProfileModel {
       planType: data['planType'] as String? ?? 'free',
       slogan: get('slogan') as String?,
       
-      // ✅ Lectura robusta de calificaciones
-      ratingAvg: (get('ratingAvg') ?? get('ranking_promedio') ?? get('averageRating') as num?)?.toDouble() ?? 0.0,
-      ratingCount: (get('ratingCount') ?? get('total_valoraciones') ?? get('reviewCount') as num?)?.toInt() ?? 0,
+      // ✅ Lectura robusta con paréntesis para el casteo correcto
+      ratingAvg: ((get('ratingAvg') ?? get('ranking_promedio') ?? get('averageRating')) as num?)?.toDouble() ?? 0.0,
+      ratingCount: ((get('ratingCount') ?? get('total_valoraciones') ?? get('reviewCount')) as num?)?.toInt() ?? 0,
       
       openingHours: get('openingHours') as String?,
       phone: get('phone') as String?,
@@ -305,7 +307,7 @@ class ProviderProfileModel {
     bool? worksOnHolidays,
     bool? isVerified,
     bool? isActive,
-    DateTime? createdAt, // ✅ Añadido para evitar 'unnecessary_this' si se usaba
+    DateTime? createdAt,
   }) {
     return ProviderProfileModel(
       id: id ?? this.id,
@@ -320,11 +322,8 @@ class ProviderProfileModel {
       address: address ?? this.address,
       planType: planType ?? this.planType,
       slogan: slogan ?? this.slogan,
-      
-      // ✅ CORRECCIÓN 1: Eliminado el parámetro 'reviewCount' inexistente
       ratingAvg: ratingAvg ?? this.ratingAvg, 
       ratingCount: ratingCount ?? this.ratingCount, 
-      
       openingHours: openingHours ?? this.openingHours,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
@@ -362,7 +361,6 @@ class ProviderProfileModel {
       worksOnHolidays: worksOnHolidays ?? this.worksOnHolidays,
       isVerified: isVerified ?? this.isVerified,
       isActive: isActive ?? this.isActive,
-      // ✅ CORRECCIÓN 2: Eliminado 'this.' redundante
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -372,8 +370,8 @@ class ProviderProfileModel {
       'providerId': providerId,
       'businessName': businessName,
       'logoUrl': logoUrl,
-      // ✅ CORRECCIÓN 3: Uso de toARGB32() en lugar de .value (deprecated)
-      'primaryColor': '#${brandColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
+      // ✅ CORRECCIÓN: Uso de .value en lugar de .toARGB32()
+      'primaryColor': '#${brandColor.value.toRadixString(16).padLeft(8, '0').substring(2)}',
       'profileType': profileType,
       'planType': planType,
       'isAvailable': isAvailable,

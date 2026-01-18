@@ -125,7 +125,7 @@ class AllProductsScreen extends StatelessWidget {
                 // CORRECCIÓN: Cambiado de onDetailTap a onTap
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => AddEditProductScreen(user: user, productToEdit: product),
+                    builder: (_) => AddEditProductScreen(user: user, product: product),
                   ));
                 },
               );

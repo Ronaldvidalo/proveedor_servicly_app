@@ -200,7 +200,7 @@ class CatalogServicesSectionEditor extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEditProductScreen(productToEdit: product),
+        builder: (context) => AddEditProductScreen(product: product),
       ),
     );
   }

@@ -11,10 +11,13 @@ import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; // Asegura tener este modelo
 
-// --- Importaciones de Servicios ---
+// --- Importaciones de Servicios y Providers ---
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
+// FIX: Importamos el contexto del Dashboard para obtener el perfil seleccionado
+import 'package:proveedor_servicly_app/features/dashboard/providers/dashboard_context_provider.dart';
 
 // --- Importaciones de Pantallas (Rutas de Navegación) ---
 import 'package:proveedor_servicly_app/features/agenda/presentation/screens/agenda_screen.dart';
@@ -61,7 +64,7 @@ const Map<String, IconData> _iconMap = {
 class ModulesGrid extends StatefulWidget {
   final List<ModuleModel> allModules; 
   final UserModel user;
-  final bool enableListView; // Controla si se ve como lista (Web) o Grid (Móvil)
+  final bool enableListView; 
   
   const ModulesGrid({
     super.key,
@@ -98,12 +101,11 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     super.dispose();
   }
 
-  // --- 1. LÓGICA DE ACTIVACIÓN (SWITCH) ---
+  // --- 1. LÓGICA DE ACTIVACIÓN ---
   Future<void> _toggleModuleState(ModuleModel module, bool value) async {
     if (_loadingModuleId != null) return;
 
     if (value) {
-      // Activar
       if (module.isPremium && widget.user.planType == 'free') {
         _explainModule("premium_error");
         _showUpgradeDialog('Este módulo es Premium. Actualizá tu plan para desbloquearlo.');
@@ -127,7 +129,6 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
         if (mounted) setState(() => _loadingModuleId = null);
       }
     } else {
-      // Desactivar
       setState(() => _loadingModuleId = module.moduleId);
       HapticFeedback.lightImpact();
       try {
@@ -142,13 +143,11 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     }
   }
 
-  // --- 2. LÓGICA DE NAVEGACIÓN (AL TOCAR LA TARJETA) ---
+  // --- 2. LÓGICA DE NAVEGACIÓN ---
   void _handleCardTap(ModuleModel module, bool isActive) {
     if (isActive) {
-      // SI ESTÁ ACTIVO -> NAVEGAR
       _navigateToModule(context, module.moduleId, widget.user);
     } else {
-      // SI NO ESTÁ ACTIVO -> INTENTAR ACTIVAR
       _toggleModuleState(module, true);
     }
   }
@@ -277,7 +276,24 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
                 subtitle: 'Tu vidriera abierta 24/7',
                 icon: _iconMap['storefront_outlined']!,
                 color: theme.primaryColor,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ManageStoreScreen(user: widget.user))),
+                // --- FIX CRÍTICO: CONEXIÓN DE DATOS ---
+                onTap: () {
+                  // 1. Intentamos obtener el perfil activo del Dashboard
+                  ProviderProfileModel? activeProfile;
+                  try {
+                    activeProfile = context.read<DashboardContext>().selectedProfile;
+                  } catch (_) {
+                    // Si falla (ej. fuera del dashboard), seguimos con null
+                  }
+
+                  // 2. Navegamos pasando user (para fetch) y profile (si ya lo tenemos)
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ManageStoreScreen(
+                      user: widget.user,
+                      profile: activeProfile,
+                    ),
+                  ));
+                },
                 onLongPress: () => _explainModule('store_template'),
               ),
             if (widget.user.publicProfileTemplate == 'catalog')
@@ -291,10 +307,8 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
               ),
 
             const SizedBox(height: 24),
-            
             _buildSectionHeader(context, "Herramientas"),
             
-            // --- VISTA LISTA (WEB) O GRID (MÓVIL) ---
             if (widget.enableListView) 
               _buildVerticalList(sortedModules, pendingCount)
             else
@@ -315,7 +329,7 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        mainAxisExtent: 130, // Altura corregida para evitar overflow
+        mainAxisExtent: 130, 
       ),
       itemCount: modules.length,
       itemBuilder: (context, index) => _buildItem(modules[index], index, pendingCount, isList: false),
@@ -358,7 +372,6 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
           isLoading: _loadingModuleId == module.moduleId,
           isPremium: module.isPremium,
           badge: badge,
-          // --- AQUÍ SE CONECTAN LAS ACCIONES ---
           onTap: () => _handleCardTap(module, isActive),
           onSwitchChanged: (val) => _toggleModuleState(module, val),
           onLongPress: () => _explainModule(module.moduleId),
@@ -465,7 +478,6 @@ class _InnovationCardState extends State<_InnovationCard> {
       onTapDown: (_) => setState(() => _isTapDown = true),
       onTapUp: (_) => setState(() => _isTapDown = false),
       onTapCancel: () => setState(() => _isTapDown = false),
-      // --- IMPORTANTE: NAVEGACIÓN AQUI ---
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
       child: AnimatedScale(
@@ -514,11 +526,10 @@ class _InnovationCardState extends State<_InnovationCard> {
                   if (widget.isPremium)
                      Positioned(top: 8, left: 8, child: Icon(Icons.star_rounded, size: 16, color: Colors.amber)),
 
-                  // Switch en Grid (En lista está dentro del layout)
                   if (!widget.isListStyle && !widget.isLarge && widget.onSwitchChanged != null && !widget.isLoading)
                     Positioned(
                       top: 0, right: 0,
-                      child: Transform.scale(scale: 0.65, child: Switch(value: widget.isActive, onChanged: widget.onSwitchChanged, activeColor: const Color(0xFF00FF7F))),
+                      child: Transform.scale(scale: 0.65, child: Switch(value: widget.isActive, onChanged: widget.onSwitchChanged, activeTrackColor: const Color(0xFF00FF7F))),
                     ),
                 ],
               ),
@@ -547,7 +558,7 @@ class _InnovationCardState extends State<_InnovationCard> {
         if (widget.onSwitchChanged != null)
            Transform.scale(
              scale: 0.7,
-             child: Switch(value: widget.isActive, onChanged: widget.onSwitchChanged, activeColor: const Color(0xFF00FF7F)),
+             child: Switch(value: widget.isActive, onChanged: widget.onSwitchChanged, activeTrackColor: const Color(0xFF00FF7F)),
            )
         else
            const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),

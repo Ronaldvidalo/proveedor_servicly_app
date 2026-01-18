@@ -627,7 +627,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               Navigator.push(context, MaterialPageRoute(
                                 builder: (_) => AddEditProductScreen(
                                   user: userModel, 
-                                  productToEdit: filteredProducts[i]
+                                  product: filteredProducts[i]
                                 )
                               ));
                             }

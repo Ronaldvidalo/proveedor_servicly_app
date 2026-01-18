@@ -33,7 +33,7 @@ import 'package:proveedor_servicly_app/features/public_profile/screens/public_pr
 import 'package:proveedor_servicly_app/features/public_profile/screens/presentation/screens/select_profile_template_screen.dart';
 import 'package:proveedor_servicly_app/features/settings/screens/settings_screen.dart';
 import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
-import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart'; // Tu Grid Mejorado
+import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart'; 
 
 // --- Header y Provider ---
 import 'package:proveedor_servicly_app/widgets/header/servicly_header_widget.dart';
@@ -93,11 +93,8 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
   final ServiVoiceService _voiceService = ServiVoiceService();
   final stt.SpeechToText _speech = stt.SpeechToText();
   
-  // ignore: prefer_final_fields
   bool _isSpeaking = false;
-  // ignore: prefer_final_fields
   bool _isListening = false;
-  // ignore: prefer_final_fields
   bool _isThinking = false;
   bool _isMuted = false;
   
@@ -118,7 +115,6 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
     final firestoreService = context.read<FirestoreService>();
     final user = context.read<UserModel?>();
 
-    // Obtenemos TODOS los módulos disponibles para pasarlos al Grid
     _modulesFuture = firestoreService.getAvailableModules();
 
     if (user != null) {
@@ -196,18 +192,9 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
     }
   }
 
-  // --- AI Logic ---
-  Future<void> _listen(UserModel user) async { 
-    // Implementación real pendiente
-  }
-  
-  void _handleNewInsight(SmartInsight insight) { 
-    // Implementación real pendiente
-  }
-
-  Future<void> _checkProactiveInsights(UserModel user) async { 
-    // Implementación real pendiente
-  }
+  Future<void> _listen(UserModel user) async {}
+  void _handleNewInsight(SmartInsight insight) {}
+  Future<void> _checkProactiveInsights(UserModel user) async {}
 
   void _manualTourStart(BuildContext context) {
       _toggleMenu(false);
@@ -260,10 +247,7 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
           builder: (context, moduleSnapshot) {
             if (moduleSnapshot.connectionState == ConnectionState.waiting) return const Scaffold(body: Center(child: CircularProgressIndicator()));
             
-            // Aquí obtenemos TODOS los módulos para pasárselos al Grid
             final allModules = moduleSnapshot.data ?? [];
-            
-            // Aunque el grid ordena, mantenemos activeModules por si se usa en otra parte (ej. métricas)
             final activeModules = allModules.where((m) => userModel.activeModules.contains(m.moduleId)).toList()..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
 
             return StreamBuilder<List<ProviderProfileModel>>(
@@ -455,12 +439,11 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
                     ),
                     const SizedBox(height: 16),
 
-                    // --- NUEVO GRID UNIFICADO ---
+                    // --- NUEVO GRID UNIFICADO CON TARJETA ---
                     _WebDashboardCard(
                       title: "Herramientas",
                       child: Showcase(
                         key: _keyModulesGrid, title: 'Apps', description: 'Tus herramientas.',
-                        // Pasamos allModules y eliminamos onAddModule
                         child: ModulesGrid(
                           allModules: allModules, 
                           user: userModel, 
@@ -504,28 +487,34 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
           ),
         ),
 
-        Showcase(key: _keyMetrics, title: 'Métricas', description: 'Tus números.', child: metric_widgets.DashboardMetricsCard(userModel: userModel)),
-        const SizedBox(height: 32),
-        Showcase(key: _keySummaryCards, title: 'Resumen', description: 'Finanzas.', child: const summary_widgets.DashboardSummaryCards()),
-        const SizedBox(height: 32),
+        // En Móvil también envolvemos para consistencia
+        Showcase(
+          key: _keyMetrics, title: 'Métricas', description: 'Tus números.', 
+          child: _WebDashboardCard(child: metric_widgets.DashboardMetricsCard(userModel: userModel))
+        ),
+        const SizedBox(height: 20),
+        
+        Showcase(
+          key: _keySummaryCards, title: 'Resumen', description: 'Finanzas.', 
+          child: _WebDashboardCard(title: "Resumen", child: const summary_widgets.DashboardSummaryCards())
+        ),
+        const SizedBox(height: 20),
 
         if (dashboardContext.selectedProfile == null || dashboardContext.selectedProfile?.publicProfileTemplate == 'store') ...[
-          CriticalStockCard(user: userModel),
-          const SizedBox(height: 32),
+          _WebDashboardCard(title: "Stock", child: CriticalStockCard(user: userModel)),
+          const SizedBox(height: 20),
         ],
         
         Showcase(key: _keyPublicProfile, title: 'Perfil', description: 'Ver perfil.', child: AdaptiveCenter(maxWebWidth: 500, child: _PublicProfileButton(userModel: userModel, selectedProfileId: dashboardContext.selectedProfile?.id))),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
 
         Text('Mis Módulos', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         
-        // --- NUEVO GRID UNIFICADO ---
         Showcase(
           key: _keyModulesGrid, 
           title: 'Apps', 
           description: 'Herramientas.', 
-          // Pasamos allModules y eliminamos onAddModule
           child: ModulesGrid(
             allModules: allModules, 
             user: userModel, 
@@ -572,21 +561,25 @@ class _ResponsiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    
     return LayoutBuilder(builder: (context, constraints) {
       if (constraints.maxWidth < kMobileBreakpoint) {
         return Scaffold(
-          backgroundColor: colors.surface,
+          // FIX VISUAL: Usar scaffoldBackgroundColor en móvil también
+          backgroundColor: theme.scaffoldBackgroundColor, 
           extendBodyBehindAppBar: true,
           body: body,
           floatingActionButton: Padding(padding: const EdgeInsets.only(bottom: 16.0), child: floatingActionButton),
           bottomNavigationBar: BottomNavigationBar(
             type: BottomNavigationBarType.fixed,
-            backgroundColor: colors.surface,
+            backgroundColor: theme.cardColor, // Navbar en cardColor
             selectedItemColor: colors.primary,
             unselectedItemColor: colors.onSurface.withValues(alpha: 0.6),
             currentIndex: selectedIndex,
             onTap: onNavigationChanged,
+            elevation: 8,
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Inicio'),
               BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Explorar'),
@@ -597,7 +590,8 @@ class _ResponsiveShell extends StatelessWidget {
         );
       } else {
         return Scaffold(
-          backgroundColor: colors.surface,
+          // FIX VISUAL: Usar scaffoldBackgroundColor en Web
+          backgroundColor: theme.scaffoldBackgroundColor, 
           floatingActionButton: floatingActionButton,
           body: Row(
             children: [
@@ -619,13 +613,32 @@ class _ServiPromptBar extends StatelessWidget {
     @override
     Widget build(BuildContext context) {
         final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ServiChatScreen())),
             child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(color: theme.cardTheme.color, borderRadius: BorderRadius.circular(12), border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.5))),
+                decoration: BoxDecoration(
+                  color: theme.cardColor, 
+                  borderRadius: BorderRadius.circular(12),
+                  // Borde visible
+                  border: Border.all(
+                    color: isDark 
+                        ? theme.colorScheme.primary.withValues(alpha: 0.5) 
+                        : Colors.black.withValues(alpha: 0.1), 
+                    width: 1
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4)
+                    )
+                  ]
+                ),
                 child: Row(children: [Icon(Icons.mic_none, color: theme.colorScheme.primary), const SizedBox(width: 12), Expanded(child: Text("Escribile a SERVI...", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))))]),
             ),
           ),
@@ -639,18 +652,23 @@ class _ServiPromptBarCompact extends StatelessWidget {
     @override
     Widget build(BuildContext context) {
         final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ServiChatScreen())),
             child: Container(
-                height: 40, // Altura forzada pequeña
+                height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                // FIX: Usar nulo-seguro en theme.cardTheme.color
                 decoration: BoxDecoration(
-                  color: (theme.cardTheme.color ?? theme.cardColor).withValues(alpha: 0.5), 
+                  color: theme.cardColor, // Contraste contra el fondo del scaffold
                   borderRadius: BorderRadius.circular(20), 
-                  border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2))
+                  border: Border.all(
+                    color: isDark 
+                        ? theme.colorScheme.outline.withValues(alpha: 0.2) 
+                        : Colors.black.withValues(alpha: 0.1)
+                  )
                 ),
                 child: Row(children: [Icon(Icons.search, size: 18, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)), const SizedBox(width: 8), Expanded(child: Text("Preguntar a IA...", style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withValues(alpha: 0.5))))]),
             ),
@@ -659,6 +677,7 @@ class _ServiPromptBarCompact extends StatelessWidget {
     }
 }
 
+// WIDGET MÁGICO: Tarjeta con borde sutil para contraste en modo claro
 class _WebDashboardCard extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -667,12 +686,28 @@ class _WebDashboardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]
+        // CORRECCIÓN VISUAL: Bordes visibles en Light Mode
+        border: Border.all(
+          color: isDark 
+              ? Colors.transparent 
+              : Colors.black.withValues(alpha: 0.08), // Gris suave visible
+          width: 1
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark 
+                ? Colors.black.withValues(alpha: 0.3) 
+                : Colors.black.withValues(alpha: 0.06), // Sombra más definida
+            blurRadius: 16, 
+            offset: const Offset(0, 6)
+          )
+        ]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,7 +721,7 @@ class _WebDashboardCard extends StatelessWidget {
             Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.1)),
           ],
           Padding(
-            padding: const EdgeInsets.all(16.0), // Padding interno reducido
+            padding: const EdgeInsets.all(16.0),
             child: child,
           ),
         ],
@@ -705,7 +740,7 @@ class _StoreStatusCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final bool isCreated = userModel.publicProfileCreated;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), // Más compacto
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [colors.primary, colors.secondary]),
         borderRadius: BorderRadius.circular(16),

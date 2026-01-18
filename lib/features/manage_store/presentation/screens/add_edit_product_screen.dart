@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:showcaseview/showcaseview.dart'; // Versión 3.0.0
+import 'package:showcaseview/showcaseview.dart'; 
 import 'package:video_thumbnail/video_thumbnail.dart'; 
 import 'package:path_provider/path_provider.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
@@ -20,8 +20,8 @@ import 'package:proveedor_servicly_app/core/services/storage_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as cloud_firestore; 
 
 class AddEditProductScreen extends StatelessWidget {
-  final UserModel? user; // Puede ser null si viene de navegación rápida, lo obtenemos del context
-  final ProductModel? productToEdit;
+  final UserModel? user; 
+  final ProductModel? product; 
   final CategoryModel? preselectedCategory;
   
   // --- PARÁMETROS IA SERVI ---
@@ -32,8 +32,8 @@ class AddEditProductScreen extends StatelessWidget {
 
   const AddEditProductScreen({
     super.key,
-    this.user, // Opcional ahora, se busca en context si es null
-    this.productToEdit,
+    this.user, 
+    this.product, 
     this.preselectedCategory,
     this.initialName,
     this.initialPrice,
@@ -43,7 +43,6 @@ class AddEditProductScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Si no pasaron el usuario, lo buscamos en el árbol de widgets (Provider)
     final currentUser = user ?? context.read<UserModel?>();
     
     if (currentUser == null) {
@@ -53,7 +52,7 @@ class AddEditProductScreen extends StatelessWidget {
     return ShowCaseWidget(
       builder: (context) => _AddEditProductContent(
         user: currentUser,
-        productToEdit: productToEdit,
+        product: product,
         preselectedCategory: preselectedCategory,
         initialName: initialName,
         initialPrice: initialPrice,
@@ -66,7 +65,7 @@ class AddEditProductScreen extends StatelessWidget {
 
 class _AddEditProductContent extends StatefulWidget {
   final UserModel user;
-  final ProductModel? productToEdit;
+  final ProductModel? product;
   final CategoryModel? preselectedCategory;
   
   // Parámetros IA
@@ -77,7 +76,7 @@ class _AddEditProductContent extends StatefulWidget {
 
   const _AddEditProductContent({
     required this.user,
-    this.productToEdit,
+    this.product,
     this.preselectedCategory,
     this.initialName,
     this.initialPrice,
@@ -93,11 +92,11 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
   final _formKey = GlobalKey<FormState>();
   
   // --- KEYS PARA EL TOUR (SHOWCASE) ---
-  final GlobalKey _oneKey = GlobalKey(); // Imagen principal
-  final GlobalKey _twoKey = GlobalKey(); // Nombre
-  final GlobalKey _threeKey = GlobalKey(); // IA Descripción
-  final GlobalKey _fourKey = GlobalKey(); // Inventario/Costos
-  final GlobalKey _fiveKey = GlobalKey(); // Botón Guardar
+  final GlobalKey _oneKey = GlobalKey(); 
+  final GlobalKey _twoKey = GlobalKey(); 
+  final GlobalKey _threeKey = GlobalKey(); 
+  final GlobalKey _fourKey = GlobalKey(); 
+  final GlobalKey _fiveKey = GlobalKey(); 
 
   // Controladores
   late final TextEditingController _nameController;
@@ -110,7 +109,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
   late final TextEditingController _skuController;
   late final TextEditingController _inventoryCategoryController;
 
-  // --- VARIABLES DE ESTRUCTURA DE COSTOS (UPGRADE TÉCNICO) ---
+  // --- VARIABLES DE ESTRUCTURA DE COSTOS ---
   double _costMaterials = 0;
   double _costLabor = 0;
   double _costOverhead = 0;
@@ -123,18 +122,15 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
 
   List<Map<String, dynamic>> _galleryItems = [];
 
-  bool get _isEditing => widget.productToEdit != null;
+  bool get _isEditing => widget.product != null;
 
   @override
   void initState() {
     super.initState();
     _initializeControllers();
     
-    // Iniciar el tour si es la primera vez
     WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkAndStartShowCase();
-        
-        // --- MOSTRAR AVISO DE IA SI EXISTE ---
         if (widget.aiDescription != null && widget.aiDescription!.isNotEmpty) {
              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -143,7 +139,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
                         const SizedBox(width: 8),
                         Expanded(child: Text("Servi: ${widget.aiDescription}")),
                     ]),
-                    backgroundColor: const Color(0xFF2D2D5A),
                     behavior: SnackBarBehavior.floating,
                     duration: const Duration(seconds: 5),
                 )
@@ -153,16 +148,13 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
   }
 
   void _initializeControllers() {
-    final product = widget.productToEdit;
-    
-    // PRIORIDAD: 1. Producto existente (Edit) -> 2. Datos de IA (Voz) -> 3. Vacío
+    final product = widget.product;
     
     _nameController = TextEditingController(text: product?.name ?? widget.initialName);
     
     String desc = product?.description ?? '';
     _descriptionController = TextEditingController(text: desc);
     
-    // Precios y Stock (Manejo seguro de nulls y tipos)
     String priceText = product?.price.toString() ?? '';
     if (priceText.isEmpty && widget.initialPrice != null && widget.initialPrice! > 0) {
         priceText = widget.initialPrice.toString();
@@ -186,7 +178,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     _galleryItems = List<Map<String, dynamic>>.from(product?.mediaGallery ?? []);
   }
 
-  // --- LÓGICA DE ESTRUCTURA DE COSTOS (UPGRADE) ---
+  // --- LÓGICA DE ESTRUCTURA DE COSTOS ---
   void _updateTotalCost() {
     final total = _costMaterials + _costLabor + _costOverhead;
     setState(() {
@@ -195,31 +187,32 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
   }
 
   void _showCostCalculator(BuildContext context) {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
+        backgroundColor: theme.cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.calculate_outlined, color: Color(0xFF00BFFF)),
-            SizedBox(width: 10),
-            Text("Estructura de Costos", style: TextStyle(color: Colors.white, fontSize: 18)),
+            Icon(Icons.calculate_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: 10),
+            Text("Estructura de Costos", style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 18)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildCostInputField("Materiales / Insumos", (v) => _costMaterials = v),
-            _buildCostInputField("Mano de Obra", (v) => _costLabor = v),
-            _buildCostInputField("Gastos Operativos", (v) => _costOverhead = v),
-            const Divider(color: Colors.white10, height: 30),
+            _buildCostInputField("Materiales / Insumos", (v) => _costMaterials = v, theme),
+            _buildCostInputField("Mano de Obra", (v) => _costLabor = v, theme),
+            _buildCostInputField("Gastos Operativos", (v) => _costOverhead = v, theme),
+            Divider(color: theme.dividerColor, height: 30),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Costo Total:", style: TextStyle(color: Colors.white70)),
+                Text("Costo Total:", style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))),
                 Text("\$${(_costMaterials + _costLabor + _costOverhead).toStringAsFixed(2)}", 
-                  style: const TextStyle(color: Color(0xFF00BFFF), fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             )
           ],
@@ -227,7 +220,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("CANCELAR", style: TextStyle(color: Colors.white38)),
+            child: Text("CANCELAR", style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5))),
           ),
           FilledButton(
             onPressed: () {
@@ -241,25 +234,24 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     );
   }
 
-  Widget _buildCostInputField(String label, Function(double) onChanged) {
+  Widget _buildCostInputField(String label, Function(double) onChanged, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextField(
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: Colors.white38),
+          labelStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5)),
           prefixText: "\$ ",
           isDense: true,
-          enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
+          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: theme.dividerColor)),
         ),
         onChanged: (v) => onChanged(double.tryParse(v) ?? 0),
       ),
     );
   }
 
-  // --- LÓGICA DEL TOUR ---
   Future<void> _checkAndStartShowCase() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     bool hasSeenTutorial = prefs.getBool('hasSeenAddProductTutorial') ?? false;
@@ -284,7 +276,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     super.dispose();
   }
 
-  // --- IA GENERADOR DE DESCRIPCIÓN ---
   Future<void> _generateAIDescription() async {
     if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Escribe un nombre primero para que la IA tenga contexto.')));
@@ -303,7 +294,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     });
   }
 
-  // --- SKU AUTOMÁTICO ---
   void _generateAutoSKU() {
     String prefix = _nameController.text.length >= 3 
         ? _nameController.text.substring(0, 3).toUpperCase() 
@@ -314,7 +304,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     });
   }
 
-  // --- IMÁGENES Y VIDEO ---
   Future<void> _pickMainImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
@@ -361,7 +350,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     setState(() => _galleryItems.removeAt(index));
   }
 
-  // --- GUARDAR PRODUCTO ---
   Future<void> _saveProduct() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate() || _isUploading) return;
@@ -373,8 +361,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      // A. Imagen Principal
-      String imageUrl = widget.productToEdit?.imageUrl ?? '';
+      String imageUrl = widget.product?.imageUrl ?? '';
       if (_mainImageFile != null) {
         imageUrl = await storageService.uploadProductImage(
           imageFile: _mainImageFile!,
@@ -382,7 +369,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
         );
       }
 
-      // B. Galería
       List<Map<String, dynamic>> finalGalleryList = [];
       for (var item in _galleryItems) {
         if (item.containsKey('file')) {
@@ -405,7 +391,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
       }
 
       final product = ProductModel(
-        id: widget.productToEdit?.id ?? '',
+        id: widget.product?.id ?? '',
         providerId: widget.user.uid,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
@@ -418,10 +404,10 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
         mediaGallery: finalGalleryList,
         promoText: _promoTextController.text.trim().isNotEmpty ? _promoTextController.text.trim() : null,
         expiryDate: _expiryDate != null ? cloud_firestore.Timestamp.fromDate(_expiryDate!) : null,
-        createdAt: widget.productToEdit?.createdAt ?? cloud_firestore.Timestamp.now(),
+        createdAt: widget.product?.createdAt ?? cloud_firestore.Timestamp.now(),
         sku: _skuController.text.trim(),
         category: _inventoryCategoryController.text.trim(),
-        fixedCostSnapshot: widget.productToEdit?.fixedCostSnapshot ?? 0.0,
+        fixedCostSnapshot: widget.product?.fixedCostSnapshot ?? 0.0,
         wholesalePrice: 0.0, 
         ambassadorPrice: 0.0, 
         minStock: 5,
@@ -446,267 +432,352 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
 
   @override
   Widget build(BuildContext context) {
-    const backgroundColor = Color(0xFF1A1A2E);
-    const accentColor = Color(0xFF00BFFF);
-    const surfaceColor = Color(0xFF2D2D5A);
-    final isProPlan = true; 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     
-    final inputDecoration = InputDecoration(
-        filled: true,
-        fillColor: surfaceColor,
-        labelStyle: const TextStyle(color: Colors.white70),
-        hintStyle: const TextStyle(color: Colors.white38),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: accentColor, width: 2)), 
-        prefixStyle: const TextStyle(color: Colors.white, fontSize: 16));
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Editar Producto' : 'Añadir Producto'),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: theme.colorScheme.onSurface,
+        elevation: 0,
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // --- WEB LAYOUT (2 COLUMNAS) ---
+          if (constraints.maxWidth > 900) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Columna Izquierda: Visuales y Datos Principales
+                Expanded(
+                  flex: 6,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildLeftColumn(theme, isDark),
+                  ),
+                ),
+                // Columna Derecha: Configuración y Gestión
+                Expanded(
+                  flex: 4,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(left: BorderSide(color: theme.dividerColor.withOpacity(0.1))),
+                      color: theme.cardColor.withOpacity(0.3),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(32),
+                      child: _buildRightColumn(theme, isDark),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+          
+          // --- MOBILE LAYOUT (1 COLUMNA) ---
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  _buildLeftColumn(theme, isDark),
+                  const SizedBox(height: 24),
+                  _buildRightColumn(theme, isDark),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
+  // ===========================================================================
+  // SUB-WIDGETS PARA LAYOUT
+  // ===========================================================================
+
+  Widget _buildLeftColumn(ThemeData theme, bool isDark) {
+    final onSurfaceColor = theme.colorScheme.onSurface;
+    final inputDecoration = _getInputDecoration(theme);
+
+    // En Web, usamos Form separado si es 2 columnas, pero aquí 
+    // asumimos que el padre maneja el form en móvil. 
+    // En web, envolvemos en Form solo si es necesario, 
+    // pero para simplicidad usaremos un solo Form global key.
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Showcase(
+          key: _oneKey,
+          title: 'Foto de Portada',
+          description: 'Sube la mejor foto de tu producto.',
+          child: _ImagePickerWidget(
+            title: 'Imagen Principal',
+            onTap: _pickMainImage,
+            imageFile: _mainImageFile,
+            existingImageUrl: widget.product?.imageUrl,
+            theme: theme,
+          ),
+        ),
+        
+        const SizedBox(height: 32),
+        Text('Galería Multimedia', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        _buildGalleryGrid(),
+        const SizedBox(height: 16),
+        
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Fotos'),
+                onPressed: _isUploading ? null : _pickGalleryImages,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: onSurfaceColor, 
+                  side: BorderSide(color: theme.dividerColor)
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.video_call_outlined),
+                label: const Text('Video'),
+                onPressed: _isUploading ? null : _pickGalleryVideo,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: onSurfaceColor, 
+                  side: BorderSide(color: theme.dividerColor)
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 32),
+        Text('Información Básica', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        
+        Showcase(
+          key: _twoKey,
+          title: 'Nombre Claro',
+          description: 'Usa un nombre descriptivo.',
+          child: TextFormField(
+            controller: _nameController,
+            style: TextStyle(color: onSurfaceColor),
+            decoration: inputDecoration.copyWith(labelText: 'Nombre del Producto'),
+            validator: (v) => v!.isEmpty ? 'Requerido' : null,
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        Showcase(
+          key: _threeKey,
+          title: 'IA Mágica',
+          description: 'Genera descripciones automáticas.',
+          child: TextFormField(
+            controller: _descriptionController,
+            style: TextStyle(color: onSurfaceColor),
+            maxLines: 6,
+            decoration: inputDecoration.copyWith(
+              labelText: 'Descripción Detallada',
+              alignLabelWithHint: true,
+              suffixIcon: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: _isGeneratingAI 
+                  ? const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2))
+                  : IconButton(icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary), onPressed: _generateAIDescription),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRightColumn(ThemeData theme, bool isDark) {
+    final onSurfaceColor = theme.colorScheme.onSurface;
+    final inputDecoration = _getInputDecoration(theme);
+    final primaryColor = theme.colorScheme.primary;
+    
     // Lógica visual de rentabilidad
     final double currentPrice = double.tryParse(_priceController.text.replaceAll(',', '.')) ?? 0;
     final double currentCost = double.tryParse(_costController.text.replaceAll(',', '.')) ?? 0;
     final bool isLosingMoney = currentPrice < currentCost && currentCost > 0;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Editar Producto' : 'Añadir Producto'),
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(24.0),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Configuración y Precios', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+
+        _CategorySelector(
+          user: widget.user,
+          initialCategoryId: _selectedCategoryId,
+          onChanged: (id) => setState(() => _selectedCategoryId = id),
+          inputDecoration: inputDecoration,
+          theme: theme,
+        ),
+        const SizedBox(height: 16),
+
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: _priceController,
+                style: TextStyle(color: onSurfaceColor),
+                decoration: inputDecoration.copyWith(labelText: 'Precio', prefixText: '\$ '),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                validator: (v) => v!.isEmpty ? 'Requerido' : null,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 1,
+              child: TextFormField(
+                controller: _quantityController,
+                style: TextStyle(color: onSurfaceColor),
+                decoration: inputDecoration.copyWith(labelText: 'Stock'),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // --- SECCIÓN DE COSTOS ---
+        Showcase(
+          key: _fourKey,
+          title: 'Análisis de Costos',
+          description: 'Define tu estructura de costos.',
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isLosingMoney ? Colors.red.withOpacity(0.1) : theme.cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isLosingMoney ? Colors.redAccent : theme.dividerColor.withOpacity(0.1))
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Showcase(
-                  key: _oneKey,
-                  title: 'Foto de Portada',
-                  description: 'Sube la mejor foto de tu producto.',
-                  child: _ImagePickerWidget(
-                    title: 'Imagen Principal',
-                    onTap: _pickMainImage,
-                    imageFile: _mainImageFile,
-                    existingImageUrl: widget.productToEdit?.imageUrl,
-                  ),
-                ),
-                
-                const SizedBox(height: 32),
-                Text('Galería Multimedia', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildGalleryGrid(),
-                const SizedBox(height: 16),
-                
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.add_photo_alternate_outlined),
-                        label: const Text('Fotos'),
-                        onPressed: _isUploading ? null : _pickGalleryImages,
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: surfaceColor)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.video_call_outlined),
-                        label: const Text('Video'),
-                        onPressed: _isUploading || !isProPlan ? null : _pickGalleryVideo,
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: surfaceColor)),
-                      ),
-                    ),
+                    Icon(Icons.inventory_2_outlined, color: primaryColor, size: 20),
+                    const SizedBox(width: 8),
+                    Text('Estructura de Costos', style: theme.textTheme.titleMedium),
+                    const Spacer(),
+                    if (isLosingMoney) const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
                   ],
                 ),
-
-                const SizedBox(height: 32),
-                Text('Detalles', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                
-                Showcase(
-                  key: _twoKey,
-                  title: 'Nombre Claro',
-                  description: 'Usa un nombre descriptivo.',
-                  child: TextFormField(
-                    controller: _nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: inputDecoration.copyWith(labelText: 'Nombre'),
-                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                _CategorySelector(
-                  user: widget.user,
-                  initialCategoryId: _selectedCategoryId,
-                  onChanged: (id) => setState(() => _selectedCategoryId = id),
-                  inputDecoration: inputDecoration,
-                ),
-                const SizedBox(height: 16),
-                
-                Showcase(
-                  key: _threeKey,
-                  title: 'IA Mágica',
-                  description: 'Genera descripciones automáticas.',
-                  child: TextFormField(
-                    controller: _descriptionController,
-                    style: const TextStyle(color: Colors.white),
-                    maxLines: 4,
-                    decoration: inputDecoration.copyWith(
-                      labelText: 'Descripción',
-                      alignLabelWithHint: true,
-                      suffixIcon: Container(
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: accentColor.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                        child: _isGeneratingAI 
-                          ? const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2))
-                          : IconButton(icon: const Icon(Icons.auto_awesome, color: accentColor), onPressed: _generateAIDescription),
-                      ),
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        controller: _priceController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: inputDecoration.copyWith(labelText: 'Precio de Venta', prefixText: '\$ '),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
-                        validator: (v) => v!.isEmpty ? 'Requerido' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 1,
-                      child: TextFormField(
-                        controller: _quantityController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: inputDecoration.copyWith(labelText: 'Stock'),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // --- SECCIÓN DE COSTOS CON CALCULADORA TÉCNICA (UPGRADE) ---
-                Showcase(
-                  key: _fourKey,
-                  title: 'Análisis de Costos',
-                  description: 'Define tu estructura de costos para auditar la rentabilidad.',
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isLosingMoney ? Colors.red.withOpacity(0.1) : surfaceColor.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: isLosingMoney ? Colors.redAccent : Colors.white10)
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.inventory_2_outlined, color: accentColor, size: 20),
-                            const SizedBox(width: 8),
-                            Text('Estructura de Costos', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white)),
-                            const Spacer(),
-                            if (isLosingMoney) const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _costController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: inputDecoration.copyWith(
-                            labelText: 'Costo Unitario Total', 
-                            prefixText: '\$ ',
-                            fillColor: const Color(0xFF1A1A2E),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.calculate_outlined, color: accentColor),
-                              onPressed: () => _showCostCalculator(context),
-                              tooltip: 'Abrir Calculadora de Costos',
-                            )
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        if (isLosingMoney) Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text("¡Alerta! Tu costo supera al precio de venta.", style: TextStyle(color: Colors.redAccent.withOpacity(0.8), fontSize: 11)),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                                child: TextFormField(
-                                  controller: _skuController,
-                                  style: const TextStyle(color: Colors.white),
-                                  decoration: inputDecoration.copyWith(
-                                    labelText: 'SKU / Código',
-                                    fillColor: const Color(0xFF1A1A2E),
-                                    suffixIcon: IconButton(icon: const Icon(Icons.qr_code_2, color: accentColor), onPressed: _generateAutoSKU),
-                                  ),
-                                ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: TextFormField(
-                                  controller: _inventoryCategoryController,
-                                  style: const TextStyle(color: Colors.white),
-                                  decoration: inputDecoration.copyWith(labelText: 'Ubicación', fillColor: const Color(0xFF1A1A2E)),
-                                ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
                 const SizedBox(height: 16),
                 TextFormField(
-                  controller: _promoPriceController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: inputDecoration.copyWith(labelText: 'Precio Promo (Opcional)', prefixText: '\$ '),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-                
-                const SizedBox(height: 32),
-                
-                Showcase(
-                  key: _fiveKey,
-                  title: 'Finalizar',
-                  description: 'Guarda los cambios para publicar.',
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _isUploading ? null : _saveProduct,
-                      icon: _isUploading 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3))
-                        : const Icon(Icons.save),
-                      label: Text(_isEditing ? 'Guardar Cambios' : 'Crear Producto'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: accentColor,
-                        foregroundColor: Colors.black,
-                      ),
-                    ),
+                  controller: _costController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(
+                    labelText: 'Costo Unitario', 
+                    prefixText: '\$ ',
+                    fillColor: theme.scaffoldBackgroundColor,
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.calculate_outlined, color: primaryColor),
+                      onPressed: () => _showCostCalculator(context),
+                      tooltip: 'Abrir Calculadora',
+                    )
                   ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 40),
+                if (isLosingMoney) Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text("¡Alerta! Estás perdiendo dinero.", style: TextStyle(color: Colors.redAccent.withOpacity(0.8), fontSize: 12)),
+                ),
               ],
             ),
           ),
         ),
-      ),
+        
+        const SizedBox(height: 16),
+        
+        Row(
+          children: [
+            Expanded(
+                child: TextFormField(
+                  controller: _skuController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(
+                    labelText: 'SKU / Código',
+                    suffixIcon: IconButton(icon: Icon(Icons.qr_code_2, color: primaryColor), onPressed: _generateAutoSKU),
+                  ),
+                ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+                child: TextFormField(
+                  controller: _inventoryCategoryController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(labelText: 'Ubicación'),
+                ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _promoPriceController,
+          style: TextStyle(color: onSurfaceColor),
+          decoration: inputDecoration.copyWith(labelText: 'Precio Promo (Opcional)', prefixText: '\$ '),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+
+        const SizedBox(height: 32),
+        
+        Showcase(
+          key: _fiveKey,
+          title: 'Finalizar',
+          description: 'Guarda los cambios.',
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isUploading ? null : _saveProduct,
+              icon: _isUploading 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                : const Icon(Icons.save),
+              label: Text(_isEditing ? 'Guardar Cambios' : 'Crear Producto'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _getInputDecoration(ThemeData theme) {
+    return InputDecoration(
+        filled: true,
+        fillColor: theme.cardColor,
+        labelStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+        hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.4)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12), 
+          borderSide: BorderSide(color: theme.dividerColor.withOpacity(0.1))
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12), 
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2)
+        ), 
+        prefixStyle: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16)
     );
   }
 
@@ -765,29 +836,34 @@ class _ImagePickerWidget extends StatelessWidget {
   final XFile? imageFile;
   final String? existingImageUrl;
   final String title;
+  final ThemeData theme;
 
-  const _ImagePickerWidget({required this.onTap, required this.title, this.imageFile, this.existingImageUrl});
+  const _ImagePickerWidget({required this.onTap, required this.title, this.imageFile, this.existingImageUrl, required this.theme});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Column(children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Container(
           width: 150, height: 150,
-          decoration: BoxDecoration(color: const Color(0xFF2D2D5A), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.blue)),
-          child: _buildImage(),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(16), 
+            border: Border.all(color: theme.colorScheme.primary.withOpacity(0.5))
+          ),
+          child: _buildImage(theme),
         )
       ]),
     );
   }
   
-  Widget _buildImage() {
-     if (imageFile != null) return ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(File(imageFile!.path), fit: BoxFit.cover));
-     if (existingImageUrl != null && existingImageUrl!.isNotEmpty) return ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(existingImageUrl!, fit: BoxFit.cover));
-     return const Icon(Icons.add_a_photo, color: Colors.white54, size: 40);
+  Widget _buildImage(ThemeData theme) {
+      if (imageFile != null) return ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(File(imageFile!.path), fit: BoxFit.cover));
+      if (existingImageUrl != null && existingImageUrl!.isNotEmpty) return ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(existingImageUrl!, fit: BoxFit.cover));
+      return Icon(Icons.add_a_photo, color: theme.colorScheme.onSurface.withOpacity(0.5), size: 40);
   }
 }
 
@@ -796,8 +872,15 @@ class _CategorySelector extends StatelessWidget {
   final String? initialCategoryId;
   final ValueChanged<String?> onChanged;
   final InputDecoration inputDecoration;
+  final ThemeData theme;
 
-  const _CategorySelector({required this.user, required this.initialCategoryId, required this.onChanged, required this.inputDecoration});
+  const _CategorySelector({
+    required this.user, 
+    required this.initialCategoryId, 
+    required this.onChanged, 
+    required this.inputDecoration,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -811,8 +894,8 @@ class _CategorySelector extends StatelessWidget {
           value: categories.any((c) => c.id == initialCategoryId) ? initialCategoryId : null,
           onChanged: onChanged,
           decoration: inputDecoration.copyWith(labelText: 'Categoría'),
-          dropdownColor: const Color(0xFF2D2D5A),
-          style: const TextStyle(color: Colors.white),
+          dropdownColor: theme.cardColor,
+          style: TextStyle(color: theme.colorScheme.onSurface),
           items: categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
         );
       },

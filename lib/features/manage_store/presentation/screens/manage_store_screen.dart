@@ -1,363 +1,496 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 // --- Modelos y Servicios ---
-import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
-import 'package:proveedor_servicly_app/core/models/video_showcase_model.dart';
-import 'package:proveedor_servicly_app/core/models/category_model.dart';
-import 'package:proveedor_servicly_app/core/services/video_service.dart';
-import 'package:proveedor_servicly_app/core/services/category_service.dart';
+import 'package:proveedor_servicly_app/core/models/product_model.dart';
+import 'package:proveedor_servicly_app/core/models/user_model.dart'; 
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
+import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 
-// --- Screens & Widgets ---
-import 'package:proveedor_servicly_app/widgets/brand_header_card.dart';
-import 'package:proveedor_servicly_app/widgets/provider_stats_panel.dart';
-import 'package:proveedor_servicly_app/widgets/pending_sales_summary.dart';
-import 'package:proveedor_servicly_app/widgets/video_card.dart';
-import 'package:proveedor_servicly_app/features/manage_store/widgets/store_ui_kit.dart';
-import 'package:proveedor_servicly_app/features/manage_store/widgets/category_product_row.dart';
+// --- Widgets de Navegación y UI ---
+import 'package:proveedor_servicly_app/widgets/navigation/servicly_sidebar.dart';
+import 'package:proveedor_servicly_app/widgets/product_card_refactor.dart';
+import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/product_detail_dialog.dart';
 
-// --- Navegación ---
-import 'add_edit_video_screen.dart';
-import 'video_manager_screen.dart';
-import 'manage_categories_screen.dart';
-import 'all_products_screen.dart';
-import 'video_player_screen.dart';
+// --- PANTALLAS DE DESTINO ---
+// Asegúrate de que este archivo exista. Si no, usa el Stub al final.
+import 'package:proveedor_servicly_app/features/manage_store/presentation/screens/add_edit_product_screen.dart';
 
-// Constantes
-const double kWebBreakpoint = 900.0;
-const double kMaxWebWidth = 1400.0;
+// --- STUBS LOCALES (Solo por si falta el de editar perfil) ---
+// Ver final del archivo
 
 class ManageStoreScreen extends StatelessWidget {
-  final UserModel user;
+  final UserModel? user;
+  final ProviderProfileModel? profile;
 
-  const ManageStoreScreen({super.key, required this.user});
+  const ManageStoreScreen({super.key, this.user, this.profile});
 
-  // --- Utilidades ---
-  Future<void> _launchURL(String url) async {
-    final uri = Uri.parse(url.startsWith('http') || url.startsWith('tel') ? url : 'https://$url');
+  @override
+  Widget build(BuildContext context) {
+    // 1. Prioridad: Perfil pasado directo
+    if (profile != null) return _ManageStoreContent(profile: profile!);
+
+    // 2. Prioridad: Perfil desde el contexto (Provider)
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('Error launching $url: $e');
+      final contextProfile = Provider.of<ProviderProfileModel>(context, listen: false);
+      return _ManageStoreContent(profile: contextProfile);
+    } catch (_) {}
+
+    // 3. Prioridad: Buscar en Firebase si tenemos usuario
+    if (user != null) {
+      return FutureBuilder<List<ProviderProfileModel>>(
+        future: Provider.of<FirestoreService>(context, listen: false).getUserProviderProfiles(user!.uid).first,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+            return _ManageStoreContent(profile: snapshot.data!.first);
+          }
+          return const Scaffold(body: Center(child: Text("No se encontraron perfiles de tienda.")));
+        },
+      );
     }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Tienda")),
+      body: const Center(child: Text("Cargando perfil...")),
+    );
+  }
+}
+
+class _ManageStoreContent extends StatefulWidget {
+  final ProviderProfileModel profile;
+  const _ManageStoreContent({required this.profile});
+
+  @override
+  State<_ManageStoreContent> createState() => _ManageStoreContentState();
+}
+
+class _ManageStoreContentState extends State<_ManageStoreContent> {
+  int _selectedIndex = 1;
+  final TextEditingController _searchController = TextEditingController(); 
+
+  void _handleNavigation(int index) {
+    setState(() => _selectedIndex = index);
+    if (index == 0) Navigator.of(context).pop();
   }
 
-  void _showContactSheet(BuildContext context, ProviderProfileModel profile) {
-    // Tu lógica de bottom sheet
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // --- NAVEGACIÓN CENTRALIZADA ---
+  void _navigateToAddEditProduct([ProductModel? product]) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        // Si pasas product, es edición. Si es null, es creación.
+        builder: (_) => AddEditProductScreen(product: product),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Usamos LayoutBuilder para decidir si pintamos Móvil o Web
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    // ignore: dead_null_aware_expression
+    final String safeProviderId = widget.profile.providerId ?? '';
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > kWebBreakpoint) {
-          return _buildWebDashboard(context);
-        } else {
-          return _buildMobileLayout(context);
+        // ============================================================
+        // VISTA WEB (> 900px) - DISEÑO 2 COLUMNAS (Master-Detail)
+        // ============================================================
+        if (constraints.maxWidth > 900) {
+          return Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            body: Row(
+              children: [
+                ServiclySidebar(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _handleNavigation,
+                ),
+                Expanded(
+                  child: _buildWebLayout(context, theme, isDark, safeProviderId),
+                ),
+              ],
+            ),
+          );
+        } 
+        
+        // ============================================================
+        // VISTA MÓVIL (< 900px) - DISEÑO ORIGINAL RESTAURADO
+        // ============================================================
+        else {
+          return Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            appBar: AppBar(
+              title: const Text("Gestión de Tienda"),
+              backgroundColor: theme.appBarTheme.backgroundColor,
+              foregroundColor: theme.appBarTheme.foregroundColor,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EditProviderProfileScreen(profile: widget.profile))),
+                )
+              ],
+            ),
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildMobileHeader(widget.profile, theme),
+                  const SizedBox(height: 24),
+                  // BOTONES GRANDES HORIZONTALES (ORIGINAL)
+                  _buildQuickActions(context, theme, widget.profile.brandColor, isDark),
+                  const SizedBox(height: 24),
+                  _buildStatsSection(context, theme, isDark),
+                  const SizedBox(height: 24),
+                  Text("Productos", style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _buildProductGrid(context, safeProviderId, widget.profile.brandColor, isWeb: false),
+                ],
+              ),
+            ),
+            floatingActionButton: FloatingActionButton(
+              backgroundColor: widget.profile.brandColor,
+              onPressed: () => _navigateToAddEditProduct(), // Navegación FAB Móvil
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          );
         }
       },
     );
   }
 
   // ===========================================================================
-  // 🖥️ LAYOUT WEB (NUEVO DISEÑO DASHBOARD)
+  // ✨ LÓGICA DE LAYOUT WEB (70% Inventario - 30% Tools)
   // ===========================================================================
-  Widget _buildWebDashboard(BuildContext context) {
-    final theme = Theme.of(context);
-    
+  Widget _buildWebLayout(BuildContext context, ThemeData theme, bool isDark, String providerId) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Fondo Dashboard oscuro profesional
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: kMaxWebWidth),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- COLUMNA IZQUIERDA (Principal - 65%) ---
-              Expanded(
-                flex: 7,
-                child: CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 1. Header de Marca (Más compacto en web)
-                            BrandHeaderCard(
-                              user: user,
-                              onShowContacts: (p) => _showContactSheet(context, p),
-                              onLaunchUrl: _launchURL,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(32, 24, 32, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- IZQUIERDA: INVENTARIO (70%) ---
+            Expanded(
+              flex: 7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Barra de Herramientas Web
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? Colors.transparent : Colors.black.withValues(alpha: 0.08)),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+                    ),
+                    child: Row(
+                      children: [
+                        Text("Mi Inventario", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 32),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: "Buscar producto...",
+                              prefixIcon: const Icon(Icons.search),
+                              isDense: true,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              filled: true,
+                              fillColor: theme.scaffoldBackgroundColor,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             ),
-                            const SizedBox(height: 32),
-
-                            // 2. Título Dashboard
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text("Panel de Control", style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                                FilledButton.icon(
-                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AllProductsScreen(user: user))),
-                                  icon: const Icon(Icons.inventory_2_outlined),
-                                  label: const Text("Gestor de Inventario"),
-                                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00BFFF)), // Tu color de marca
-                                )
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            // 3. Estadísticas (Ocupan ancho completo de esta columna)
-                            ProviderStatsPanel(userId: user.uid),
-                            
-                            const SizedBox(height: 32),
-                            _buildSectionTitle('Productos por Categoría'),
-                            const SizedBox(height: 16),
-                          ],
+                          ),
                         ),
+                        const SizedBox(width: 16),
+                        FilledButton.icon(
+                          // NAVEGACIÓN WEB (Barra Superior)
+                          onPressed: () => _navigateToAddEditProduct(),
+                          icon: const Icon(Icons.add),
+                          label: const Text("Crear"),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: widget.profile.brandColor, 
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18)
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Grid Web
+                  Expanded(
+                    child: _buildProductGrid(context, providerId, widget.profile.brandColor, isWeb: true),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(width: 24),
+
+            // --- DERECHA: HERRAMIENTAS (30%) ---
+            Expanded(
+              flex: 3,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildWebSideProfile(context, widget.profile, theme, isDark),
+                    const SizedBox(height: 20),
+                    _buildStatsSection(context, theme, isDark),
+                    const SizedBox(height: 20),
+                    // Lista Vertical de Acciones (Exclusiva Web Sidebar)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: isDark ? Colors.transparent : Colors.black.withValues(alpha: 0.08)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Accesos Directos", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 16),
+                          // NAVEGACIÓN WEB (Sidebar)
+                          _ActionCard(
+                            icon: Icons.add_box_rounded, 
+                            label: "Nuevo Producto", 
+                            color: widget.profile.brandColor, isDark: isDark, 
+                            isCompact: true,
+                            onTap: () => _navigateToAddEditProduct(),
+                          ),
+                          const SizedBox(height: 12),
+                          _ActionCard(
+                            icon: Icons.category_rounded, 
+                            label: "Categorías", 
+                            color: Colors.orange, isDark: isDark, 
+                            isCompact: true,
+                            onTap: () {},
+                          ),
+                          const SizedBox(height: 12),
+                          _ActionCard(
+                            icon: Icons.qr_code, 
+                            label: "Ver mi Código QR", 
+                            color: Colors.purple, isDark: isDark, 
+                            isCompact: true,
+                            onTap: () {},
+                          ),
+                          const SizedBox(height: 12),
+                          _ActionCard(
+                            icon: Icons.settings_outlined, 
+                            label: "Configuración", 
+                            color: Colors.blueGrey, isDark: isDark, 
+                            isCompact: true,
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EditProviderProfileScreen(profile: widget.profile))),
+                          ),
+                        ],
                       ),
                     ),
-
-                    // 4. Lista de Productos (Slivers)
-                    _ProductsByCategoryList(user: user),
-                    const SliverToBoxAdapter(child: SizedBox(height: 50)),
                   ],
                 ),
               ),
-
-              // --- SEPARADOR VERTICAL ---
-              Container(width: 1, color: Colors.white.withOpacity(0.1)),
-
-              // --- COLUMNA DERECHA (Lateral / Herramientas - 35%) ---
-              Expanded(
-                flex: 4,
-                child: Container(
-                  color: const Color(0xFF1E293B), // Fondo ligeramente más claro para sidebar
-                  child: ListView(
-                    padding: const EdgeInsets.all(24),
-                    children: [
-                      _buildSectionTitle('Acciones Rápidas', fontSize: 18),
-                      const SizedBox(height: 16),
-                      // Grid de acciones
-                      GridView.count(
-                        shrinkWrap: true,
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1.5,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _WebActionCard(
-                            title: "Crear\nCategoría", 
-                            icon: Icons.create_new_folder_outlined, 
-                            color: Colors.purpleAccent,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageCategoriesScreen(user: user)))
-                          ),
-                          _WebActionCard(
-                            title: "Subir\nVideo", 
-                            icon: Icons.video_call_outlined, 
-                            color: Colors.redAccent,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddEditVideoScreen(user: user)))
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 32),
-                      _buildSectionTitle('Estado de Pedidos', fontSize: 18),
-                      const SizedBox(height: 16),
-                      PendingSalesSummary(providerId: user.uid),
-
-                      const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSectionTitle('Mis Historias', fontSize: 18),
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoManagerScreen(user: user))),
-                            tooltip: "Gestionar Videos",
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Videos en grid vertical para el sidebar
-                      _WebVideoSidebarList(user: user),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   // ===========================================================================
-  // 📱 LAYOUT MÓVIL (TU CÓDIGO ORIGINAL INTACTO)
+  // WIDGETS COMPARTIDOS
   // ===========================================================================
-  Widget _buildMobileLayout(BuildContext context) {
-    const kCyberBg = Color(0xFF0F172A); // Tu color de fondo original (asumido)
 
-    return Scaffold(
-      backgroundColor: kCyberBg,
-      appBar: AppBar(
-        title: const Text('Gestionar Mi Tienda'),
-        backgroundColor: kCyberBg,
-        foregroundColor: Colors.white,
-        elevation: 0,
+  Widget _buildWebSideProfile(BuildContext context, ProviderProfileModel profile, ThemeData theme, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.transparent : Colors.black.withValues(alpha: 0.08)),
+        boxShadow: [BoxShadow(color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: BrandHeaderCard(
-              user: user,
-              onShowContacts: (p) => _showContactSheet(context, p),
-              onLaunchUrl: _launchURL,
+      child: Column(
+        children: [
+          Container(
+            width: 80, height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: profile.brandColor, width: 3),
+              image: profile.logoUrl.isNotEmpty ? DecorationImage(image: NetworkImage(profile.logoUrl), fit: BoxFit.cover) : null,
+              color: profile.brandColor.withValues(alpha: 0.1),
             ),
+            child: profile.logoUrl.isEmpty ? Center(child: Text(profile.businessName.isNotEmpty ? profile.businessName[0].toUpperCase() : 'S', style: TextStyle(fontSize: 32, color: profile.brandColor, fontWeight: FontWeight.bold))) : null,
           ),
-          _buildMobileSectionTitle('Resumen de Actividad'),
-          SliverToBoxAdapter(child: ProviderStatsPanel(userId: user.uid)),
-          _buildMobileSectionTitle('Ventas Pendientes'),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: PendingSalesSummary(providerId: user.uid),
-            ),
+          const SizedBox(height: 16),
+          Text(profile.businessName, textAlign: TextAlign.center, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.star, size: 16, color: Colors.amber),
+              const SizedBox(width: 4),
+              Text("${profile.ratingAvg > 0 ? profile.ratingAvg.toStringAsFixed(1) : 'Nuevo'} • ${profile.category ?? 'General'}", style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+            ],
           ),
-          _buildMobileSectionTitle('Mis Videos Promocionales'),
-          _VideoPromoSection(user: user),
-          _buildMobileSectionTitle('Mi Catálogo'),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SmallActionCard(
-                      title: 'Categorías',
-                      icon: Icons.category_outlined,
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageCategoriesScreen(user: user))),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: SmallActionCard(
-                      title: 'Ver Todos',
-                      icon: Icons.list_alt_rounded,
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AllProductsScreen(user: user))),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          _ProductsByCategoryList(user: user),
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
     );
   }
 
-  // --- Helpers UI ---
-
-  Widget _buildSectionTitle(String title, {double fontSize = 20}) {
-    return Text(
-      title,
-      style: TextStyle(color: Colors.white, fontSize: fontSize, fontWeight: FontWeight.bold),
-    );
-  }
-
-  Widget _buildMobileSectionTitle(String title, {bool isFirst = false}) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 32, 16, 16),
-        child: Text(
-          title,
-          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+  Widget _buildMobileHeader(ProviderProfileModel profile, ThemeData theme) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: profile.brandColor.withValues(alpha: 0.1),
+          backgroundImage: profile.logoUrl.isNotEmpty ? NetworkImage(profile.logoUrl) : null,
+          child: profile.logoUrl.isEmpty ? Text(profile.businessName.isNotEmpty ? profile.businessName[0].toUpperCase() : 'S') : null,
         ),
-      ),
-    );
-  }
-}
-
-// ===========================================================================
-// WIDGETS AUXILIARES (Refactorizados)
-// ===========================================================================
-
-// Tarjeta de Acción rápida para Web
-class _WebActionCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _WebActionCard({required this.title, required this.icon, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.3)),
-          ),
+        const SizedBox(width: 16),
+        Expanded(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 8),
-              Text(title, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(profile.businessName, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              Text(profile.category ?? 'General', style: theme.textTheme.bodyMedium),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  // --- VERSION MÓVIL ORIGINAL ---
+  Widget _buildQuickActions(BuildContext context, ThemeData theme, Color brandColor, bool isDark) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ActionCard(
+            icon: Icons.add_box_rounded,
+            label: "Nuevo Producto",
+            color: brandColor,
+            isDark: isDark,
+            // NAVEGACIÓN MÓVIL (Action Card)
+            onTap: () => _navigateToAddEditProduct(),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _ActionCard(
+            icon: Icons.category_rounded,
+            label: "Categorías",
+            color: Colors.orange,
+            isDark: isDark,
+            onTap: () {},
+          ),
+        ),
+        const SizedBox(width: 16),
+        if (MediaQuery.of(context).size.width > 600)
+          Expanded(
+            child: _ActionCard(
+              icon: Icons.qr_code,
+              label: "Mi QR",
+              color: Colors.purple,
+              isDark: isDark,
+              onTap: () {},
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection(BuildContext context, ThemeData theme, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.transparent : Colors.black.withValues(alpha: 0.08)),
+        boxShadow: [BoxShadow(color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _StatItem(label: "Pedidos", value: "0", color: Colors.blue),
+          Container(width: 1, height: 30, color: theme.dividerColor.withValues(alpha: 0.3)),
+          _StatItem(label: "Ventas", value: "\$0", color: Colors.green),
+          Container(width: 1, height: 30, color: theme.dividerColor.withValues(alpha: 0.3)),
+          _StatItem(label: "Visitas", value: "124", color: Colors.purple),
+        ],
       ),
     );
   }
-}
 
-// Lista de videos vertical para el sidebar web
-class _WebVideoSidebarList extends StatelessWidget {
-  final UserModel user;
-  const _WebVideoSidebarList({required this.user});
+  Widget _buildProductGrid(BuildContext context, String providerId, Color brandColor, {required bool isWeb}) {
+    final productService = context.read<ProductService>();
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<VideoShowcaseModel>>(
-      stream: context.read<VideoService>().getVideoShowcasesByProvider(user.uid),
+    return StreamBuilder<List<ProductModel>>(
+      stream: productService.getProducts(providerId),
       builder: (context, snapshot) {
-        if (snapshot.hasError || !snapshot.hasData) return const SizedBox.shrink();
-        final videos = snapshot.data!;
-        if (videos.isEmpty) return const Text("No hay videos aún.", style: TextStyle(color: Colors.grey));
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Container(
+            height: 300,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.3), width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
+                const SizedBox(height: 16),
+                const Text("Tu inventario está vacío"),
+                const SizedBox(height: 8),
+                if (!isWeb) 
+                  FilledButton.icon(
+                    // Navegación estado vacío Móvil
+                    onPressed: () => _navigateToAddEditProduct(),
+                    icon: const Icon(Icons.add), label: const Text("Agregar Primer Producto"),
+                    style: FilledButton.styleFrom(backgroundColor: brandColor),
+                  )
+              ],
+            ),
+          );
+        }
+
+        final products = snapshot.data!;
 
         return GridView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, 
-            childAspectRatio: 0.7,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8
+          // En Web permitimos scroll si hay muchos productos, en móvil no (usa el scroll padre)
+          physics: isWeb ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.only(bottom: isWeb ? 40 : 0),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 280, 
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.8, 
           ),
-          itemCount: videos.length > 4 ? 4 : videos.length, // Mostrar máx 4 en sidebar
+          itemCount: products.length,
           itemBuilder: (context, index) {
-            final video = videos[index];
-            return VideoCard(
-              video: video,
-              brandColor: const Color(0xFF00BFFF),
-              onPlayTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoShowcase: video))),
-              onEditTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddEditVideoScreen(user: user, videoToEdit: video))),
+            final product = products[index];
+            return ProductCardRefactor(
+              product: product,
+              brandColor: brandColor,
+              isEditable: true, 
+              // Navegación para Editar (Web y Móvil)
+              onTap: () => ProductDetailDialog.show(context, product, brandColor),
+              onAddToCart: () => _navigateToAddEditProduct(product), // Botón editar rápido
             );
           },
         );
@@ -366,88 +499,114 @@ class _WebVideoSidebarList extends StatelessWidget {
   }
 }
 
-// Versión original horizontal para Móvil
-class _VideoPromoSection extends StatelessWidget {
-  final UserModel user;
-  const _VideoPromoSection({required this.user});
+// Widget de Tarjeta de Acción (Adaptable)
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isDark;
+  final bool isCompact; // Para modo Sidebar Web
+  final VoidCallback onTap;
+
+  const _ActionCard({
+    required this.icon, required this.label, required this.color, required this.isDark, required this.onTap,
+    this.isCompact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<VideoShowcaseModel>>(
-      stream: context.read<VideoService>().getVideoShowcasesByProvider(user.uid),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const SliverToBoxAdapter(child: SizedBox.shrink());
-        final videos = snapshot.data ?? [];
-        
-        return SliverToBoxAdapter(
-          child: SizedBox(
-            height: 150,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              itemCount: videos.length + 1 + (videos.isNotEmpty ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12.0),
-                    child: DashedActionCard(
-                      label: 'Añadir\nVideo',
-                      icon: Icons.video_call_rounded,
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddEditVideoScreen(user: user))),
-                    ),
-                  );
-                }
-                if (videos.isNotEmpty && index == videos.length + 1) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12.0),
-                    child: DashedActionCard(
-                      label: 'Gestionar\nVideos',
-                      icon: Icons.video_library_rounded,
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoManagerScreen(user: user))),
-                    ),
-                  );
-                }
-                final video = videos[index - 1];
-                return VideoCard(
-                  video: video,
-                  brandColor: const Color(0xFF00BFFF),
-                  onPlayTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoShowcase: video))),
-                  onEditTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddEditVideoScreen(user: user, videoToEdit: video))),
-                );
-              },
-            ),
+    final theme = Theme.of(context);
+    
+    // MODO SIDEBAR (WEB): Lista compacta vertical
+    if (isCompact) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
           ),
-        );
-      },
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: Icon(icon, size: 20, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+              const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // MODO ORIGINAL (MÓVIL): Tarjeta cuadrada grande
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 100,
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? Colors.transparent : Colors.black.withValues(alpha: 0.08)),
+          boxShadow: [BoxShadow(color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 4))]
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+              child: Icon(icon, size: 28, color: color),
+            ),
+            const SizedBox(height: 12),
+            Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface, fontSize: 13)),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _ProductsByCategoryList extends StatelessWidget {
-  final UserModel user;
-  const _ProductsByCategoryList({required this.user});
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  const _StatItem({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final productService = context.read<ProductService>();
-    return StreamBuilder<List<CategoryModel>>(
-      stream: context.read<CategoryService>().getCategories(user.uid),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SliverToBoxAdapter(child: SizedBox.shrink());
-        final categories = snapshot.data!;
-        if (categories.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-
-        return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => CategoryProductRow(
-              category: categories[index],
-              user: user,
-              productService: productService,
-            ),
-            childCount: categories.length,
-          ),
-        );
-      },
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
+      ],
     );
   }
+}
+
+// --- STUBS (Clases Placeholder si no tienes los archivos) ---
+// NOTA: Si AddEditProductScreen da error de importación, descomenta esta clase temporal:
+/*
+class AddEditProductScreen extends StatelessWidget {
+  final ProductModel? product;
+  const AddEditProductScreen({super.key, this.product});
+  @override
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(product == null ? "Crear" : "Editar")));
+}
+*/
+
+class EditProviderProfileScreen extends StatelessWidget {
+  final ProviderProfileModel profile;
+  const EditProviderProfileScreen({super.key, required this.profile});
+  @override
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Editar Perfil")));
 }
