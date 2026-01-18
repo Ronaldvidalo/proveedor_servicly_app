@@ -4,8 +4,8 @@
 // QA FIX 26/11/2025: Theme Integration
 // UPDATE 21/12/2025: Integración Marketplace Real (BrandProfiles) - FULL CODE
 // UPDATE: Integración Notificaciones Push (Cliente)
-// UPDATE: Integración IA Servi (Conserje Virtual 360)
 // UPDATE 07/01/2026: Smart Featured Section (Zero whitespace)
+// UPDATE 17/01/2026: Limpieza de UI (Removido botón flotante central)
 // ---------------------------------
 
 import 'package:flutter/material.dart';
@@ -37,7 +37,7 @@ import 'package:proveedor_servicly_app/features/orders/screens/client_orders_scr
 
 // --- NUEVOS IMPORTS PARA SERVI (IA) ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
-import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
+// import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart'; // Ya no se usa flotante
 import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/services/servi_api_connector_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -69,7 +69,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   String _searchTerm = '';
   bool _isNearbyFilterActive = false;
 
-  // --- VARIABLES DE SERVI (IA) ---
+  // --- VARIABLES DE SERVI (IA) - Se mantienen por si quieres reactivarlo en otro lugar ---
   final ServiVoiceService _voiceService = ServiVoiceService();
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isSpeaking = false;
@@ -125,7 +125,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     super.dispose();
   }
 
-  // --- LÓGICA DE SERVI: EL CONSERJE ---
+  // --- LÓGICA DE SERVI: EL CONSERJE (Se mantiene lógica, pero sin disparador visual) ---
   Future<void> _handleServiTap() async {
     if (_isThinking) return;
 
@@ -240,29 +240,15 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       
-      // --- INTEGRACIÓN: BOTÓN FLOTANTE SERVI ---
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 16.0),
-        child: GestureDetector(
-            onTap: _handleServiTap,
-            child: ServiAvatar(
-                isSpeaking: _isSpeaking,
-                isListening: _isListening,
-                isThinking: _isThinking,
-                size: 65, 
-            ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      // --- UPDATE: Eliminado FloatingActionButton central (Servi) ---
+      // Si necesitas volver a agregarlo, descomenta el bloque anterior.
 
       appBar: AppBar(
         title: const Text('Explorar Servicios'),
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
-        // CAMBIO: Quitamos el _UserAvatarMenu de aquí porque ya está en el Sidebar
         actions: const [
-           // Solo dejamos un SizedBox por si necesitamos espaciado
            SizedBox(width: 16),
         ],
       ),
@@ -316,7 +302,6 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
           // --- SECCIÓN DESTACADOS INTELIGENTE (MEJORADA) ---
           SliverToBoxAdapter(
             child: StreamBuilder<List<ProviderProfileModel>>(
-              // Usamos getProviders para los destacados. 
               stream: marketplaceService.getProviders(profileType: 'store'), 
               builder: (context, snapshot) {
                 // Filtramos solo los que tengan calificación alta para simular "Destacados"
@@ -330,7 +315,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
                   onSeeAllTap: () => _tabController.animateTo(1), // Ir a tab Tiendas
                   itemBuilder: (context, provider) {
                     return SizedBox(
-                      width: 280, 
+                      width: 280, // Ancho consistente
                       child: ProviderCard(provider: provider),
                     );
                   },
@@ -338,8 +323,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               },
             ),
           ),
-          // ----------------------------------------------------
-
+          
           _buildSectionTitle(context, 'Filtrar resultados', theme),
           _buildFilterRow(context, marketplaceService, locationState, theme),
           
@@ -422,15 +406,14 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
               }
 
               return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), // Padding inferior extra para el FAB
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), 
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    // CAMBIO: Reducimos el ancho máximo para que quepan más tarjetas (antes 350)
-                    maxCrossAxisExtent: 280, 
+                    // TAMAÑO UNIFICADO: 300px ancho, aspecto 0.85 (igual que tienda)
+                    maxCrossAxisExtent: 300, 
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    // CAMBIO: Ajustamos la relación de aspecto para que no sean tan altas
-                    childAspectRatio: 0.9, 
+                    childAspectRatio: 0.85, 
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -465,7 +448,7 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
   Widget _buildSectionTitle(BuildContext context, String title, ThemeData theme) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0), // Menos padding superior
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
         child: Text(
           title,
           style: theme.textTheme.titleMedium?.copyWith(
@@ -560,6 +543,8 @@ class _HomeViewState extends ConsumerState<_HomeView> with SingleTickerProviderS
     );
   }
 }
+
+// --- WIDGETS AUXILIARES ---
 
 class _LoadingState extends StatelessWidget {
   const _LoadingState();

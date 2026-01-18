@@ -1,18 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 
 // --- Modelos y Servicios ---
 import 'package:proveedor_servicly_app/core/models/product_model.dart';
 import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
-import 'package:proveedor_servicly_app/core/services/analytics_service.dart';
-import 'package:proveedor_servicly_app/core/services/auth_service.dart';
-import 'package:proveedor_servicly_app/features/crm/data/repositories/crm_repository.dart';
-import 'package:proveedor_servicly_app/features/crm/presentation/widget/lead_capture_button.dart';
-
-// --- NUEVO WIDGET REUTILIZABLE ---
-import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/share_product_button.dart'; // <--- IMPORTA ESTO
+// import 'package:proveedor_servicly_app/core/services/analytics_service.dart'; // Opcional
+// import 'package:proveedor_servicly_app/core/services/auth_service.dart'; // Opcional
 
 class ProductDetailDialog extends StatefulWidget {
   final ProductModel product;
@@ -24,20 +18,30 @@ class ProductDetailDialog extends StatefulWidget {
     required this.brandColor,
   });
 
+  // Método estático seguro para mostrar el diálogo
   static void show(BuildContext context, ProductModel product, Color brandColor) {
-    final profile = context.read<ProviderProfileModel>();
-    final cart = context.read<CartProvider>();
+    // Intentamos obtener el perfil del proveedor de forma segura
+    ProviderProfileModel? profile;
+    try {
+      profile = Provider.of<ProviderProfileModel>(context, listen: false);
+    } catch (e) {
+      debugPrint("Advertencia: No se encontró ProviderProfileModel en el contexto.");
+    }
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withAlpha(200),
-      builder: (_) => MultiProvider(
-        providers: [
-          Provider.value(value: profile),
-          ChangeNotifierProvider.value(value: cart),
-        ],
-        child: ProductDetailDialog(product: product, brandColor: brandColor),
-      ),
+      barrierColor: Colors.black.withValues(alpha: 0.8),
+      builder: (ctx) {
+        // Si tenemos perfil, lo re-inyectamos. Si no, mostramos el diálogo sin él.
+        if (profile != null) {
+          return Provider.value(
+            value: profile,
+            child: ProductDetailDialog(product: product, brandColor: brandColor),
+          );
+        } else {
+          return ProductDetailDialog(product: product, brandColor: brandColor);
+        }
+      },
     );
   }
 
@@ -47,343 +51,474 @@ class ProductDetailDialog extends StatefulWidget {
 
 class _ProductDetailDialogState extends State<ProductDetailDialog> {
   int _quantity = 1;
+  late PageController _pageController;
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _trackViewAndCaptureLead());
+    _pageController = PageController();
   }
 
-  void _trackViewAndCaptureLead() {
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _addToCart() {
+    // Verificación de seguridad para el CartProvider
     try {
-      final profile = context.read<ProviderProfileModel>();
-      final analytics = context.read<AnalyticsService>();
-      final authService = context.read<AuthService>();
-      final crmRepository = context.read<CrmRepository>();
-
-      analytics.trackProductView(
-        providerId: widget.product.providerId,
-        planType: profile.planType,
-        productName: widget.product.name,
+      final cart = context.read<CartProvider>();
+      cart.addItem(widget.product, _quantity);
+      Navigator.pop(context);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Se añadieron $_quantity "${widget.product.name}" al carrito.', 
+            style: const TextStyle(fontWeight: FontWeight.bold)
+          ),
+          backgroundColor: widget.brandColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          width: 400,
+        ),
       );
-
-      final currentUser = authService.currentUser;
-      if (currentUser != null) {
-        crmRepository.captureLeadFromPublicProfile(
-          providerId: widget.product.providerId,
-          source: 'view_product',
-          email: currentUser.email,
-          nombreCompleto: currentUser.displayName ?? 'Visitante Registrado',
-          logoUrl: currentUser.photoURL,
-        );
-      }
     } catch (e) {
-      debugPrint("Error silencioso en ProductDetailDialog: $e");
+      debugPrint("Error al agregar al carrito: $e");
+      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unused_local_variable
     final theme = Theme.of(context);
-    // ignore: unused_local_variable
-    final colors = theme.colorScheme;
-    final profile = context.watch<ProviderProfileModel>();
-    final cart = context.read<CartProvider>();
-    
+    final size = MediaQuery.of(context).size;
+    final isWebLarge = size.width > 900; 
+
     return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
+      backgroundColor: theme.cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(24),
       child: Container(
-        width: double.maxFinite,
-        constraints: const BoxConstraints(maxWidth: 500),
+        width: isWebLarge ? 1000 : double.maxFinite,
+        constraints: BoxConstraints(
+          maxHeight: size.height * 0.9, 
+          maxWidth: 1000,
+        ),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D2D5A),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: widget.brandColor.withAlpha(100), width: 1),
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(100),
-              blurRadius: 20,
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 30,
               offset: const Offset(0, 10),
             )
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // --- 1. CABECERA ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.product.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: isWebLarge 
+              ? _buildWebLayout(context, theme)
+              : _buildMobileLayout(context, theme),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // LAYOUT WEB (DOS COLUMNAS)
+  // ===========================================================================
+  Widget _buildWebLayout(BuildContext context, ThemeData theme) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // COLUMNA IZQUIERDA: CARRUSEL
+        Expanded(
+          flex: 5,
+          child: Container(
+            color: theme.colorScheme.surface, 
+            child: Stack(
+              children: [
+                _buildMediaGallery(BoxFit.contain),
+                // Botón cerrar flotante (Izquierda arriba)
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: CircleAvatar(
+                    backgroundColor: theme.cardColor.withValues(alpha: 0.8),
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close, color: theme.iconTheme.color),
+                      tooltip: 'Cerrar',
                     ),
                   ),
-                  // USAMOS LA LÓGICA ESTÁTICA DEL WIDGET
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // COLUMNA DERECHA: INFO
+        Expanded(
+          flex: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeaderInfo(theme),
+                      const SizedBox(height: 24),
+                      _buildDescription(theme),
+                      const SizedBox(height: 24),
+                      _buildPriceSection(theme),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: _buildActionButtons(context, theme),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // LAYOUT MÓVIL (VERTICAL)
+  // ===========================================================================
+  Widget _buildMobileLayout(BuildContext context, ThemeData theme) {
+    return Column(
+      children: [
+        // ZONA SUPERIOR: CARRUSEL + CERRAR
+        SizedBox(
+          height: 350,
+          child: Stack(
+            children: [
+              Container(
+                color: theme.colorScheme.surface,
+                child: _buildMediaGallery(BoxFit.cover),
+              ),
+              Positioned(
+                top: 16, right: 16,
+                child: CircleAvatar(
+                  backgroundColor: Colors.black.withValues(alpha: 0.3),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ZONA INFERIOR: INFO SCROLLABLE
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeaderInfo(theme),
+                const SizedBox(height: 16),
+                _buildPriceSection(theme),
+                const SizedBox(height: 20),
+                _buildDescription(theme),
+                const SizedBox(height: 80), // Espacio para botones fijos
+              ],
+            ),
+          ),
+        ),
+
+        // BARRA DE ACCIÓN FLOTANTE
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, -5))],
+            border: Border(top: BorderSide(color: theme.dividerColor)),
+          ),
+          child: _buildActionButtons(context, theme),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // LOGICA DE IMÁGENES / GALERÍA
+  // ===========================================================================
+  Widget _buildMediaGallery(BoxFit fit) {
+    // 1. Recopilar todas las imágenes válidas
+    final List<String> images = [];
+    
+    if (widget.product.imageUrl.isNotEmpty) {
+      images.add(widget.product.imageUrl);
+    }
+    
+    if (widget.product.mediaGallery.isNotEmpty) {
+      for (var media in widget.product.mediaGallery) {
+        if (media['url'] != null && media['url'].toString().isNotEmpty && media['url'] != widget.product.imageUrl) {
+          images.add(media['url']);
+        }
+      }
+    }
+
+    // 2. Si no hay imágenes, mostrar placeholder
+    if (images.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.image_not_supported_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.3)),
+            const SizedBox(height: 8),
+            Text("Sin imagen", style: TextStyle(color: Colors.grey.withValues(alpha: 0.5))),
+          ],
+        ),
+      );
+    }
+
+    // 3. Renderizar PageView (Carrusel Nativo)
+    return Stack(
+      children: [
+        PageView.builder(
+          controller: _pageController,
+          itemCount: images.length,
+          onPageChanged: (index) => setState(() => _currentImageIndex = index),
+          itemBuilder: (context, index) {
+            return Image.network(
+              images[index],
+              fit: fit,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stackTrace) => 
+                const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey)),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(child: CircularProgressIndicator(color: widget.brandColor));
+              },
+            );
+          },
+        ),
+        // Indicadores de página (Puntos)
+        if (images.length > 1)
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: images.asMap().entries.map((entry) {
+                return Container(
+                  width: 8.0,
+                  height: 8.0,
+                  margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _currentImageIndex == entry.key
+                        ? widget.brandColor
+                        : Colors.grey.withValues(alpha: 0.5),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // COMPONENTES DE UI
+  // ===========================================================================
+
+  Widget _buildHeaderInfo(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                widget.product.name,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Botón Compartir Simple
+            IconButton(
+              icon: Icon(Icons.share, color: widget.brandColor),
+              onPressed: () {
+                // Lógica de compartir simple o placeholder
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enlace copiado al portapapeles (Simulado)')),
+                );
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (widget.product.quantity != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: widget.product.quantity! > 0 ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: widget.product.quantity! > 0 ? Colors.green : Colors.red,
+                width: 0.5
+              )
+            ),
+            child: Text(
+              widget.product.quantity! > 0 ? 'Stock Disponible: ${widget.product.quantity}' : 'Agotado',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: widget.product.quantity! > 0 ? Colors.green : Colors.red,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPriceSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.product.isOnSale) ...[
+          Text(
+            '\$${widget.product.price.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              decoration: TextDecoration.lineThrough,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            '\$${widget.product.promoPrice!.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: 32,
+              color: widget.brandColor,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ] else
+          Text(
+            '\$${widget.product.price.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: 32,
+              color: widget.brandColor,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDescription(ThemeData theme) {
+    if (widget.product.description.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Descripción",
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          widget.product.description,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+            height: 1.6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, ThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            // CONTADOR
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: theme.dividerColor),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
                   IconButton(
-                    onPressed: () => ShareProductButton.share(context, widget.product),
-                    icon: const Icon(Icons.share_rounded),
-                    color: widget.brandColor,
-                    tooltip: 'Compartir',
+                    icon: Icon(Icons.remove, size: 20, color: theme.iconTheme.color),
+                    onPressed: _quantity > 1 ? () => setState(() => _quantity--) : null,
+                  ),
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      '$_quantity',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                    color: Colors.white54,
-                    tooltip: 'Cerrar',
+                    icon: Icon(Icons.add, size: 20, color: widget.brandColor),
+                    onPressed: () => setState(() => _quantity++),
                   ),
                 ],
               ),
             ),
             
-            const Divider(color: Colors.white10, height: 1),
-
-            // --- 2. CONTENIDO ---
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.product.imageUrl.isNotEmpty || widget.product.mediaGallery.isNotEmpty)
-                      _DetailMediaCarousel(product: widget.product),
-                    
-                    Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Precios
-                          Wrap(
-                            spacing: 12,
-                            crossAxisAlignment: WrapCrossAlignment.end,
-                            children: [
-                              if (widget.product.isOnSale) ...[
-                                Text(
-                                  '\$${widget.product.price.toStringAsFixed(2)}',
-                                  style: const TextStyle(color: Colors.white54, decoration: TextDecoration.lineThrough, fontSize: 16),
-                                ),
-                                Text(
-                                  '\$${widget.product.promoPrice!.toStringAsFixed(2)}',
-                                  style: TextStyle(fontSize: 28, color: widget.brandColor, fontWeight: FontWeight.bold),
-                                ),
-                              ] else ...[
-                                Text(
-                                  '\$${widget.product.price.toStringAsFixed(2)}',
-                                  style: TextStyle(fontSize: 28, color: widget.brandColor, fontWeight: FontWeight.bold),
-                                ),
-                              ]
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          // Descripción
-                          if (widget.product.description.isNotEmpty)
-                            Text(
-                              widget.product.description,
-                              style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
-                            ),
-                            
-                          const SizedBox(height: 24),
-                          
-                          // --- BARRA SOCIAL ---
-                          Row(
-                            children: [
-                              // 1. WIDGET REUTILIZABLE COMPARTIR
-                              Expanded(
-                                child: ShareProductButton(
-                                  product: widget.product,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              
-                              const SizedBox(width: 12),
-
-                              // 2. WhatsApp
-                              if (profile.whatsapp != null && profile.whatsapp!.isNotEmpty)
-                                Expanded(
-                                  child: LeadCaptureButton(
-                                    actionType: ContactAction.whatsapp,
-                                    contactValue: profile.whatsapp!,
-                                    providerId: profile.providerId,
-                                    label: 'Consultar',
-                                    brandColor: const Color(0xFF25D366),
-                                    message: 'Hola, estoy interesado en el producto: ${widget.product.name}',
-                                    isOutline: false,
-                                    onPressedOverride: () => Navigator.pop(context),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+            const SizedBox(width: 16),
+            
+            // BOTÓN CARRITO
+            Expanded(
+              child: SizedBox(
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: _addToCart,
+                  icon: const Icon(Icons.shopping_cart_checkout),
+                  label: const Text("Agregar al Carrito", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: widget.brandColor,
+                    foregroundColor: Colors.white, // Siempre blanco para contraste
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 4,
+                    shadowColor: widget.brandColor.withValues(alpha: 0.4),
+                  ),
                 ),
-              ),
-            ),
-
-            const Divider(color: Colors.white10, height: 1),
-
-            // --- 3. BARRA INFERIOR ---
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF222244),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(10),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove, size: 18, color: Colors.white),
-                          onPressed: () {
-                            if (_quantity > 1) setState(() => _quantity--);
-                          },
-                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                          padding: EdgeInsets.zero,
-                        ),
-                        Text(
-                          '$_quantity',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add, size: 18, color: Colors.white),
-                          onPressed: () => setState(() => _quantity++),
-                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                          padding: EdgeInsets.zero,
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(width: 16),
-                  
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          cart.addItem(widget.product, _quantity);
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Se añadieron $_quantity "${widget.product.name}" al carrito.', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                              backgroundColor: const Color(0xFF00FF7F),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          );
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: widget.brandColor,
-                          foregroundColor: ThemeData.estimateBrightnessForColor(widget.brandColor) == Brightness.dark
-                              ? Colors.white : Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.add_shopping_cart_rounded),
-                        label: const Text('AÑADIR AL CARRITO', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// --- WIDGET PRIVADO: Carrusel ---
-class _DetailMediaCarousel extends StatelessWidget {
-  final ProductModel product;
-
-  const _DetailMediaCarousel({required this.product});
-
-  @override
-  Widget build(BuildContext context) {
-    List<Widget> mediaWidgets = [];
-
-    if (product.imageUrl.isNotEmpty) {
-      mediaWidgets.add(_buildImage(product.imageUrl));
-    }
-
-    if (product.mediaGallery.isNotEmpty) {
-      for (var media in product.mediaGallery) {
-        final String url = media['url'] ?? '';
-        final String type = media['type'] ?? 'image';
-        final String thumb = media['thumbnailUrl'] ?? '';
-
-        if (url.isNotEmpty) {
-          if (type == 'video') {
-            mediaWidgets.add(Stack(
-              fit: StackFit.expand,
-              children: [
-                if (thumb.isNotEmpty) 
-                  _buildImage(thumb) 
-                else 
-                  Container(color: Colors.black87),
-                const Center(child: Icon(Icons.play_circle_fill, color: Colors.white, size: 50)),
-              ],
-            ));
-          } else {
-            mediaWidgets.add(_buildImage(url));
-          }
-        }
-      }
-    }
-
-    if (mediaWidgets.isEmpty) {
-      return Container(
-        height: 200,
-        color: Colors.white.withAlpha(10),
-        child: const Center(child: Icon(Icons.image_not_supported_outlined, size: 50, color: Colors.white24)),
-      );
-    }
-
-    if (mediaWidgets.length == 1) {
-      return SizedBox(height: 250, width: double.infinity, child: mediaWidgets.first);
-    }
-
-    return CarouselSlider(
-      items: mediaWidgets,
-      options: CarouselOptions(
-        height: 250,
-        viewportFraction: 1.0,
-        enableInfiniteScroll: mediaWidgets.length > 1,
-        autoPlay: false,
-      ),
-    );
-  }
-
-  Widget _buildImage(String url) {
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return Center(child: CircularProgressIndicator(
-          value: progress.expectedTotalBytes != null ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes! : null,
-          color: Colors.white30,
-        ));
-      },
-      errorBuilder: (context, error, stackTrace) => 
-        Container(color: Colors.grey.shade900, child: const Icon(Icons.broken_image, color: Colors.white54)),
+        
+        const SizedBox(height: 16),
+        
+        // Fila Secundaria (Consultar)
+        TextButton.icon(
+          onPressed: () {}, 
+          icon: Icon(Icons.chat_bubble_outline, size: 20, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+          label: Text("Consultar al vendedor", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+        ),
+      ],
     );
   }
 }

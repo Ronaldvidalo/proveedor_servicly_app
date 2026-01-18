@@ -20,13 +20,10 @@ import 'package:proveedor_servicly_app/core/viewmodels/cart_provider.dart';
 import 'package:proveedor_servicly_app/features/cart/screens/cart_screen.dart';
 import 'package:proveedor_servicly_app/widgets/public_brand_header_1.dart'; 
 import 'package:proveedor_servicly_app/widgets/product_card_refactor.dart';
-// IMPORTANTE: Importamos el Sidebar que creamos antes
 import 'package:proveedor_servicly_app/widgets/navigation/servicly_sidebar.dart';
-
-// --- NUEVO WIDGET DE DETALLE ---
 import 'package:proveedor_servicly_app/features/public_profile/screens/widgets/product_detail_dialog.dart';
 
-// Constantes
+// Constantes de Diseño
 const double kMaxWebWidth = 1280.0; 
 const double kMobileBreakpoint = 900.0;
 
@@ -73,13 +70,24 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     });
   }
 
-  // Lógica de navegación del sidebar (Placeholder)
+  // Lógica para agregar al carrito con feedback visual
+  void _addToCart(ProductModel product) {
+    context.read<CartProvider>().addItem(product);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${product.name} agregado al carrito'),
+        backgroundColor: widget.profile.brandColor,
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        width: 300, // Ancho fijo para que se vea bien en web
+      ),
+    );
+  }
+
   void _handleSidebarNavigation(int index) {
     if (index == 0) {
-        // Volver al Dashboard
         Navigator.of(context).pop(); 
     }
-    // Aquí puedes añadir más lógica de ruteo
   }
 
   @override
@@ -89,22 +97,20 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     final isWebLarge = kIsWeb && MediaQuery.of(context).size.width > kMobileBreakpoint;
     
     // --- ESTRUCTURA PRINCIPAL ---
-    // Si es Web Grande, usamos un Row con Sidebar. Si es móvil, usamos Scaffold normal.
     if (isWebLarge) {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         body: Row(
           children: [
-            // 1. SIDEBAR (Izquierda)
+            // 1. SIDEBAR GLOBAL
             ServiclySidebar(
-              selectedIndex: 1, // Marcamos "Mi Catálogo" como activo
+              selectedIndex: 1, 
               onDestinationSelected: _handleSidebarNavigation,
             ),
             
-            // 2. CONTENIDO (Derecha)
+            // 2. CONTENIDO DE LA TIENDA
             Expanded(
               child: Scaffold(
-                // Sin AppBar en Web para diseño limpio
                 backgroundColor: theme.scaffoldBackgroundColor,
                 body: Provider.value(
                   value: widget.profile,
@@ -115,7 +121,6 @@ class _TiendaLayoutState extends State<TiendaLayout> {
                     child: _buildWebLayout(context, theme, colors),
                   ),
                 ),
-                // Floating Action Button del carrito para Web (opcional, o usar el del header)
                 floatingActionButton: _CartFloatingButton(brandColor: colors.primary),
               ),
             ),
@@ -124,7 +129,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
       );
     } 
     
-    // --- VERSIÓN MÓVIL (Sin cambios, con AppBar) ---
+    // --- VERSIÓN MÓVIL ---
     else {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor, 
@@ -147,7 +152,7 @@ class _TiendaLayoutState extends State<TiendaLayout> {
   }
 
   // ===========================================================================
-  // LAYOUT WEB
+  // LAYOUT WEB (Estilo Mercado Libre / Amazon)
   // ===========================================================================
   Widget _buildWebLayout(BuildContext context, ThemeData theme, ColorScheme colors) {
     return Center(
@@ -156,37 +161,37 @@ class _TiendaLayoutState extends State<TiendaLayout> {
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-            // 1. HEADER COMPACTO HORIZONTAL
+            // 1. HEADER DE TIENDA (BANNER)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24), // Un poco más de padding arriba
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                 child: _WebCompactHeader(profile: widget.profile),
               ),
             ),
 
-            // 2. CUERPO PRINCIPAL
+            // 2. CUERPO (SIDEBAR FILTROS + GRID PRODUCTOS)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- COLUMNA IZQUIERDA: CATEGORÍAS ---
+                    // --- COLUMNA IZQUIERDA: FILTROS & CATEGORÍAS ---
                     SizedBox(
-                      width: 240, 
+                      width: 260, 
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("Explorar", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 16),
+                          _buildSidebarTitle("Categorías", theme),
                           _WebCategorySidebar(
                             providerId: widget.profile.providerId,
                             selectedCategoryId: _selectedCategoryId,
-                            brandColor: colors.primary,
+                            brandColor: widget.profile.brandColor,
                             onCategorySelected: (id) => setState(() => _selectedCategoryId = id),
                           ),
+                          
                           const SizedBox(height: 32),
-                          Text("Historias", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          _buildSidebarTitle("Historias Destacadas", theme),
                           const SizedBox(height: 12),
                           _buildMiniVideoList(context, widget.profile.providerId, theme),
                         ],
@@ -195,22 +200,25 @@ class _TiendaLayoutState extends State<TiendaLayout> {
                     
                     const SizedBox(width: 32), 
 
-                    // --- COLUMNA DERECHA: PRODUCTOS ---
+                    // --- COLUMNA DERECHA: GRID DE PRODUCTOS ---
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Título de la sección derecha
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                _selectedCategoryId == null ? "Todos los Productos" : "Filtrado por categoría", 
+                                _selectedCategoryId == null ? "Catálogo Completo" : "Resultados de filtrado", 
                                 style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)
                               ),
                             ],
                           ),
                           const SizedBox(height: 20),
-                          _buildWebProductGrid(context, widget.profile.providerId, _selectedCategoryId, colors.primary, theme),
+                          
+                          // GRID PRINCIPAL
+                          _buildWebProductGrid(context, widget.profile.providerId, _selectedCategoryId, widget.profile.brandColor, theme),
                         ],
                       ),
                     ),
@@ -241,46 +249,49 @@ class _TiendaLayoutState extends State<TiendaLayout> {
           ),
         ),        
 
-        _buildSectionTitle('Videos del Proveedor', false, theme),
+        _buildSectionTitle('Historias', false, theme),
         _buildVideoPromoSection(context, widget.profile.providerId, theme),
 
-        _buildSectionTitle('Nuestros Productos', false, theme),
+        _buildSectionTitle('Productos', false, theme),
         _CategorySelector(
           providerId: widget.profile.providerId,
           selectedCategoryId: _selectedCategoryId, 
-          brandColor: colors.primary,
+          brandColor: widget.profile.brandColor,
           onCategorySelected: (id) => setState(() => _selectedCategoryId = id),
         ),
 
-        _buildProductsGridSection(context, widget.profile.providerId, _selectedCategoryId, colors.primary, theme),
+        // Grid Móvil
+        _buildProductsGridSection(context, widget.profile.providerId, _selectedCategoryId, widget.profile.brandColor, theme),
 
-        _buildSectionTitle('Calificaciones y Comentarios', false, theme),
-        SliverToBoxAdapter(
-          child: Container(
-            height: 120,
-            alignment: Alignment.center,
-            child: Text(
-              '(Próximamente: Módulo de Reseñas)',
-              style: TextStyle(color: colors.onSurface.withValues(alpha: 0.5), fontStyle: FontStyle.italic),
-            ),
-          ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        const SliverToBoxAdapter(child: SizedBox(height: 80)),
       ],
     );
   }
 
   // --- WIDGETS Y HELPERS ---
 
+  Widget _buildSidebarTitle(String title, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Text(
+        title,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: theme.colorScheme.onSurface
+        ),
+      ),
+    );
+  }
+
   SliverToBoxAdapter _buildSectionTitle(String title, bool isFirst, ThemeData theme) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 32, 16, 16),
+        padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 32, 16, 8),
         child: Text(
           title,
           style: TextStyle(
             color: theme.colorScheme.onSurface, 
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -288,27 +299,35 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     );
   }
   
+  // Grid Móvil (Ajustado a tamaño Dashboard)
   Widget _buildProductsGridSection(BuildContext context, String providerId, String? selectedCategoryId, Color brandColor, ThemeData theme) {
     return StreamBuilder<List<ProductModel>>(
       stream: context.read<ProductService>().getProducts(providerId, categoryId: selectedCategoryId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const SliverToBoxAdapter(child: SizedBox(height: 200)); 
+        if (snapshot.connectionState == ConnectionState.waiting) return const SliverToBoxAdapter(child: SizedBox(height: 100, child: Center(child: CircularProgressIndicator()))); 
         final products = snapshot.data ?? [];
-        if (products.isEmpty) return const SliverFillRemaining(child: Center(child: Text('Sin productos')));
+        if (products.isEmpty) return const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No hay productos disponibles'))));
 
         return SliverPadding(
           padding: const EdgeInsets.all(16.0),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 250, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.70, 
+              // TAMAÑO UNIFICADO CON DASHBOARD
+              maxCrossAxisExtent: 300, 
+              crossAxisSpacing: 12, 
+              mainAxisSpacing: 12, 
+              // RELACIÓN DE ASPECTO ESTÁNDAR
+              childAspectRatio: 0.85, 
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 final product = products[index];
                 return ProductCardRefactor(
                   product: product, brandColor: brandColor, isEditable: false, 
-                  isLiked: _likedProductIds.contains(product.id), onLikeToggle: () => _toggleLike(product.id),
+                  isLiked: _likedProductIds.contains(product.id), 
+                  onLikeToggle: () => _toggleLike(product.id),
                   onTap: () => ProductDetailDialog.show(context, product, brandColor),
+                  onAddToCart: () => _addToCart(product),
                 );
               },
               childCount: products.length,
@@ -319,28 +338,50 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     );
   }
 
+  // Grid Web (Ajustado a tamaño Dashboard)
   Widget _buildWebProductGrid(BuildContext context, String providerId, String? selectedCategoryId, Color brandColor, ThemeData theme) {
     return StreamBuilder<List<ProductModel>>(
       stream: context.read<ProductService>().getProducts(providerId, categoryId: selectedCategoryId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
         final products = snapshot.data ?? [];
-        if (products.isEmpty) return Container(height: 200, alignment: Alignment.center, child: const Text('No hay productos en esta categoría'));
+        if (products.isEmpty) {
+          return Container(
+            height: 300, 
+            alignment: Alignment.center, 
+            decoration: BoxDecoration(
+              color: theme.cardTheme.color,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1))
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_outlined, size: 48, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
+                const SizedBox(height: 16),
+                Text('No se encontraron productos en esta categoría', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+              ],
+            ),
+          );
+        }
 
         return GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
           shrinkWrap: true,
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 260,
-            crossAxisSpacing: 20,
-            mainAxisSpacing: 20,
-            childAspectRatio: 0.72,
+            // TAMAÑO UNIFICADO CON DASHBOARD
+            maxCrossAxisExtent: 300,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            // RELACIÓN DE ASPECTO ESTÁNDAR
+            childAspectRatio: 0.85, 
           ),
           itemCount: products.length,
           itemBuilder: (context, index) => ProductCardRefactor(
               product: products[index], brandColor: brandColor, isEditable: false,
               isLiked: _likedProductIds.contains(products[index].id), onLikeToggle: () => _toggleLike(products[index].id),
               onTap: () => ProductDetailDialog.show(context, products[index], brandColor),
+              onAddToCart: () => _addToCart(products[index]),
           ),
         );
       },
@@ -351,7 +392,9 @@ class _TiendaLayoutState extends State<TiendaLayout> {
     return StreamBuilder<List<VideoShowcaseModel>>(
       stream: context.read<VideoService>().getVideoShowcasesByProvider(providerId),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) return const Text("Sin historias", style: TextStyle(color: Colors.grey));
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Text("Sin historias", style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.4), fontStyle: FontStyle.italic));
+        }
         
         return GridView.builder(
           shrinkWrap: true,
@@ -365,7 +408,11 @@ class _TiendaLayoutState extends State<TiendaLayout> {
           itemCount: snapshot.data!.length > 4 ? 4 : snapshot.data!.length, 
           itemBuilder: (context, index) {
             final video = snapshot.data![index];
-            return VideoCard(video: video, brandColor: theme.colorScheme.primary, onPlayTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoShowcase: video))));
+            return VideoCard(
+              video: video, 
+              brandColor: widget.profile.brandColor, 
+              onPlayTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoShowcase: video)))
+            );
           },
         );
       },
@@ -385,8 +432,15 @@ class _TiendaLayoutState extends State<TiendaLayout> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               itemCount: snapshot.data!.length,
               itemBuilder: (context, index) => Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: VideoCard(video: snapshot.data![index], brandColor: theme.colorScheme.primary, onPlayTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoShowcase: snapshot.data![index])))),
+                padding: const EdgeInsets.only(right: 12.0),
+                child: AspectRatio(
+                  aspectRatio: 0.7,
+                  child: VideoCard(
+                    video: snapshot.data![index], 
+                    brandColor: widget.profile.brandColor, 
+                    onPlayTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoShowcase: snapshot.data![index])))
+                  ),
+                ),
               ),
             ),
           ),
@@ -415,7 +469,7 @@ class _WebCompactHeader extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Container(
-      height: 160,
+      height: 180, 
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: theme.cardColor,
@@ -424,19 +478,28 @@ class _WebCompactHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft, end: Alignment.bottomRight,
           colors: [
-            profile.brandColor.withValues(alpha: 0.05),
+            profile.brandColor.withValues(alpha: 0.15),
             theme.cardColor,
           ]
-        )
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ]
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // LOGO
           Container(
-            width: 100, height: 100,
+            width: 120, height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: profile.brandColor, width: 3),
+              color: theme.cardColor,
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)]
             ),
             child: ClipOval(
@@ -444,66 +507,61 @@ class _WebCompactHeader extends StatelessWidget {
                   ? Image.network(
                       profile.logoUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: colors.primary.withValues(alpha: 0.1),
-                          alignment: Alignment.center,
-                          child: Text(
-                            profile.businessName.isNotEmpty ? profile.businessName[0].toUpperCase() : 'S',
-                            style: TextStyle(fontSize: 40, color: colors.primary, fontWeight: FontWeight.bold)
-                          ),
-                        );
-                      },
+                      errorBuilder: (context, error, stackTrace) => _buildInitials(profile, colors),
                     )
-                  : Container(
-                      color: colors.primary.withValues(alpha: 0.1),
-                      alignment: Alignment.center,
-                      child: Icon(Icons.store, size: 40, color: colors.primary),
-                    ),
+                  : _buildInitials(profile, colors),
             ),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 32),
           
+          // INFO
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(profile.businessName, style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                if ((profile.slogan ?? '').isNotEmpty)
-                  Text(profile.slogan!, style: TextStyle(fontStyle: FontStyle.italic, color: colors.onSurface.withValues(alpha: 0.7))),
-                
-                const SizedBox(height: 12),
+                Text(
+                  profile.businessName, 
+                  style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 28)
+                ),
+                if ((profile.slogan ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    profile.slogan!, 
+                    style: TextStyle(fontStyle: FontStyle.italic, color: colors.onSurface.withValues(alpha: 0.7), fontSize: 16)
+                  ),
+                ],
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    Icon(Icons.location_on, size: 16, color: colors.primary),
-                    const SizedBox(width: 4),
-                    Text((profile.address ?? '').isNotEmpty ? profile.address! : "Online", style: const TextStyle(fontSize: 13)),
-                    const SizedBox(width: 16),
-                    Icon(Icons.star, size: 16, color: Colors.amber),
-                    const SizedBox(width: 4),
-                    const Text("4.8 (Nuevos)", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    _IconText(icon: Icons.location_on, text: (profile.address ?? '').isNotEmpty ? profile.address! : "Online", color: colors.onSurface.withValues(alpha: 0.8)),
+                    const SizedBox(width: 24),
+                    const _IconText(icon: Icons.star, text: "4.8 (Nuevos)", color: Colors.amber),
                   ],
                 )
               ],
             ),
           ),
 
+          // ACCIONES
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               FilledButton.icon(
                 onPressed: () {}, 
-                icon: const Icon(Icons.request_quote),
-                label: const Text("Solicitar Cotización"),
-                style: FilledButton.styleFrom(backgroundColor: profile.brandColor, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)),
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text("Contactar"),
+                style: FilledButton.styleFrom(
+                  backgroundColor: profile.brandColor, 
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold)
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Row(
                 children: [
-                  if ((profile.whatsapp ?? '').isNotEmpty) _SocialIconBtn(icon: Icons.chat, color: Colors.green, onTap: () => _launch("https://wa.me/${profile.whatsapp}")),
+                  if ((profile.whatsapp ?? '').isNotEmpty) _SocialIconBtn(icon: Icons.message, color: Colors.green, onTap: () => _launch("https://wa.me/${profile.whatsapp}")),
                   if ((profile.instagram ?? '').isNotEmpty) _SocialIconBtn(icon: Icons.camera_alt, color: Colors.purple, onTap: () => _launch("https://instagram.com/${profile.instagram}")),
                   _SocialIconBtn(icon: Icons.share, color: Colors.blue, onTap: () {}),
                 ],
@@ -512,6 +570,35 @@ class _WebCompactHeader extends StatelessWidget {
           )
         ],
       ),
+    );
+  }
+
+  Widget _buildInitials(ProviderProfileModel profile, ColorScheme colors) {
+    return Container(
+      color: colors.primary.withValues(alpha: 0.1),
+      alignment: Alignment.center,
+      child: Text(
+        profile.businessName.isNotEmpty ? profile.businessName[0].toUpperCase() : 'S',
+        style: TextStyle(fontSize: 48, color: colors.primary, fontWeight: FontWeight.bold)
+      ),
+    );
+  }
+}
+
+class _IconText extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+  const _IconText({required this.icon, required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 6),
+        Text(text, style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8))),
+      ],
     );
   }
 }
@@ -525,14 +612,18 @@ class _SocialIconBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8.0),
+      padding: const EdgeInsets.only(left: 12.0),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(50),
         child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
-          child: Icon(icon, size: 20, color: color),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1), 
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.3))
+          ),
+          child: Icon(icon, size: 22, color: color),
         ),
       ),
     );
@@ -556,36 +647,24 @@ class _CartBadge extends StatelessWidget {
   }
 }
 
-// FAB personalizado para carrito en Web (opcional)
+// FAB personalizado para carrito en Web
 class _CartFloatingButton extends StatelessWidget {
   final Color brandColor;
   const _CartFloatingButton({required this.brandColor});
   @override
   Widget build(BuildContext context) {
     return Consumer<CartProvider>(builder: (context, cart, child) {
-       return FloatingActionButton(
+       return FloatingActionButton.extended(
          backgroundColor: brandColor,
+         icon: const Icon(Icons.shopping_cart, color: Colors.white),
+         label: Text(cart.totalItems > 0 ? '${cart.totalItems} Items' : 'Carrito', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
-         child: Stack(
-           alignment: Alignment.center,
-           children: [
-             const Icon(Icons.shopping_cart, color: Colors.white),
-             if (cart.totalItems > 0)
-               Positioned(
-                 right: 0, top: 0,
-                 child: Container(
-                   padding: const EdgeInsets.all(2),
-                   decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                   constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                 ),
-               )
-           ],
-         ),
        );
     });
   }
 }
 
+// SIDEBAR DE CATEGORÍAS (Estilo Amazon)
 class _WebCategorySidebar extends StatelessWidget {
   final String providerId;
   final String? selectedCategoryId;
@@ -610,12 +689,12 @@ class _WebCategorySidebar extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _buildCategoryTile(context, "Todas", selectedCategoryId == null, () => onCategorySelected(null)),
+              _buildCategoryTile(context, "Ver Todos", selectedCategoryId == null, () => onCategorySelected(null)),
               const Divider(height: 1),
               ...categories.map((cat) => Column(
                 children: [
                   _buildCategoryTile(context, cat.name, selectedCategoryId == cat.id, () => onCategorySelected(cat.id)),
-                  const Divider(height: 1),
+                  if (cat != categories.last) const Divider(height: 1),
                 ],
               )),
             ],
@@ -628,16 +707,18 @@ class _WebCategorySidebar extends StatelessWidget {
   Widget _buildCategoryTile(BuildContext context, String label, bool isSelected, VoidCallback onTap) {
     return ListTile(
       title: Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? brandColor : null, fontSize: 14)),
-      leading: isSelected ? Icon(Icons.check, color: brandColor, size: 18) : const SizedBox(width: 18),
+      leading: isSelected ? Icon(Icons.check_circle, color: brandColor, size: 20) : const SizedBox(width: 20),
       selected: isSelected,
       selectedTileColor: brandColor.withValues(alpha: 0.05),
+      hoverColor: brandColor.withValues(alpha: 0.05),
       onTap: onTap,
       dense: true,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
     );
   }
 }
 
+// CHIPS DE CATEGORÍAS (Móvil)
 class _CategorySelector extends StatelessWidget {
   final String providerId; final String? selectedCategoryId; final Color brandColor; final ValueChanged<String?> onCategorySelected;
   const _CategorySelector({required this.providerId, required this.selectedCategoryId, required this.brandColor, required this.onCategorySelected});
