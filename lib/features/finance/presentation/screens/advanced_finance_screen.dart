@@ -1,21 +1,16 @@
-// --- UX/UI Enhancement Comment ---
-// UX/UI Redesigned: 26/10/2025
-// Style: Cyber Glow (Adaptive Light/Dark)
-// QA FIX 26/11/2025:
-// 1. Refactorización completa para soportar ThemeService (Modo Claro/Oscuro).
-// 2. Lógica de Tour Virtual (ShowCase) mantenida y verificada.
-// ---------------------------------
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// --- Imports de Tabs ---
 import '../tabs/summary_tab.dart';
 import '../tabs/expenses_tab.dart';
 import '../tabs/analysis_tab.dart';
 
-/// La pantalla principal del módulo de finanzas que contiene el TabBar
+// --- Import del Sidebar ---
+import 'package:proveedor_servicly_app/widgets/navigation/servicly_sidebar.dart';
+
 class AdvancedFinanceScreen extends ConsumerStatefulWidget {
   const AdvancedFinanceScreen({super.key});
 
@@ -36,26 +31,24 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
   final GlobalKey _keyAddExpenseButton = GlobalKey();
   final GlobalKey _keyAnalysisChart = GlobalKey();
 
-  // Clave para el contexto del ShowCase
   BuildContext? _showCaseContext;
+  int _sidebarIndex = 2; // Índice de Finanzas
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
-    // Comprueba si es la primera vez que se abre esta pantalla.
     _checkIfFirstTime();
   }
 
   Future<void> _checkIfFirstTime() async {
     final prefs = await SharedPreferences.getInstance();
-    final bool hasSeenTour = prefs.getBool('hasSeenFinanceTour_v1') ?? false;
+    final bool hasSeenTour = prefs.getBool('hasSeenFinanceTour_v2') ?? false; // Clave v2 para reiniciar si quieres
 
     if (!hasSeenTour) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _startTour();
-        prefs.setBool('hasSeenFinanceTour_v1', true);
+        prefs.setBool('hasSeenFinanceTour_v2', true);
       });
     }
   }
@@ -63,110 +56,167 @@ class _AdvancedFinanceScreenState extends ConsumerState<AdvancedFinanceScreen> w
   void _startTour() {
     if (_showCaseContext != null) {
       ShowCaseWidget.of(_showCaseContext!).startShowCase([
-        _keyResumenTab,     // 1. Pestaña Resumen
-        _keyKpiCards,       // 2. Tarjetas KPI
-        _keyIncomeChart,    // 3. Gráfico de Ingresos
-        _keyGastosTab,      // 4. Pestaña Gastos
-        _keyAddExpenseButton, // 5. Botón Añadir
-        _keyAnalisisTab,    // 6. Pestaña Análisis
-        _keyAnalysisChart,  // 7. Gráfico Análisis
+        _keyResumenTab,
+        _keyKpiCards,
+        _keyIncomeChart,
+        _keyGastosTab,
+        _keyAddExpenseButton,
+        _keyAnalisisTab,
       ]);
     }
   }
 
+  void _onSidebarDestinationSelected(int index) {
+    setState(() => _sidebarIndex = index);
+    // Aquí iría tu lógica de navegación (go_router, Navigator, etc.)
+  }
+
   @override
   Widget build(BuildContext context) {
-    // QA FIX: Obtener tema del contexto (Adiós colores hardcoded)
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
-    // Colores dinámicos
     final backgroundColor = theme.scaffoldBackgroundColor;
     final primaryColor = colorScheme.primary;
     final onSurface = colorScheme.onSurface;
 
     return ShowCaseWidget(
-      onFinish: () {
-         _tabController.animateTo(0);
-      },
-      // Lógica de navegación del Tour
-      onStart: (index, globalKey) {
-        if (globalKey == _keyGastosTab || globalKey == _keyAddExpenseButton) {
-          _tabController.animateTo(1); // Ir a Gastos
-        } else if (globalKey == _keyAnalisisTab || globalKey == _keyAnalysisChart) {
-          _tabController.animateTo(2); // Ir a Análisis
-        } else if (globalKey == _keyResumenTab || globalKey == _keyKpiCards || globalKey == _keyIncomeChart) {
-          _tabController.animateTo(0); // Ir a Resumen
-        }
-      },
+      onFinish: () => _tabController.animateTo(0),
       builder: (context) { 
-          _showCaseContext = context; 
-          return Scaffold(
-            // Fondo dinámico
-            backgroundColor: backgroundColor, 
-            appBar: AppBar(
-              title: const Text('Copiloto Financiero'),
-              backgroundColor: backgroundColor, 
-              // Texto negro en claro, blanco en oscuro
-              foregroundColor: onSurface, 
-              elevation: 0, 
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.help_outline_rounded),
-                  tooltip: 'Iniciar Tour',
-                  // Icono visible en ambos modos
-                  color: onSurface.withValues(alpha: 0.7),
-                  onPressed: _startTour, 
+        _showCaseContext = context; 
+        
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Detección de Web (> 900px)
+            final isWeb = constraints.maxWidth > 900;
+
+            if (isWeb) {
+              // ==========================================
+              // 💻 DISEÑO WEB (Sidebar + Full Width Content)
+              // ==========================================
+              return Scaffold(
+                backgroundColor: backgroundColor,
+                body: Row(
+                  children: [
+                    // 1. Sidebar Fijo a la Izquierda
+                    ServiclySidebar(
+                      selectedIndex: _sidebarIndex,
+                      onDestinationSelected: _onSidebarDestinationSelected,
+                    ),
+                    // 2. Contenido Principal (Ocupa todo el resto)
+                    Expanded(
+                      child: Scaffold(
+                        backgroundColor: backgroundColor,
+                        // AppBar simplificado para Web
+                        appBar: AppBar(
+                          title: const Text('Copiloto Financiero'),
+                          backgroundColor: backgroundColor,
+                          elevation: 0,
+                          centerTitle: false, // Alineado a la izquierda
+                          actions: [
+                            IconButton(
+                              icon: const Icon(Icons.help_outline_rounded),
+                              tooltip: 'Ver Tutorial',
+                              onPressed: _startTour,
+                            ),
+                            const SizedBox(width: 16),
+                          ],
+                          bottom: PreferredSize(
+                            preferredSize: const Size.fromHeight(50),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: TabBar(
+                                controller: _tabController,
+                                isScrollable: true, // Tabs compactos a la izquierda
+                                tabAlignment: TabAlignment.start,
+                                indicatorColor: primaryColor,
+                                labelColor: primaryColor,
+                                unselectedLabelColor: onSurface.withValues(alpha: 0.5),
+                                tabs: [
+                                  _buildTab(_keyResumenTab, Icons.dashboard_rounded, 'Resumen'),
+                                  _buildTab(_keyGastosTab, Icons.payment_rounded, 'Gastos'),
+                                  _buildTab(_keyAnalisisTab, Icons.analytics_rounded, 'Análisis'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        // El cuerpo ocupa el 100% del espacio restante
+                        body: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            SummaryTab(
+                              kpiCardsKey: _keyKpiCards,
+                              incomeChartKey: _keyIncomeChart,
+                            ),
+                            ExpensesTab(
+                              addExpenseButtonKey: _keyAddExpenseButton,
+                            ),
+                            AnalysisTab(
+                              analysisChartKey: _keyAnalysisChart,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-              bottom: TabBar(
-                controller: _tabController,
-                // Indicador del color de la marca (Neón)
-                indicatorColor: primaryColor, 
-                labelColor: primaryColor, 
-                // Color inactivo visible
-                unselectedLabelColor: onSurface.withValues(alpha: 0.5), 
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
-                tabs: [
-                  Showcase(
-                    key: _keyResumenTab,
-                    title: 'Pestaña Resumen',
-                    description: 'Aquí encontrarás un resumen de tus métricas clave y transacciones recientes.',
-                    child: const Tab(icon: Icon(Icons.dashboard_rounded), text: 'Resumen'),
+              );
+            } else {
+              // ==========================================
+              // 📱 DISEÑO MOBILE (Clásico)
+              // ==========================================
+              return Scaffold(
+                backgroundColor: backgroundColor,
+                appBar: AppBar(
+                  title: const Text('Copiloto Financiero'),
+                  backgroundColor: backgroundColor,
+                  elevation: 0,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.help_outline_rounded),
+                      onPressed: _startTour,
+                    ),
+                  ],
+                  bottom: TabBar(
+                    controller: _tabController,
+                    indicatorColor: primaryColor,
+                    labelColor: primaryColor,
+                    tabs: [
+                      _buildTab(_keyResumenTab, Icons.dashboard_rounded, 'Resumen'),
+                      _buildTab(_keyGastosTab, Icons.payment_rounded, 'Gastos'),
+                      _buildTab(_keyAnalisisTab, Icons.analytics_rounded, 'Análisis'),
+                    ],
                   ),
-                  Showcase(
-                    key: _keyGastosTab,
-                    title: 'Pestaña Gastos',
-                    description: 'Registra y visualiza todos tus gastos en detalle.',
-                    child: const Tab(icon: Icon(Icons.payment_rounded), text: 'Gastos'),
-                  ),
-                  Showcase(
-                    key: _keyAnalisisTab,
-                    title: 'Pestaña Análisis',
-                    description: 'Compara tus ingresos y gastos a lo largo del tiempo.',
-                    child: const Tab(icon: Icon(Icons.analytics_rounded), text: 'Análisis'),
-                  ),
-                ],
-              ),
-            ),
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                SummaryTab(
-                  kpiCardsKey: _keyKpiCards,
-                  incomeChartKey: _keyIncomeChart,
                 ),
-                ExpensesTab(
-                  addExpenseButtonKey: _keyAddExpenseButton,
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    SummaryTab(
+                      kpiCardsKey: _keyKpiCards,
+                      incomeChartKey: _keyIncomeChart,
+                    ),
+                    ExpensesTab(
+                      addExpenseButtonKey: _keyAddExpenseButton,
+                    ),
+                    AnalysisTab(
+                      analysisChartKey: _keyAnalysisChart,
+                    ),
+                  ],
                 ),
-                AnalysisTab(
-                  analysisChartKey: _keyAnalysisChart,
-                ),
-              ],
-            ),
-          );
+              );
+            }
+          },
+        );
       },
+    );
+  }
+
+  Widget _buildTab(GlobalKey key, IconData icon, String text) {
+    return Showcase(
+      key: key,
+      title: text,
+      description: 'Accede a la sección de $text.',
+      child: Tab(icon: Icon(icon), text: text),
     );
   }
 }

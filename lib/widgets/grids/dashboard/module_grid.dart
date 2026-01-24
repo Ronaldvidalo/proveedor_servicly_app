@@ -11,12 +11,11 @@ import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/models/module_model.dart';
 import 'package:proveedor_servicly_app/core/models/order_model.dart';
-import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; // Asegura tener este modelo
+import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart'; 
 
 // --- Importaciones de Servicios y Providers ---
 import 'package:proveedor_servicly_app/core/services/order_service.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
-// FIX: Importamos el contexto del Dashboard para obtener el perfil seleccionado
 import 'package:proveedor_servicly_app/features/dashboard/providers/dashboard_context_provider.dart';
 
 // --- Importaciones de Pantallas (Rutas de Navegación) ---
@@ -89,7 +88,7 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     super.initState();
     _listController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 800), // Animación más rápida para grid
     );
     _listController.forward();
   }
@@ -148,6 +147,7 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
     if (isActive) {
       _navigateToModule(context, module.moduleId, widget.user);
     } else {
+      // Si está inactivo, al tocarlo se activa automáticamente
       _toggleModuleState(module, true);
     }
   }
@@ -249,11 +249,13 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     
     final sortedModules = List<ModuleModel>.from(widget.allModules);
     sortedModules.sort((a, b) {
       final aActive = widget.user.activeModules.contains(a.moduleId);
       final bActive = widget.user.activeModules.contains(b.moduleId);
+      // Priorizar activos, luego orden default
       if (aActive && !bActive) return -1;
       if (!aActive && bActive) return 1;
       return a.defaultOrder.compareTo(b.defaultOrder);
@@ -269,24 +271,25 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader(context, "Mi presencia online"),
+            // Sección: Presencia Online (Estilo destacado "Hero")
+            if (widget.user.publicProfileTemplate == 'store' || widget.user.publicProfileTemplate == 'catalog')
+               Padding(
+                 padding: const EdgeInsets.only(bottom: 12.0),
+                 child: Text("MI PRESENCIA ONLINE", style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.2, color: colors.onSurface.withValues(alpha: 0.6))),
+               ),
+            
             if (widget.user.publicProfileTemplate == 'store') 
               _buildLargeTile(
                 title: 'Mi Tienda Digital',
                 subtitle: 'Tu vidriera abierta 24/7',
                 icon: _iconMap['storefront_outlined']!,
-                color: theme.primaryColor,
-                // --- FIX CRÍTICO: CONEXIÓN DE DATOS ---
+                color: colors.primary,
                 onTap: () {
-                  // 1. Intentamos obtener el perfil activo del Dashboard
                   ProviderProfileModel? activeProfile;
                   try {
                     activeProfile = context.read<DashboardContext>().selectedProfile;
-                  } catch (_) {
-                    // Si falla (ej. fuera del dashboard), seguimos con null
-                  }
+                  } catch (_) {}
 
-                  // 2. Navegamos pasando user (para fetch) y profile (si ya lo tenemos)
                   Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => ManageStoreScreen(
                       user: widget.user,
@@ -306,37 +309,41 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
                 onLongPress: () => _explainModule('catalog_template'),
               ),
 
-            const SizedBox(height: 24),
-            _buildSectionHeader(context, "Herramientas"),
+            // Espacio entre secciones
+            if (widget.user.publicProfileTemplate == 'store' || widget.user.publicProfileTemplate == 'catalog')
+                const SizedBox(height: 24),
+            
+            // Sección: Herramientas (Grid Denso 3x3)
+            // No ponemos título aquí porque el contenedor padre (_WebDashboardCard) ya suele tenerlo
             
             if (widget.enableListView) 
               _buildVerticalList(sortedModules, pendingCount)
             else
-              _buildGridView(sortedModules, pendingCount),
+              _buildDenseGrid(sortedModules, pendingCount),
           ],
         );
       },
     );
   }
 
-  // Grid para Móvil
-  Widget _buildGridView(List<ModuleModel> modules, int pendingCount) {
+  // --- NUEVO GRID DENSO (3 Columnas, Estilo Botón) ---
+  Widget _buildDenseGrid(List<ModuleModel> modules, int pendingCount) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        mainAxisExtent: 130, 
+        crossAxisCount: 3, // 3 Columnas para mayor densidad
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.0, // Cuadrados perfectos
       ),
       itemCount: modules.length,
       itemBuilder: (context, index) => _buildItem(modules[index], index, pendingCount, isList: false),
     );
   }
 
-  // Lista para Web
+  // Lista para compatibilidad (Legacy)
   Widget _buildVerticalList(List<ModuleModel> modules, int pendingCount) {
     return ListView.separated(
       shrinkWrap: true,
@@ -363,7 +370,7 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
         },
         child: _InnovationCard(
           title: module.name,
-          subtitle: isActive ? _getModuleSubtitle(module.moduleId) : "Desactivado",
+          subtitle: isActive ? "ON" : "OFF", // Texto corto para grid denso
           icon: _iconMap[module.icon] ?? Icons.extension_outlined,
           accentColor: categoryColor,
           isLarge: false,
@@ -373,24 +380,17 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
           isPremium: module.isPremium,
           badge: badge,
           onTap: () => _handleCardTap(module, isActive),
-          onSwitchChanged: (val) => _toggleModuleState(module, val),
-          onLongPress: () => _explainModule(module.moduleId),
+          onSwitchChanged: null, // Sin switch en grid denso, el tap controla todo
+          onLongPress: () {
+             // Long press para desactivar o explicar
+             if (isActive) {
+               _toggleModuleState(module, false);
+             } else {
+               _explainModule(module.moduleId);
+             }
+          },
         ),
       );
-  }
-
-  Widget _buildSectionHeader(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 8),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          letterSpacing: 1.5,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.7),
-        ),
-      ),
-    );
   }
 
   Widget _buildLargeTile({
@@ -407,39 +407,21 @@ class _ModulesGridState extends State<ModulesGrid> with TickerProviderStateMixin
       case 'fast_sales':
       case 'fast-sales':
       case 'pos':
-      case 'orders-module': return Colors.orangeAccent;
+      case 'orders-module': return Colors.orange;
       case 'advanced-finance':
-      case 'cost_structure': return Colors.tealAccent;
+      case 'cost_structure': return Colors.teal;
       case 'agenda':
       case 'clients':
       case 'crm':
-      case 'client-management': return Colors.blueAccent;
-      case 'inventory': return Colors.purpleAccent;
-      case 'marketing-center-module': return Colors.cyanAccent;
+      case 'client-management': return Colors.blue;
+      case 'inventory': return Colors.purple;
+      case 'marketing-center-module': return Colors.cyan;
       default: return Colors.blueGrey;
-    }
-  }
-
-  String _getModuleSubtitle(String id) {
-    switch (id) {
-      case 'agenda': return 'Turnos';
-      case 'clients':
-      case 'crm':
-      case 'client-management': return 'Base CRM';
-      case 'advanced-finance': return 'Finanzas';
-      case 'inventory': return 'Stock';
-      case 'fast_sales':
-      case 'fast-sales':
-      case 'pos': return 'Caja';
-      case 'quotes': return 'PDFs';
-      case 'cost_structure': return 'Costos';
-      case 'orders-module': return 'Pedidos';
-      case 'marketing-center-module': return 'Promos e IA';
-      default: return 'Gestión';
     }
   }
 }
 
+// --- INNOVATION CARD (DISEÑO "CYBER-KEY") ---
 class _InnovationCard extends StatefulWidget {
   final String title;
   final String subtitle;
@@ -471,8 +453,21 @@ class _InnovationCardState extends State<_InnovationCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final displayColor = widget.isActive ? widget.accentColor : Colors.grey;
+    
+    // Si activo: color vibrante. Si inactivo: gris apagado.
+    final displayColor = widget.isActive ? widget.accentColor : theme.colorScheme.onSurface.withValues(alpha: 0.3);
+    
+    // Fondo: Tinte de color si activo, casi transparente si inactivo.
+    final backgroundColor = isDark 
+        ? (widget.isActive ? widget.accentColor.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.03))
+        : (widget.isActive ? widget.accentColor.withValues(alpha: 0.08) : Colors.grey.shade100);
+
+    // Borde: Brillante si activo en dark mode (efecto neón)
+    final borderColor = isDark
+        ? (widget.isActive ? widget.accentColor.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.1))
+        : (widget.isActive ? widget.accentColor.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05));
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _isTapDown = true),
@@ -481,55 +476,75 @@ class _InnovationCardState extends State<_InnovationCard> {
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
       child: AnimatedScale(
-        scale: _isTapDown ? 0.98 : 1.0,
+        scale: _isTapDown ? 0.92 : 1.0, // Efecto de pulsación más táctil
         duration: const Duration(milliseconds: 100),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [
-                if (widget.isActive) ...[
-                   isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white,
-                   isDark ? Colors.white.withValues(alpha: 0.04) : Colors.grey.shade50,
-                ] else ...[
-                   isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
-                   isDark ? Colors.white.withValues(alpha: 0.02) : Colors.grey.shade200,
-                ]
-              ],
-            ),
-            boxShadow: [
-              if (widget.isActive)
-                BoxShadow(color: displayColor.withValues(alpha: isDark ? 0.1 : 0.05), blurRadius: 12, offset: const Offset(0, 4)),
-            ],
-            border: Border.all(
-              color: _isTapDown ? displayColor : (widget.isActive ? displayColor.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.3)),
-              width: 1.5,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10), // Efecto Glass
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: borderColor, width: 1.5),
+                boxShadow: [
+                  // Glow Effect si está activo
+                  if (widget.isActive && isDark)
+                    BoxShadow(color: widget.accentColor.withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 0)),
+                  // Sombra normal si está inactivo o en light mode
+                  if (!isDark && widget.isActive)
+                     BoxShadow(color: widget.accentColor.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4)),
+                ],
+              ),
               child: Stack(
                 children: [
+                  // Contenido
                   Padding(
-                    padding: EdgeInsets.all(widget.isLarge ? 16 : 12),
+                    padding: EdgeInsets.all(widget.isLarge ? 16 : 8),
                     child: (widget.isListStyle || widget.isLarge) 
-                        ? _buildListLayout(isDark, displayColor) 
-                        : _buildGridLayout(isDark, displayColor),
+                        ? _buildListLayout(theme, displayColor) 
+                        : _buildCompactLayout(theme, displayColor),
                   ),
                   
+                  // Indicador de Carga
                   if (widget.isLoading)
-                    Container(color: Colors.black45, child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))),
+                    Positioned.fill(
+                      child: Container(
+                        color: theme.scaffoldBackgroundColor.withValues(alpha: 0.6), 
+                        child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                      )
+                    ),
                   
+                  // Badge Premium (Estrella pequeña)
                   if (widget.isPremium)
-                     Positioned(top: 8, left: 8, child: Icon(Icons.star_rounded, size: 16, color: Colors.amber)),
+                     const Positioned(top: 6, left: 6, child: Icon(Icons.star_rounded, size: 14, color: Colors.amber)),
 
-                  if (!widget.isListStyle && !widget.isLarge && widget.onSwitchChanged != null && !widget.isLoading)
+                  // Badge de Notificación (Pedidos, etc)
+                  if (widget.badge > 0)
+                     Positioned(
+                       top: 6, right: 6,
+                       child: Container(
+                         padding: const EdgeInsets.all(3),
+                         decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                         constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                         child: Text('${widget.badge}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold), textAlign: TextAlign.center)
+                       )
+                     ),
+                     
+                  // Switch (Solo visible en modo lista o tarjeta grande)
+                  if ((widget.isListStyle || widget.isLarge) && widget.onSwitchChanged != null && !widget.isLoading)
                     Positioned(
                       top: 0, right: 0,
-                      child: Transform.scale(scale: 0.65, child: Switch(value: widget.isActive, onChanged: widget.onSwitchChanged, activeTrackColor: const Color(0xFF00FF7F))),
+                      child: Transform.scale(
+                        scale: 0.65, 
+                        child: Switch(
+                          value: widget.isActive, 
+                          onChanged: widget.onSwitchChanged, 
+                          activeColor: widget.accentColor
+                        )
+                      ),
                     ),
                 ],
               ),
@@ -540,44 +555,60 @@ class _InnovationCardState extends State<_InnovationCard> {
     );
   }
 
-  Widget _buildListLayout(bool isDark, Color color) {
+  Widget _buildListLayout(ThemeData theme, Color color) {
     return Row(
       children: [
-        _buildIconContainer(42, 42, 22, color),
+        _buildIconContainer(48, 48, 26, color), 
         const SizedBox(width: 16),
         Expanded(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStyle(isDark, 13).copyWith(color: widget.isActive ? null : Colors.grey)),
-              Text(widget.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: _subtitleStyle(isDark, 10)),
+              Text(
+                  widget.title, 
+                  maxLines: 1, 
+                  overflow: TextOverflow.ellipsis, 
+                  style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, color: widget.isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.5))
+              ),
+              Text(
+                  widget.subtitle, 
+                  maxLines: 1, 
+                  overflow: TextOverflow.ellipsis, 
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))
+              ),
             ],
           ),
         ),
-        if (widget.onSwitchChanged != null)
-           Transform.scale(
-             scale: 0.7,
-             child: Switch(value: widget.isActive, onChanged: widget.onSwitchChanged, activeTrackColor: const Color(0xFF00FF7F)),
-           )
-        else
-           const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+        if (widget.onSwitchChanged == null)
+           Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurface.withValues(alpha: 0.3), size: 24),
       ],
     );
   }
 
-  Widget _buildGridLayout(bool isDark, Color color) {
+  // Layout para el Grid Denso (Botones Cuadrados)
+  Widget _buildCompactLayout(ThemeData theme, Color color) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        _buildIconContainer(36, 36, 20, color),
+        // Icono
+        Icon(widget.icon, size: 28, color: color),
+        
         const SizedBox(height: 8),
-        Flexible(
-          child: Text(widget.title, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: _titleStyle(isDark, 11).copyWith(color: widget.isActive ? null : Colors.grey)),
+        
+        // Título
+        Text(
+            widget.title, 
+            textAlign: TextAlign.center,
+            maxLines: 2, 
+            overflow: TextOverflow.ellipsis, 
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold, 
+              fontSize: 10, 
+              height: 1.1,
+              color: widget.isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.5)
+            )
         ),
-        const SizedBox(height: 4),
-        Text(widget.subtitle, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: _subtitleStyle(isDark, 9)),
       ],
     );
   }
@@ -585,18 +616,13 @@ class _InnovationCardState extends State<_InnovationCard> {
   Widget _buildIconContainer(double w, double h, double iconSize, Color color) {
     return Container(
       width: w, height: h,
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(widget.icon, color: color, size: iconSize),
-          if (widget.badge > 0)
-            Positioned(top: 0, right: 0, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle), constraints: const BoxConstraints(minWidth: 14, minHeight: 14), child: Text('${widget.badge}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), textAlign: TextAlign.center))),
-        ],
+      decoration: BoxDecoration(
+        color: widget.isActive ? color.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.1), 
+        borderRadius: BorderRadius.circular(12)
+      ),
+      child: Center(
+        child: Icon(widget.icon, color: color, size: iconSize),
       ),
     );
   }
-
-  TextStyle _titleStyle(bool isDark, double size) => TextStyle(fontWeight: FontWeight.w900, fontSize: size, letterSpacing: 0.5, color: isDark ? Colors.white : Colors.black87);
-  TextStyle _subtitleStyle(bool isDark, [double size = 11]) => TextStyle(fontSize: size, color: isDark ? Colors.white54 : Colors.black45, fontStyle: FontStyle.italic);
 }

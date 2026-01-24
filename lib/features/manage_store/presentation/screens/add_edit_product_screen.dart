@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously, dead_code
 import 'dart:io';
+import 'package:flutter/foundation.dart'; // IMPORTANTE: Para detectar si es Web (kIsWeb)
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -16,7 +17,6 @@ import 'package:proveedor_servicly_app/core/models/user_model.dart';
 import 'package:proveedor_servicly_app/core/services/category_service.dart';
 import 'package:proveedor_servicly_app/core/services/product_service.dart';
 import 'package:proveedor_servicly_app/core/services/storage_service.dart';
-// Usamos el alias para diferenciar tipos de datos
 import 'package:cloud_firestore/cloud_firestore.dart' as cloud_firestore; 
 
 class AddEditProductScreen extends StatelessWidget {
@@ -24,7 +24,6 @@ class AddEditProductScreen extends StatelessWidget {
   final ProductModel? product; 
   final CategoryModel? preselectedCategory;
   
-  // --- PARÁMETROS IA SERVI ---
   final String? initialName;
   final double? initialPrice;
   final double? initialStock;
@@ -68,7 +67,6 @@ class _AddEditProductContent extends StatefulWidget {
   final ProductModel? product;
   final CategoryModel? preselectedCategory;
   
-  // Parámetros IA
   final String? initialName;
   final double? initialPrice;
   final double? initialStock;
@@ -91,14 +89,12 @@ class _AddEditProductContent extends StatefulWidget {
 class _AddEditProductContentState extends State<_AddEditProductContent> {
   final _formKey = GlobalKey<FormState>();
   
-  // --- KEYS PARA EL TOUR (SHOWCASE) ---
   final GlobalKey _oneKey = GlobalKey(); 
   final GlobalKey _twoKey = GlobalKey(); 
   final GlobalKey _threeKey = GlobalKey(); 
   final GlobalKey _fourKey = GlobalKey(); 
   final GlobalKey _fiveKey = GlobalKey(); 
 
-  // Controladores
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _priceController;
@@ -109,7 +105,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
   late final TextEditingController _skuController;
   late final TextEditingController _inventoryCategoryController;
 
-  // --- VARIABLES DE ESTRUCTURA DE COSTOS ---
   double _costMaterials = 0;
   double _costLabor = 0;
   double _costOverhead = 0;
@@ -151,9 +146,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     final product = widget.product;
     
     _nameController = TextEditingController(text: product?.name ?? widget.initialName);
-    
-    String desc = product?.description ?? '';
-    _descriptionController = TextEditingController(text: desc);
+    _descriptionController = TextEditingController(text: product?.description ?? '');
     
     String priceText = product?.price.toString() ?? '';
     if (priceText.isEmpty && widget.initialPrice != null && widget.initialPrice! > 0) {
@@ -178,7 +171,6 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     _galleryItems = List<Map<String, dynamic>>.from(product?.mediaGallery ?? []);
   }
 
-  // --- LÓGICA DE ESTRUCTURA DE COSTOS ---
   void _updateTotalCost() {
     final total = _costMaterials + _costLabor + _costOverhead;
     setState(() {
@@ -286,7 +278,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     await Future.delayed(const Duration(seconds: 2)); 
     
     final productName = _nameController.text;
-    final generatedText = "✨ ¡Descubre el nuevo $productName! Diseñado para ofrecerte la mejor calidad y estilo. Ideal para quienes buscan durabilidad y confort en su día a día. ¡No te quedes sin el tuyo!";
+    final generatedText = "✨ ¡Descubre el nuevo $productName! Diseñado para ofrecerte la mejor calidad y estilo. Ideal para quienes buscan durabilidad y confort en su día a día.";
 
     setState(() {
       _descriptionController.text = generatedText;
@@ -328,13 +320,20 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
     
     if (video != null) {
       final tempDir = await getTemporaryDirectory();
-      final String? thumbPath = await VideoThumbnail.thumbnailFile(
-        video: video.path,
-        thumbnailPath: tempDir.path,
-        imageFormat: ImageFormat.JPEG,
-        maxWidth: 128,
-        quality: 75,
-      );
+      // Nota: VideoThumbnail puede fallar en web, aquí solo almacenamos el archivo
+      // para mostrar un icono genérico en el grid.
+      String? thumbPath;
+      if (!kIsWeb) {
+         try {
+            thumbPath = await VideoThumbnail.thumbnailFile(
+              video: video.path,
+              thumbnailPath: tempDir.path,
+              imageFormat: ImageFormat.JPEG,
+              maxWidth: 128,
+              quality: 75,
+            );
+         } catch (_) {}
+      }
 
       setState(() {
         _galleryItems.add({
@@ -445,47 +444,37 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // --- WEB LAYOUT (2 COLUMNAS) ---
+          // --- WEB LAYOUT (100% Pantalla, Sin Scroll) ---
           if (constraints.maxWidth > 900) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Columna Izquierda: Visuales y Datos Principales
-                Expanded(
-                  flex: 6,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32),
-                    child: _buildLeftColumn(theme, isDark),
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 13,
+                    child: _buildLeftColumnWeb(theme, isDark),
                   ),
-                ),
-                // Columna Derecha: Configuración y Gestión
-                Expanded(
-                  flex: 4,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(left: BorderSide(color: theme.dividerColor.withOpacity(0.1))),
-                      color: theme.cardColor.withOpacity(0.3),
-                    ),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(32),
-                      child: _buildRightColumn(theme, isDark),
-                    ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    flex: 7,
+                    child: _buildRightColumnWeb(theme, isDark),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           }
           
-          // --- MOBILE LAYOUT (1 COLUMNA) ---
+          // --- MOBILE LAYOUT ---
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Form(
               key: _formKey,
               child: Column(
                 children: [
-                  _buildLeftColumn(theme, isDark),
+                  _buildLeftColumnMobile(theme, isDark),
                   const SizedBox(height: 24),
-                  _buildRightColumn(theme, isDark),
+                  _buildRightColumnMobile(theme, isDark),
                 ],
               ),
             ),
@@ -496,40 +485,346 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
   }
 
   // ===========================================================================
-  // SUB-WIDGETS PARA LAYOUT
+  // ✨ WEB: PANEL IZQUIERDO
   // ===========================================================================
+  Widget _buildLeftColumnWeb(ThemeData theme, bool isDark) {
+    final onSurfaceColor = theme.colorScheme.onSurface;
+    final inputDecoration = _getInputDecoration(theme, isCompact: true);
 
-  Widget _buildLeftColumn(ThemeData theme, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch, 
+      children: [
+        // TARJETA SUPERIOR: Imagen + Datos
+        Container(
+          height: 220, 
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Imagen Cuadrada
+              AspectRatio(
+                aspectRatio: 1,
+                child: _ImagePickerWidget(
+                  title: 'Portada',
+                  onTap: _pickMainImage,
+                  imageFile: _mainImageFile,
+                  existingImageUrl: widget.product?.imageUrl,
+                  theme: theme,
+                  height: double.infinity, 
+                ),
+              ),
+              const SizedBox(width: 20),
+              
+              // Inputs (Derecha) 
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      style: TextStyle(color: onSurfaceColor),
+                      decoration: inputDecoration.copyWith(labelText: 'Nombre del Producto'),
+                      validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded( 
+                      child: TextFormField(
+                        controller: _descriptionController,
+                        style: TextStyle(color: onSurfaceColor),
+                        maxLines: null, 
+                        expands: true, 
+                        textAlignVertical: TextAlignVertical.top,
+                        decoration: inputDecoration.copyWith(
+                          labelText: 'Descripción Detallada',
+                          alignLabelWithHint: true,
+                          contentPadding: const EdgeInsets.all(12),
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary, size: 20), 
+                            onPressed: _generateAIDescription,
+                            tooltip: "Generar con IA",
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // SECCIÓN GALERÍA (EXPANDIDA)
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Galería Multimedia', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                          label: const Text('Agregar Fotos'),
+                          onPressed: _isUploading ? null : _pickGalleryImages,
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          icon: const Icon(Icons.video_call_outlined, size: 18),
+                          label: const Text('Agregar Video'),
+                          onPressed: _isUploading ? null : _pickGalleryVideo,
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Grid de Galería
+                Expanded(
+                  child: _galleryItems.isEmpty 
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.photo_library_outlined, size: 48, color: onSurfaceColor.withOpacity(0.2)),
+                            const SizedBox(height: 8),
+                            Text("Añade fotos o videos adicionales aquí", style: TextStyle(color: onSurfaceColor.withOpacity(0.4))),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(child: _buildGalleryGrid(isCompact: true)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✨ WEB: PANEL DERECHO 
+  Widget _buildRightColumnWeb(ThemeData theme, bool isDark) {
+    final onSurfaceColor = theme.colorScheme.onSurface;
+    final inputDecoration = _getInputDecoration(theme, isCompact: true);
+    final primaryColor = theme.colorScheme.primary;
+    
+    // Lógica visual de rentabilidad
+    final double currentPrice = double.tryParse(_priceController.text.replaceAll(',', '.')) ?? 0;
+    final double currentCost = double.tryParse(_costController.text.replaceAll(',', '.')) ?? 0;
+    final bool isLosingMoney = currentPrice < currentCost && currentCost > 0;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.cardColor.withOpacity(0.3), 
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Configuración', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+
+          // Categoría
+          _CategorySelector(
+            user: widget.user,
+            initialCategoryId: _selectedCategoryId,
+            onChanged: (id) => setState(() => _selectedCategoryId = id),
+            inputDecoration: inputDecoration,
+            theme: theme,
+          ),
+          const SizedBox(height: 12),
+
+          // Precio y Stock
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: _priceController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(labelText: 'Precio', prefixText: '\$ '),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                  validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: _quantityController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(labelText: 'Stock'),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Costos (Caja integrada)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isLosingMoney ? Colors.red.withOpacity(0.1) : theme.scaffoldBackgroundColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isLosingMoney ? Colors.redAccent : theme.dividerColor.withOpacity(0.1))
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('Costos', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.calculate_outlined, color: primaryColor, size: 18),
+                      onPressed: () => _showCostCalculator(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Calculadora',
+                    )
+                  ],
+                ),
+                const SizedBox(height: 4),
+                TextFormField(
+                  controller: _costController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(
+                    labelText: 'Costo Unitario', 
+                    prefixText: '\$ ',
+                    fillColor: theme.cardColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    isDense: true,
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (isLosingMoney) Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text("¡Cuidado! Pierdes dinero.", style: TextStyle(color: Colors.redAccent.withOpacity(0.8), fontSize: 11)),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // SKU y Ubicación
+          Row(
+            children: [
+              Expanded(
+                  child: TextFormField(
+                    controller: _skuController,
+                    style: TextStyle(color: onSurfaceColor),
+                    decoration: inputDecoration.copyWith(
+                      labelText: 'SKU',
+                      suffixIcon: IconButton(icon: Icon(Icons.qr_code_2, color: primaryColor, size: 20), onPressed: _generateAutoSKU, padding: EdgeInsets.zero),
+                    ),
+                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: TextFormField(
+                    controller: _inventoryCategoryController,
+                    style: TextStyle(color: onSurfaceColor),
+                    decoration: inputDecoration.copyWith(labelText: 'Ubicación'),
+                  ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _promoPriceController,
+            style: TextStyle(color: onSurfaceColor),
+            decoration: inputDecoration.copyWith(labelText: 'Precio Promo (Opcional)', prefixText: '\$ '),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+
+          const Spacer(), // EMPUJA EL BOTÓN AL FONDO
+          
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: FilledButton.icon(
+              onPressed: _isUploading ? null : _saveProduct,
+              icon: _isUploading 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.save, size: 20),
+              label: Text(_isEditing ? 'Guardar Cambios' : 'Crear Producto'),
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✨ VERSIÓN MOBILE: Diseño Vertical Clásico
+  Widget _buildLeftColumnMobile(ThemeData theme, bool isDark) {
     final onSurfaceColor = theme.colorScheme.onSurface;
     final inputDecoration = _getInputDecoration(theme);
 
-    // En Web, usamos Form separado si es 2 columnas, pero aquí 
-    // asumimos que el padre maneja el form en móvil. 
-    // En web, envolvemos en Form solo si es necesario, 
-    // pero para simplicidad usaremos un solo Form global key.
-    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Showcase(
-          key: _oneKey,
-          title: 'Foto de Portada',
-          description: 'Sube la mejor foto de tu producto.',
+        Center(
           child: _ImagePickerWidget(
             title: 'Imagen Principal',
             onTap: _pickMainImage,
             imageFile: _mainImageFile,
             existingImageUrl: widget.product?.imageUrl,
             theme: theme,
+            height: 180,
           ),
         ),
-        
-        const SizedBox(height: 32),
-        Text('Galería Multimedia', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 24),
+        TextFormField(
+          controller: _nameController,
+          style: TextStyle(color: onSurfaceColor),
+          decoration: inputDecoration.copyWith(labelText: 'Nombre del Producto'),
+          validator: (v) => v!.isEmpty ? 'Requerido' : null,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _descriptionController,
+          style: TextStyle(color: onSurfaceColor),
+          maxLines: 4,
+          decoration: inputDecoration.copyWith(
+            labelText: 'Descripción Detallada',
+            alignLabelWithHint: true,
+            suffixIcon: IconButton(icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary), onPressed: _generateAIDescription),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text('Galería Multimedia', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         _buildGalleryGrid(),
         const SizedBox(height: 16),
-        
         Row(
           children: [
             Expanded(
@@ -537,10 +832,7 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
                 icon: const Icon(Icons.add_photo_alternate_outlined),
                 label: const Text('Fotos'),
                 onPressed: _isUploading ? null : _pickGalleryImages,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: onSurfaceColor, 
-                  side: BorderSide(color: theme.dividerColor)
-                ),
+                style: OutlinedButton.styleFrom(foregroundColor: onSurfaceColor, side: BorderSide(color: theme.dividerColor)),
               ),
             ),
             const SizedBox(width: 16),
@@ -549,285 +841,165 @@ class _AddEditProductContentState extends State<_AddEditProductContent> {
                 icon: const Icon(Icons.video_call_outlined),
                 label: const Text('Video'),
                 onPressed: _isUploading ? null : _pickGalleryVideo,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: onSurfaceColor, 
-                  side: BorderSide(color: theme.dividerColor)
-                ),
+                style: OutlinedButton.styleFrom(foregroundColor: onSurfaceColor, side: BorderSide(color: theme.dividerColor)),
               ),
             ),
           ],
-        ),
-
-        const SizedBox(height: 32),
-        Text('Información Básica', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-        
-        Showcase(
-          key: _twoKey,
-          title: 'Nombre Claro',
-          description: 'Usa un nombre descriptivo.',
-          child: TextFormField(
-            controller: _nameController,
-            style: TextStyle(color: onSurfaceColor),
-            decoration: inputDecoration.copyWith(labelText: 'Nombre del Producto'),
-            validator: (v) => v!.isEmpty ? 'Requerido' : null,
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        Showcase(
-          key: _threeKey,
-          title: 'IA Mágica',
-          description: 'Genera descripciones automáticas.',
-          child: TextFormField(
-            controller: _descriptionController,
-            style: TextStyle(color: onSurfaceColor),
-            maxLines: 6,
-            decoration: inputDecoration.copyWith(
-              labelText: 'Descripción Detallada',
-              alignLabelWithHint: true,
-              suffixIcon: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                child: _isGeneratingAI 
-                  ? const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2))
-                  : IconButton(icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary), onPressed: _generateAIDescription),
-              ),
-            ),
-          ),
         ),
       ],
     );
   }
+  
+  Widget _buildRightColumnMobile(ThemeData theme, bool isDark) {
+     final onSurfaceColor = theme.colorScheme.onSurface;
+     final inputDecoration = _getInputDecoration(theme);
+     final primaryColor = theme.colorScheme.primary;
 
-  Widget _buildRightColumn(ThemeData theme, bool isDark) {
-    final onSurfaceColor = theme.colorScheme.onSurface;
-    final inputDecoration = _getInputDecoration(theme);
-    final primaryColor = theme.colorScheme.primary;
-    
-    // Lógica visual de rentabilidad
-    final double currentPrice = double.tryParse(_priceController.text.replaceAll(',', '.')) ?? 0;
-    final double currentCost = double.tryParse(_costController.text.replaceAll(',', '.')) ?? 0;
-    final bool isLosingMoney = currentPrice < currentCost && currentCost > 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Configuración y Precios', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-
-        _CategorySelector(
-          user: widget.user,
-          initialCategoryId: _selectedCategoryId,
-          onChanged: (id) => setState(() => _selectedCategoryId = id),
-          inputDecoration: inputDecoration,
-          theme: theme,
-        ),
-        const SizedBox(height: 16),
-
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                controller: _priceController,
-                style: TextStyle(color: onSurfaceColor),
-                decoration: inputDecoration.copyWith(labelText: 'Precio', prefixText: '\$ '),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() {}),
-                validator: (v) => v!.isEmpty ? 'Requerido' : null,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 1,
-              child: TextFormField(
-                controller: _quantityController,
-                style: TextStyle(color: onSurfaceColor),
-                decoration: inputDecoration.copyWith(labelText: 'Stock'),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // --- SECCIÓN DE COSTOS ---
-        Showcase(
-          key: _fourKey,
-          title: 'Análisis de Costos',
-          description: 'Define tu estructura de costos.',
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isLosingMoney ? Colors.red.withOpacity(0.1) : theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isLosingMoney ? Colors.redAccent : theme.dividerColor.withOpacity(0.1))
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.inventory_2_outlined, color: primaryColor, size: 20),
-                    const SizedBox(width: 8),
-                    Text('Estructura de Costos', style: theme.textTheme.titleMedium),
-                    const Spacer(),
-                    if (isLosingMoney) const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _costController,
+     return Column(
+       children: [
+         _CategorySelector(
+            user: widget.user,
+            initialCategoryId: _selectedCategoryId,
+            onChanged: (id) => setState(() => _selectedCategoryId = id),
+            inputDecoration: inputDecoration,
+            theme: theme,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: _priceController,
                   style: TextStyle(color: onSurfaceColor),
-                  decoration: inputDecoration.copyWith(
-                    labelText: 'Costo Unitario', 
-                    prefixText: '\$ ',
-                    fillColor: theme.scaffoldBackgroundColor,
-                    suffixIcon: IconButton(
-                      icon: Icon(Icons.calculate_outlined, color: primaryColor),
-                      onPressed: () => _showCostCalculator(context),
-                      tooltip: 'Abrir Calculadora',
-                    )
-                  ),
+                  decoration: inputDecoration.copyWith(labelText: 'Precio', prefixText: '\$ '),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                 ),
-                if (isLosingMoney) Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text("¡Alerta! Estás perdiendo dinero.", style: TextStyle(color: Colors.redAccent.withOpacity(0.8), fontSize: 12)),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 1,
+                child: TextFormField(
+                  controller: _quantityController,
+                  style: TextStyle(color: onSurfaceColor),
+                  decoration: inputDecoration.copyWith(labelText: 'Stock'),
+                  keyboardType: TextInputType.number,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        Row(
-          children: [
-            Expanded(
-                child: TextFormField(
-                  controller: _skuController,
-                  style: TextStyle(color: onSurfaceColor),
-                  decoration: inputDecoration.copyWith(
-                    labelText: 'SKU / Código',
-                    suffixIcon: IconButton(icon: Icon(Icons.qr_code_2, color: primaryColor), onPressed: _generateAutoSKU),
-                  ),
-                ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-                child: TextFormField(
-                  controller: _inventoryCategoryController,
-                  style: TextStyle(color: onSurfaceColor),
-                  decoration: inputDecoration.copyWith(labelText: 'Ubicación'),
-                ),
-            ),
-          ],
-        ),
-        
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _promoPriceController,
-          style: TextStyle(color: onSurfaceColor),
-          decoration: inputDecoration.copyWith(labelText: 'Precio Promo (Opcional)', prefixText: '\$ '),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        ),
-
-        const SizedBox(height: 32),
-        
-        Showcase(
-          key: _fiveKey,
-          title: 'Finalizar',
-          description: 'Guarda los cambios.',
-          child: SizedBox(
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _costController,
+            style: TextStyle(color: onSurfaceColor),
+            decoration: inputDecoration.copyWith(labelText: 'Costo Unitario', prefixText: '\$ '),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _isUploading ? null : _saveProduct,
-              icon: _isUploading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                : const Icon(Icons.save),
+              icon: const Icon(Icons.save),
               label: Text(_isEditing ? 'Guardar Cambios' : 'Crear Producto'),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 20),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
-        ),
-      ],
-    );
+          const SizedBox(height: 40),
+       ],
+     );
   }
 
-  InputDecoration _getInputDecoration(ThemeData theme) {
+  InputDecoration _getInputDecoration(ThemeData theme, {bool isCompact = false}) {
     return InputDecoration(
         filled: true,
         fillColor: theme.cardColor,
-        labelStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+        labelStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7), fontSize: 13),
         hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.4)),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        contentPadding: isCompact ? const EdgeInsets.symmetric(horizontal: 12, vertical: 14) : null,
+        isDense: isCompact, 
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), 
+          borderRadius: BorderRadius.circular(10), 
           borderSide: BorderSide(color: theme.dividerColor.withOpacity(0.1))
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), 
+          borderRadius: BorderRadius.circular(10), 
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2)
         ), 
-        prefixStyle: TextStyle(color: theme.colorScheme.onSurface, fontSize: 16)
+        prefixStyle: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14)
     );
   }
 
-  Widget _buildGalleryGrid() {
+  Widget _buildGalleryGrid({bool isCompact = false}) {
     if (_galleryItems.isEmpty) return const SizedBox.shrink();
+    
+    // Si es Web Compacto, Grid con más columnas
     return GridView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _galleryItems.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 8, mainAxisSpacing: 8),
-      itemBuilder: (context, index) {
-        final item = _galleryItems[index];
-        ImageProvider? img;
-        if (item['type'] == 'image') {
-          if (item.containsKey('file')) {
-            img = FileImage(File((item['file'] as XFile).path));
-          } else if (item.containsKey('url')) {
-            img = NetworkImage(item['url'] as String);
-          }
-        } else if (item['type'] == 'video') {
-          if (item.containsKey('thumbnailPath') && item['thumbnailPath'] != null) {
-            img = FileImage(File(item['thumbnailPath'] as String));
-          } else if (item.containsKey('thumbnailUrl') && item['thumbnailUrl'].toString().isNotEmpty) {
-            img = NetworkImage(item['thumbnailUrl'] as String);
-          }
-        }
-        return Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.black45,
-                borderRadius: BorderRadius.circular(8),
-                image: img != null ? DecorationImage(image: img, fit: BoxFit.cover) : null,
-              ),
-              child: item['type'] == 'video' ? const Center(child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 30)) : null,
-            ),
-            Positioned(
-              top: 2, right: 2,
-              child: GestureDetector(
-                onTap: () => _removeGalleryItem(index),
-                child: Container(
-                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                  child: const Icon(Icons.close, color: Colors.white, size: 18)
-                ),
-              ),
-            )
-          ],
-        );
-      },
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: isCompact ? 5 : 4, 
+        crossAxisSpacing: 8, 
+        mainAxisSpacing: 8
+      ),
+      itemBuilder: (context, index) => _buildGalleryItem(index),
     );
+  }
+
+  Widget _buildGalleryItem(int index) {
+      final item = _galleryItems[index];
+      ImageProvider? img;
+      
+      // ✅ FIX IMÁGENES WEB: Usar NetworkImage para blob URLs si es kIsWeb
+      if (item['type'] == 'image') {
+        if (item.containsKey('file')) {
+          final xfile = item['file'] as XFile;
+          if (kIsWeb) {
+             img = NetworkImage(xfile.path);
+          } else {
+             img = FileImage(File(xfile.path));
+          }
+        } else if (item.containsKey('url')) {
+          img = NetworkImage(item['url'] as String);
+        }
+      } else if (item['type'] == 'video') {
+        if (item.containsKey('thumbnailPath') && item['thumbnailPath'] != null && !kIsWeb) {
+          img = FileImage(File(item['thumbnailPath'] as String));
+        } else if (item.containsKey('thumbnailUrl') && item['thumbnailUrl'].toString().isNotEmpty) {
+          img = NetworkImage(item['thumbnailUrl'] as String);
+        }
+      }
+      
+      return Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black45,
+              borderRadius: BorderRadius.circular(8),
+              image: img != null ? DecorationImage(image: img, fit: BoxFit.cover) : null,
+            ),
+            // Icono video si no hay thumbnail o es video
+            child: item['type'] == 'video' ? const Center(child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 24)) : null,
+          ),
+          Positioned(
+            top: 2, right: 2,
+            child: GestureDetector(
+              onTap: () => _removeGalleryItem(index),
+              child: Container(
+                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                child: const Icon(Icons.close, color: Colors.white, size: 14)
+              ),
+            ),
+          )
+        ],
+      );
   }
 }
 
@@ -837,33 +1009,54 @@ class _ImagePickerWidget extends StatelessWidget {
   final String? existingImageUrl;
   final String title;
   final ThemeData theme;
+  final double height; 
 
-  const _ImagePickerWidget({required this.onTap, required this.title, this.imageFile, this.existingImageUrl, required this.theme});
+  const _ImagePickerWidget({
+    required this.onTap, 
+    required this.title, 
+    this.imageFile, 
+    this.existingImageUrl, 
+    required this.theme,
+    this.height = 150, 
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(children: [
-        Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Container(
-          width: 150, height: 150,
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(16), 
-            border: Border.all(color: theme.colorScheme.primary.withOpacity(0.5))
-          ),
-          child: _buildImage(theme),
-        )
-      ]),
+      child: Container(
+        width: double.infinity, 
+        height: height,
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor, 
+          borderRadius: BorderRadius.circular(12), 
+          border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3), style: BorderStyle.solid, width: 1.5)
+        ),
+        child: _buildImage(theme),
+      ),
     );
   }
   
   Widget _buildImage(ThemeData theme) {
-      if (imageFile != null) return ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(File(imageFile!.path), fit: BoxFit.cover));
-      if (existingImageUrl != null && existingImageUrl!.isNotEmpty) return ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(existingImageUrl!, fit: BoxFit.cover));
-      return Icon(Icons.add_a_photo, color: theme.colorScheme.onSurface.withOpacity(0.5), size: 40);
+      // ✅ FIX IMAGEN PRINCIPAL WEB
+      if (imageFile != null) {
+         if (kIsWeb) {
+            return ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(imageFile!.path, fit: BoxFit.cover));
+         } else {
+            return ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(imageFile!.path), fit: BoxFit.cover));
+         }
+      }
+      
+      if (existingImageUrl != null && existingImageUrl!.isNotEmpty) return ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(existingImageUrl!, fit: BoxFit.cover));
+      
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.add_a_photo, color: theme.colorScheme.onSurface.withOpacity(0.5), size: 32),
+          const SizedBox(height: 8),
+          Text(title, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5), fontSize: 12))
+        ],
+      );
   }
 }
 
@@ -888,14 +1081,14 @@ class _CategorySelector extends StatelessWidget {
     return StreamBuilder<List<CategoryModel>>(
       stream: categoryService.getCategories(user.uid),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const LinearProgressIndicator();
+        if (!snapshot.hasData) return const LinearProgressIndicator(minHeight: 2);
         final categories = snapshot.data!;
         return DropdownButtonFormField<String>(
           value: categories.any((c) => c.id == initialCategoryId) ? initialCategoryId : null,
           onChanged: onChanged,
           decoration: inputDecoration.copyWith(labelText: 'Categoría'),
           dropdownColor: theme.cardColor,
-          style: TextStyle(color: theme.colorScheme.onSurface),
+          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14),
           items: categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
         );
       },

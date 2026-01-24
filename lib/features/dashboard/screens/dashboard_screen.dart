@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:firebase_auth/firebase_auth.dart'; // IMPORTANTE: Para cerrar sesión
 
 // --- Imports de Utilidades ---
 import 'package:showcaseview/showcaseview.dart';
@@ -13,7 +14,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 // --- IMPORTS DE LA IA ---
 import 'package:proveedor_servicly_app/ai/services/voice_service.dart';
 import 'package:proveedor_servicly_app/ai/widgets/servi_avatar.dart';
-import 'package:proveedor_servicly_app/ai/services/gemini_service.dart';
 import 'package:proveedor_servicly_app/ai/screens/servi_chat_screen.dart';
 
 // --- IMPORTS PROACTIVOS ---
@@ -27,6 +27,9 @@ import 'package:proveedor_servicly_app/core/models/provider_profile_model.dart';
 import 'package:proveedor_servicly_app/core/services/firestore_service.dart';
 import 'package:proveedor_servicly_app/core/services/notification_service.dart';
 
+// --- Pantallas de Autenticación (Ajusta la ruta si es diferente) ---
+import 'package:proveedor_servicly_app/features/auth/screens/auth_screen.dart';
+
 // --- Módulos ---
 import 'package:proveedor_servicly_app/features/profile/screens/create_profile_screen.dart';
 import 'package:proveedor_servicly_app/features/public_profile/screens/public_profile_screen.dart';
@@ -36,12 +39,10 @@ import 'package:proveedor_servicly_app/features/home/screens/home_screen.dart';
 import 'package:proveedor_servicly_app/widgets/grids/dashboard/module_grid.dart'; 
 
 // --- Header y Provider ---
-import 'package:proveedor_servicly_app/widgets/header/servicly_header_widget.dart';
 import 'package:proveedor_servicly_app/features/dashboard/providers/dashboard_context_provider.dart';
 
-// --- Widgets de Métricas ---
-import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_cards/dashboard_screen/dashboard_summary_cards.dart' as summary_widgets;
-import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/dashboard_metrics_card.dart' as metric_widgets;
+// --- Widgets de Métricas y Nuevos Diseños ---
+import 'package:proveedor_servicly_app/features/dashboard/widgets/dashboard_v1/unified_control_center.dart'; 
 import 'package:proveedor_servicly_app/features/inventory/widgets/critical_stock_card.dart';
 
 // --- Layout ---
@@ -52,7 +53,7 @@ import 'package:proveedor_servicly_app/widgets/navigation/servicly_sidebar.dart'
 // CONSTANTES
 // ---------------------------------------------------------------------------
 const double kMobileBreakpoint = 1024.0; 
-const double kMaxWebWidth = 1440.0; 
+const double kMaxWebWidth = 1000.0; 
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -86,16 +87,15 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
   final GlobalKey _keyHeader = GlobalKey();
   final GlobalKey _keyPrompt = GlobalKey();
   final GlobalKey _keyMetrics = GlobalKey();
-  final GlobalKey _keySummaryCards = GlobalKey();
+  final GlobalKey _keyTools = GlobalKey(); 
   final GlobalKey _keyPublicProfile = GlobalKey();
-  final GlobalKey _keyModulesGrid = GlobalKey();
 
   final ServiVoiceService _voiceService = ServiVoiceService();
   final stt.SpeechToText _speech = stt.SpeechToText();
   
   bool _isSpeaking = false;
-  bool _isListening = false;
-  bool _isThinking = false;
+  final bool _isListening = false;
+  final bool _isThinking = false;
   bool _isMuted = false;
   
   final ProactiveLeadEngine _leadEngine = ProactiveLeadEngine();
@@ -133,7 +133,7 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
             }
           });
           Future.delayed(const Duration(seconds: 3), () {
-            if (_currentInsight == null) _checkProactiveInsights(user);
+            if (_currentInsight == null && mounted) _checkProactiveInsights(user);
           });
       }
       final notificationService = context.read<NotificationService>();
@@ -198,19 +198,53 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
 
   void _manualTourStart(BuildContext context) {
       _toggleMenu(false);
-      ShowCaseWidget.of(context).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
+      ShowCaseWidget.of(context).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keyPublicProfile, _keyTools]);
   }
   
   Future<void> _checkIfFirstTime(BuildContext context, UserModel user) async {
        final prefs = await SharedPreferences.getInstance();
-       final String tourKey = 'hasSeenNewDashboard_v4_${user.uid}'; 
+       final String tourKey = 'hasSeenNewDashboard_v6_${user.uid}'; 
        
        if (!mounted) return;
 
        if (!(prefs.getBool(tourKey) ?? false)) {
-           ShowCaseWidget.of(context).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keySummaryCards, _keyPublicProfile, _keyModulesGrid]);
+           ShowCaseWidget.of(context).startShowCase([_keyHeader, _keyPrompt, _keyMetrics, _keyPublicProfile, _keyTools]);
            prefs.setBool(tourKey, true);
        }
+  }
+
+  // --- LÓGICA DE CIERRE DE SESIÓN ---
+  Future<void> _confirmLogout(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(ctx).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [Icon(Icons.logout, color: Colors.redAccent), SizedBox(width: 10), Text("Cerrar Sesión")]),
+        content: const Text("¿Estás seguro que deseas salir de Servicly?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false), 
+            child: Text("Cancelar", style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface))
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true), 
+            child: const Text("Salir")
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && mounted) {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthScreen()), 
+          (route) => false
+        );
+      }
+    }
   }
 
   @override
@@ -228,13 +262,14 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
   Widget build(BuildContext context) {
     final userModel = context.watch<UserModel?>();
     final dashboardContext = context.watch<DashboardContext>();
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     if (userModel == null) return Center(child: CircularProgressIndicator(color: colors.primary));
 
     return ShowCaseWidget(
       onStart: (index, key) { },
-      onComplete: (index, key) { if (index == 5) _speak("¡Todo listo!"); },
+      onComplete: (index, key) { if (index == 4) _speak("¡Todo listo!"); },
       blurValue: 1,
       builder: (context) {
         if (_isTourCheckPending) {
@@ -248,8 +283,7 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
             if (moduleSnapshot.connectionState == ConnectionState.waiting) return const Scaffold(body: Center(child: CircularProgressIndicator()));
             
             final allModules = moduleSnapshot.data ?? [];
-            final activeModules = allModules.where((m) => userModel.activeModules.contains(m.moduleId)).toList()..sort((a, b) => a.defaultOrder.compareTo(b.defaultOrder));
-
+            
             return StreamBuilder<List<ProviderProfileModel>>(
               stream: _profilesStream,
               builder: (context, profileSnapshot) {
@@ -263,7 +297,7 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
                     index: _selectedIndex,
                     children: [
                       // TAB 0: DASHBOARD
-                      _buildDashboardTab(context, userModel, dashboardContext, profiles, activeModules, allModules),
+                      _buildDashboardTab(context, userModel, dashboardContext, profiles, allModules),
                       // OTROS TABS
                       const HomeScreen(),
                       const _PlaceholderScreen(title: 'Oportunidades'),
@@ -286,7 +320,6 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
     UserModel userModel,
     DashboardContext dashboardContext,
     List<ProviderProfileModel> profiles,
-    List<ModuleModel> activeModules,
     List<ModuleModel> allModules,
   ) {
     return Scrollbar(
@@ -302,26 +335,21 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
                 constraints: const BoxConstraints(maxWidth: kMaxWebWidth),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 20.0),
-                  child: _buildWebDashboardLayout(context, userModel, dashboardContext, activeModules, allModules, Theme.of(context), profiles),
+                  child: _buildWebDashboardLayout(context, userModel, dashboardContext, allModules, Theme.of(context), profiles),
                 ),
               ),
             );
           } else {
-            // MÓVIL: Scroll Normal
+            // MÓVIL: Scroll Normal con Padding Superior Ajustado
             return CustomScrollView(
               controller: _mainScrollController,
               slivers: [
-                SliverToBoxAdapter(
-                  child: Showcase(
-                    key: _keyHeader, title: 'Panel Principal', description: 'Tu centro de mando.',
-                    child: ServiclyHeader(userModel: userModel, profiles: profiles),
-                  ),
-                ),
                 SliverPadding(
-                  padding: const EdgeInsets.all(24.0),
+                  // PADDING AJUSTADO: 60px arriba para evitar solapamiento con la barra de estado
+                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate.fixed([
-                      _buildMobileContent(context, userModel, dashboardContext, activeModules, allModules, Theme.of(context))
+                      _buildMobileContent(context, userModel, dashboardContext, allModules, Theme.of(context), profiles)
                     ]),
                   ),
                 ),
@@ -335,191 +363,170 @@ class _DashboardContentState extends State<_DashboardContent> with TickerProvide
   }
 
   // -----------------------------------------------------------
-  // DISEÑO WEB COMPACTO (SINGLE VIEW OPTIMIZADO)
+  // DISEÑO WEB: SINGLE STACK (Depurado)
   // -----------------------------------------------------------
   Widget _buildWebDashboardLayout(
     BuildContext context,
     UserModel userModel,
     DashboardContext dashboardContext,
-    List<ModuleModel> activeModules,
     List<ModuleModel> allModules,
     ThemeData theme,
     List<ProviderProfileModel> profiles,
   ) {
-    final colors = theme.colorScheme;
     final selectedProfile = dashboardContext.selectedProfile;
-    final profileName = selectedProfile?.businessName ?? "Vista Global";
 
     return SingleChildScrollView(
       controller: _mainScrollController,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. HEADER COMPACTO
+          // 1. TOP BAR COMPACTA (Search + Notificaciones + LOGOUT)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Hola, ${userModel.displayName?.split(' ')[0] ?? 'Campeón'}", style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  Text(profileName, style: TextStyle(color: colors.onSurface.withValues(alpha: 0.6), fontSize: 14)),
-                ],
-              ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                  padding: const EdgeInsets.only(right: 24.0),
                   child: Showcase(
                     key: _keyPrompt, title: 'IA', description: 'Asistente.',
                     child: const _ServiPromptBarCompact(),
                   ),
                 ),
               ),
-              Row(
-                children: [
-                  IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_outlined)),
-                  const SizedBox(width: 12),
-                  CircleAvatar(backgroundImage: NetworkImage(userModel.photoUrl ?? ''), radius: 20),
-                ],
-              )
+              IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_outlined)),
+              const SizedBox(width: 8),
+              // BOTÓN LOGOUT WEB
+              IconButton(
+                onPressed: () => _confirmLogout(context), 
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                tooltip: "Cerrar Sesión",
+              ),
+              const SizedBox(width: 12),
+              CircleAvatar(backgroundImage: NetworkImage(userModel.photoUrl ?? ''), radius: 20),
             ],
           ),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 32),
 
-          // 2. GRID PRINCIPAL
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // COLUMNA IZQUIERDA (DATOS)
-              Expanded(
-                flex: 6, 
-                child: Column(
-                  children: [
-                    Showcase(
-                      key: _keyMetrics, title: 'Métricas', description: 'Rendimiento clave.',
-                      child: _WebDashboardCard(
-                        child: metric_widgets.DashboardMetricsCard(userModel: userModel),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    Showcase(
-                      key: _keySummaryCards, title: 'Finanzas', description: 'Estado del negocio.',
-                      child: _WebDashboardCard(
-                        title: "Finanzas & Pedidos",
-                        child: const summary_widgets.DashboardSummaryCards(),
-                      ),
-                    ),
-                    
-                    if (selectedProfile == null || selectedProfile?.publicProfileTemplate == 'store') ...[
-                      const SizedBox(height: 16),
-                      _WebDashboardCard(
-                        title: "Alertas",
-                        child: CriticalStockCard(user: userModel),
-                      ),
-                    ]
-                  ],
-                ),
-              ),
-              
-              const SizedBox(width: 20),
-
-              // COLUMNA DERECHA (ACCIONES Y HERRAMIENTAS)
-              Expanded(
-                flex: 4, 
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Showcase(
-                      key: _keyPublicProfile, title: 'Tu Negocio Digital', description: 'Compartilo.',
-                      child: _StoreStatusCard(userModel: userModel, selectedProfileId: selectedProfile?.id),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // --- NUEVO GRID UNIFICADO CON TARJETA ---
-                    _WebDashboardCard(
-                      title: "Herramientas",
-                      child: Showcase(
-                        key: _keyModulesGrid, title: 'Apps', description: 'Tus herramientas.',
-                        child: ModulesGrid(
-                          allModules: allModules, 
-                          user: userModel, 
-                          enableListView: true,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          // 2. UNIFIED CONTROL CENTER (NIVEL 1 - HERO)
+          Showcase(
+            key: _keyMetrics, title: 'Centro de Control', description: 'Visión general.',
+            child: UnifiedControlCenter(userModel: userModel, profiles: profiles),
           ),
-          const SizedBox(height: 20), 
+
+          const SizedBox(height: 24),
+
+          // 3. TIENDA DIGITAL (NIVEL 2)
+          Showcase(
+            key: _keyPublicProfile, title: 'Tu Negocio Digital', description: 'Compartilo.',
+            child: _StoreStatusCard(userModel: userModel, selectedProfileId: selectedProfile?.id),
+          ),
+          
+          const SizedBox(height: 24),
+
+          // 4. GRID DE HERRAMIENTAS (NIVEL 3)
+          _WebDashboardCard(
+            title: "Herramientas de Gestión",
+            child: Showcase(
+              key: _keyTools, title: 'Apps', description: 'Activa tus módulos.',
+              child: ModulesGrid(
+                allModules: allModules, 
+                user: userModel, 
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 40), 
         ],
       ),
     );
   }
 
-  // --- LAYOUT MÓVIL ---
+  // --- LAYOUT MÓVIL CON HEADER SUPERIOR ---
   Widget _buildMobileContent(
     BuildContext context,
     UserModel userModel,
     DashboardContext dashboardContext,
-    List<ModuleModel> activeModules,
     List<ModuleModel> allModules,
-    ThemeData theme
+    ThemeData theme,
+    List<ProviderProfileModel> profiles,
   ) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // --- NUEVO HEADER MÓVIL (Logo + Logout) ---
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Logo/Marca
+              RichText(
+                text: TextSpan(
+                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1),
+                  children: [
+                    TextSpan(text: 'SERVIC', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    TextSpan(text: 'LY', style: TextStyle(color: theme.colorScheme.primary)),
+                  ],
+                ),
+              ),
+              // Botón Logout
+              IconButton(
+                onPressed: () => _confirmLogout(context),
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.redAccent.withValues(alpha: 0.1),
+                  shape: const CircleBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         if (!userModel.isProfileComplete && dashboardContext.selectedProfile == null)
           Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
             child: AdaptiveCenter(child: _ProfileCompletionBanner(onCompleteProfile: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateProfileScreen())))),
           ),
 
-        Padding(
-          padding: const EdgeInsets.only(bottom: 24.0),
+        // 1. UNIFIED CONTROL CENTER (Hero)
+        Showcase(
+          key: _keyMetrics, title: 'Centro de Control', description: 'Tus números y estado.', 
+          child: UnifiedControlCenter(userModel: userModel, profiles: profiles),
+        ),
+        
+        const SizedBox(height: 20),
+
+        // 2. SEARCH BAR
+        Showcase(
+          key: _keyPrompt, title: 'IA', description: 'Asistente.',
+          child: const _ServiPromptBar(),
+        ),
+
+        const SizedBox(height: 24),
+        
+        // 3. Tarjeta de Tienda
+        Showcase(key: _keyPublicProfile, title: 'Perfil', description: 'Ver perfil.', child: AdaptiveCenter(maxWebWidth: 500, child: _StoreStatusCard(userModel: userModel, selectedProfileId: dashboardContext.selectedProfile?.id))),
+        const SizedBox(height: 24),
+
+        // 4. Grid de Herramientas
+        _WebDashboardCard(
+          title: "Mis Herramientas",
           child: Showcase(
-            key: _keyPrompt, title: 'IA', description: 'Asistente.',
-            child: const _ServiPromptBar(),
+            key: _keyTools, 
+            title: 'Apps', 
+            description: 'Tus herramientas.', 
+            child: ModulesGrid(
+              allModules: allModules, 
+              user: userModel, 
+            )
           ),
         ),
 
-        // En Móvil también envolvemos para consistencia
-        Showcase(
-          key: _keyMetrics, title: 'Métricas', description: 'Tus números.', 
-          child: _WebDashboardCard(child: metric_widgets.DashboardMetricsCard(userModel: userModel))
-        ),
-        const SizedBox(height: 20),
-        
-        Showcase(
-          key: _keySummaryCards, title: 'Resumen', description: 'Finanzas.', 
-          child: _WebDashboardCard(title: "Resumen", child: const summary_widgets.DashboardSummaryCards())
-        ),
-        const SizedBox(height: 20),
-
         if (dashboardContext.selectedProfile == null || dashboardContext.selectedProfile?.publicProfileTemplate == 'store') ...[
-          _WebDashboardCard(title: "Stock", child: CriticalStockCard(user: userModel)),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+          CriticalStockCard(user: userModel), 
         ],
-        
-        Showcase(key: _keyPublicProfile, title: 'Perfil', description: 'Ver perfil.', child: AdaptiveCenter(maxWebWidth: 500, child: _PublicProfileButton(userModel: userModel, selectedProfileId: dashboardContext.selectedProfile?.id))),
-        const SizedBox(height: 20),
-
-        Text('Mis Módulos', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-        
-        Showcase(
-          key: _keyModulesGrid, 
-          title: 'Apps', 
-          description: 'Herramientas.', 
-          child: ModulesGrid(
-            allModules: allModules, 
-            user: userModel, 
-          )
-        ),
       ],
     );
   }
@@ -567,14 +574,13 @@ class _ResponsiveShell extends StatelessWidget {
     return LayoutBuilder(builder: (context, constraints) {
       if (constraints.maxWidth < kMobileBreakpoint) {
         return Scaffold(
-          // FIX VISUAL: Usar scaffoldBackgroundColor en móvil también
           backgroundColor: theme.scaffoldBackgroundColor, 
           extendBodyBehindAppBar: true,
           body: body,
           floatingActionButton: Padding(padding: const EdgeInsets.only(bottom: 16.0), child: floatingActionButton),
           bottomNavigationBar: BottomNavigationBar(
             type: BottomNavigationBarType.fixed,
-            backgroundColor: theme.cardColor, // Navbar en cardColor
+            backgroundColor: theme.cardColor, 
             selectedItemColor: colors.primary,
             unselectedItemColor: colors.onSurface.withValues(alpha: 0.6),
             currentIndex: selectedIndex,
@@ -590,7 +596,6 @@ class _ResponsiveShell extends StatelessWidget {
         );
       } else {
         return Scaffold(
-          // FIX VISUAL: Usar scaffoldBackgroundColor en Web
           backgroundColor: theme.scaffoldBackgroundColor, 
           floatingActionButton: floatingActionButton,
           body: Row(
@@ -607,7 +612,6 @@ class _ResponsiveShell extends StatelessWidget {
 
 // --- WIDGETS AUXILIARES ---
 
-// Versión Original (Alta)
 class _ServiPromptBar extends StatelessWidget {
     const _ServiPromptBar();
     @override
@@ -623,18 +627,19 @@ class _ServiPromptBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: theme.cardColor, 
-                  borderRadius: BorderRadius.circular(12),
-                  // Borde visible
+                  borderRadius: BorderRadius.circular(16), 
                   border: Border.all(
                     color: isDark 
-                        ? theme.colorScheme.primary.withValues(alpha: 0.5) 
-                        : Colors.black.withValues(alpha: 0.1), 
+                        ? theme.colorScheme.primary.withValues(alpha: 0.3) 
+                        : Colors.black.withValues(alpha: 0.08), 
                     width: 1
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
+                      color: isDark 
+                          ? theme.colorScheme.primary.withValues(alpha: 0.05)
+                          : Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 12,
                       offset: const Offset(0, 4)
                     )
                   ]
@@ -646,7 +651,6 @@ class _ServiPromptBar extends StatelessWidget {
     }
 }
 
-// Versión Compacta (Baja) para Web Header
 class _ServiPromptBarCompact extends StatelessWidget {
     const _ServiPromptBarCompact();
     @override
@@ -662,7 +666,7 @@ class _ServiPromptBarCompact extends StatelessWidget {
                 height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: theme.cardColor, // Contraste contra el fondo del scaffold
+                  color: theme.cardColor, 
                   borderRadius: BorderRadius.circular(20), 
                   border: Border.all(
                     color: isDark 
@@ -677,7 +681,7 @@ class _ServiPromptBarCompact extends StatelessWidget {
     }
 }
 
-// WIDGET MÁGICO: Tarjeta con borde sutil para contraste en modo claro
+// WIDGET ADAPTABLE: Tarjeta contenedora para secciones
 class _WebDashboardCard extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -687,23 +691,22 @@ class _WebDashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
+    
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        // CORRECCIÓN VISUAL: Bordes visibles en Light Mode
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(24), 
         border: Border.all(
           color: isDark 
-              ? Colors.transparent 
-              : Colors.black.withValues(alpha: 0.08), // Gris suave visible
+              ? Colors.white.withValues(alpha: 0.1) 
+              : Colors.black.withValues(alpha: 0.08), 
           width: 1
         ),
         boxShadow: [
           BoxShadow(
             color: isDark 
-                ? Colors.black.withValues(alpha: 0.3) 
-                : Colors.black.withValues(alpha: 0.06), // Sombra más definida
+                ? Colors.black.withValues(alpha: 0.2) 
+                : Colors.black.withValues(alpha: 0.05),
             blurRadius: 16, 
             offset: const Offset(0, 6)
           )
@@ -715,10 +718,10 @@ class _WebDashboardCard extends StatelessWidget {
         children: [
           if (title != null) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Text(title!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: theme.colorScheme.onSurface.withValues(alpha: 0.8))),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(title!, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: theme.colorScheme.onSurface.withValues(alpha: 0.9))),
             ),
-            Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.1)),
+            Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.5)),
           ],
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -743,19 +746,25 @@ class _StoreStatusCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [colors.primary, colors.secondary]),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: colors.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))]
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+            BoxShadow(
+                color: colors.primary.withValues(alpha: 0.3), 
+                blurRadius: 12, 
+                offset: const Offset(0, 6)
+            )
+        ]
       ),
       child: Row(
         children: [
-          Icon(isCreated ? Icons.store : Icons.add_business, color: Colors.white, size: 22),
+          Icon(isCreated ? Icons.store : Icons.add_business, color: colors.onPrimary, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isCreated ? "Tienda Activa" : "Crear Tienda", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                if (!isCreated) Text("Empieza a vender", style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 11)),
+                Text(isCreated ? "Tienda Activa" : "Crear Tienda", style: TextStyle(color: colors.onPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+                if (!isCreated) Text("Empieza a vender", style: TextStyle(color: colors.onPrimary.withValues(alpha: 0.9), fontSize: 11)),
               ],
             ),
           ),
@@ -767,8 +776,15 @@ class _StoreStatusCard extends StatelessWidget {
                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => SelectProfileTemplateScreen(user: userModel)));
                }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: colors.primary, elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), minimumSize: const Size(60, 30)),
-            child: Text(isCreated ? "Ver" : "Crear", style: const TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: colors.surface, 
+                foregroundColor: colors.primary, 
+                elevation: 0, 
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
+                minimumSize: const Size(60, 30),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+            ),
+            child: Text(isCreated ? "Ver" : "Crear", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           )
         ],
       ),
@@ -781,7 +797,7 @@ class _PlaceholderScreen extends StatelessWidget {
   const _PlaceholderScreen({required this.title});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: Theme.of(context).colorScheme.surface, body: Center(child: Text('Próximamente: $title')));
+    return Scaffold(backgroundColor: Theme.of(context).colorScheme.surface, body: Center(child: Text('Próximamente: $title', style: TextStyle(color: Theme.of(context).colorScheme.onSurface))));
   }
 }
 
@@ -792,28 +808,6 @@ class _ProfileCompletionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    return ClipRRect(borderRadius: BorderRadius.circular(16), child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), child: Container(padding: const EdgeInsets.all(16.0), decoration: BoxDecoration(color: colors.surface.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(16), border: Border.all(color: colors.primary.withValues(alpha: 0.5))), child: Row(children: [Icon(Icons.info_outline_rounded, color: colors.primary, size: 32), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Finaliza la configuración', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text('Completa tu perfil para usar todo.', style: theme.textTheme.bodyMedium)])), FilledButton(onPressed: onCompleteProfile, child: const Text('COMPLETAR'))]))));
-  }
-}
-
-class _PublicProfileButton extends StatelessWidget {
-  final UserModel userModel;
-  final String? selectedProfileId;
-  const _PublicProfileButton({required this.userModel, this.selectedProfileId});
-  @override
-  Widget build(BuildContext context) {
-    final bool isProfileCreated = userModel.publicProfileCreated; 
-    return OutlinedButton.icon(
-      onPressed: () { 
-        if (isProfileCreated) {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => PublicProfileScreen(providerId: userModel.uid))); 
-        } else {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => SelectProfileTemplateScreen(user: userModel)));
-        }
-      }, 
-      icon: Icon(isProfileCreated ? Icons.visibility_outlined : Icons.add_circle_outline), 
-      label: Text(isProfileCreated ? (selectedProfileId == null ? 'Ver Perfil Principal' : 'Ver Perfil') : 'Crear Perfil Público'), 
-      style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50))
-    );
+    return ClipRRect(borderRadius: BorderRadius.circular(24), child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), child: Container(padding: const EdgeInsets.all(16.0), decoration: BoxDecoration(color: colors.surface.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(24), border: Border.all(color: colors.primary.withValues(alpha: 0.5))), child: Row(children: [Icon(Icons.info_outline_rounded, color: colors.primary, size: 32), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Finaliza la configuración', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colors.onSurface)), const SizedBox(height: 4), Text('Completa tu perfil para usar todo.', style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface))])), FilledButton(onPressed: onCompleteProfile, child: const Text('COMPLETAR'))]))));
   }
 }
